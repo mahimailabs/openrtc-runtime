@@ -1,12 +1,12 @@
 [project]
 name = "openrtc"
 dynamic = ["version"]
-description = "OpenRTC Python"
+description = "Run multiple LiveKit voice agents in a single shared worker process."
 readme = "README.md"
 authors = [
     { name = "Mahimai Raja J", email = "hello@mahimai.dev" }
 ]
-keywords = ["webrtc", "realtime", "audio", "openrtc", "livekit", "agents", "AI"]
+keywords = ["webrtc", "realtime", "audio", "openrtc", "livekit", "agents", "ai"]
 classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
@@ -17,17 +17,21 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3 :: Only",
 ]
 license = "MIT"
-requires-python = ">=3.10,<3.15"
-dependencies = []
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "livekit-agents[silero,turn-detector]~=1.4",
+]
 
 [project.urls]
 Homepage = "https://github.com/mahimailabs/openrtc"
 Repository = "https://github.com/mahimailabs/openrtc"
 Issues = "https://github.com/mahimailabs/openrtc/issues"
+
+[project.scripts]
+openrtc = "openrtc.cli:main"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -39,8 +43,6 @@ source = "vcs"
 [tool.hatch.version.raw-options]
 root = "."
 
-[tool.hatch.build.hooks.vcs]
-version-file = "src/openrtc_python/_version.py"
 
 [tool.pyright]
 typeCheckingMode = "off"
@@ -51,19 +53,19 @@ line-length = 88
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
 ]
 ignore = [
-    "E501",  # line too long, handled by black
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
-    "W191",  # indentation contains tabs
+    "E501",
+    "B008",
+    "C901",
+    "W191",
 ]
 
 [tool.mypy]
@@ -77,8 +79,9 @@ dev = [
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",
+    "pytest-asyncio>=1.2.0",
     "ruff>=0.15.6",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/openrtc_python"]
+packages = ["src/openrtc"]
