@@ -84,24 +84,28 @@ def test_discover_prefers_decorator_metadata_and_uses_pool_defaults(
     assert pool.list_agents() == ["dental", "restaurant"]
 
 
-def test_discover_supports_legacy_module_level_metadata(tmp_path: Path) -> None:
+def test_discover_uses_filename_and_pool_defaults_without_decorator(
+    tmp_path: Path,
+) -> None:
     _write_agent_module(
         tmp_path,
-        "legacy.py",
-        config_block=(
-            'AGENT_NAME = "legacy"\n'
-            'AGENT_STT = "deepgram/nova-3:multi"\n'
-            'AGENT_LLM = "openai/gpt-4.1-mini"\n'
-            'AGENT_TTS = "cartesia/sonic-3"\n'
-            'AGENT_GREETING = "Hello from legacy metadata."\n'
-        ),
+        "fallback_agent.py",
+        class_name="FallbackAgent",
     )
 
-    pool = AgentPool()
+    pool = AgentPool(
+        default_stt="deepgram/nova-3:multi",
+        default_llm="openai/gpt-4.1-mini",
+        default_tts="cartesia/sonic-3",
+        default_greeting="Hello from pool defaults.",
+    )
     discovered = pool.discover(tmp_path)
 
-    assert [config.name for config in discovered] == ["legacy"]
-    assert discovered[0].greeting == "Hello from legacy metadata."
+    assert [config.name for config in discovered] == ["fallback_agent"]
+    assert discovered[0].stt == "deepgram/nova-3:multi"
+    assert discovered[0].llm == "openai/gpt-4.1-mini"
+    assert discovered[0].tts == "cartesia/sonic-3"
+    assert discovered[0].greeting == "Hello from pool defaults."
 
 
 def test_discover_skips_private_modules(tmp_path: Path) -> None:

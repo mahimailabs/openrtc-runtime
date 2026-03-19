@@ -98,7 +98,12 @@ def agent_config(
 
 
 class AgentPool:
-    """Manage multiple LiveKit agents inside a single worker process."""
+    """Manage multiple LiveKit agents inside a single worker process.
+
+    ``AgentPool`` keeps user-defined agents as standard LiveKit ``Agent``
+    subclasses while centralizing the shared worker concerns OpenRTC adds:
+    prewarm, routing, and per-agent session construction.
+    """
 
     def __init__(
         self,
@@ -111,10 +116,14 @@ class AgentPool:
         """Create a pool with shared defaults, prewarm, and a universal entrypoint.
 
         Args:
-            default_stt: Default STT provider used when an agent does not override it.
-            default_llm: Default LLM provider used when an agent does not override it.
-            default_tts: Default TTS provider used when an agent does not override it.
-            default_greeting: Default greeting used when an agent does not override it.
+            default_stt: Default STT provider used when an agent does not override
+                it during ``add()`` or ``discover()``.
+            default_llm: Default LLM provider used when an agent does not override
+                it during ``add()`` or ``discover()``.
+            default_tts: Default TTS provider used when an agent does not override
+                it during ``add()`` or ``discover()``.
+            default_greeting: Default greeting used when an agent does not override
+                it during ``add()`` or ``discover()``.
         """
         self._server = AgentServer()
         self._agents: dict[str, AgentConfig] = {}
@@ -199,6 +208,11 @@ class AgentPool:
 
         Args:
             agents_dir: Directory containing Python files that define agent modules.
+                Each discovered module must define a local LiveKit ``Agent``
+                subclass. Optional OpenRTC overrides are read from the
+                ``@agent_config(...)`` decorator attached to that class. When a
+                field is omitted, ``AgentPool`` falls back to the module filename
+                for the agent name and to pool defaults for providers and greeting.
 
         Returns:
             The list of agent configurations registered from the directory.
@@ -206,8 +220,8 @@ class AgentPool:
         Raises:
             FileNotFoundError: If ``agents_dir`` does not exist.
             NotADirectoryError: If ``agents_dir`` is not a directory.
-            RuntimeError: If a module cannot be loaded or contains no local ``Agent``
-                subclass.
+            RuntimeError: If a module cannot be loaded or contains no local
+                ``Agent`` subclass.
         """
         directory = Path(agents_dir).expanduser().resolve()
         if not directory.exists():
@@ -423,13 +437,7 @@ class AgentPool:
         if metadata is not None:
             return metadata
 
-        return AgentDiscoveryConfig(
-            name=self._read_module_str(module, "AGENT_NAME"),
-            stt=getattr(module, "AGENT_STT", None),
-            llm=getattr(module, "AGENT_LLM", None),
-            tts=getattr(module, "AGENT_TTS", None),
-            greeting=self._read_module_str(module, "AGENT_GREETING"),
-        )
+        return AgentDiscoveryConfig()
 
     def _load_agent_module(self, module_path: Path) -> ModuleType:
         module_name = f"openrtc_discovered_{module_path.stem}"
@@ -459,12 +467,6 @@ class AgentPool:
         raise RuntimeError(
             f"Module '{module.__name__}' does not define a local Agent subclass."
         )
-
-    def _read_module_str(self, module: ModuleType, attribute_name: str) -> str | None:
-        value = getattr(module, attribute_name, None)
-        if value is None:
-            return None
-        return _normalize_optional_name(value, field_name=attribute_name)
 
     def _load_shared_runtime_dependencies(self) -> tuple[Any, type[Any]]:
         """Load the optional LiveKit runtime dependencies used during prewarm.
