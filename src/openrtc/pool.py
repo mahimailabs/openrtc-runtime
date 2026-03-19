@@ -331,9 +331,7 @@ class AgentPool:
                     return config
 
         default_agent = next(iter(self._agents.values()))
-        logger.info(
-            "Resolved agent '%s' via default fallback.", default_agent.name
-        )
+        logger.info("Resolved agent '%s' via default fallback.", default_agent.name)
         return default_agent
 
     async def _handle_session(self, ctx: JobContext) -> None:
