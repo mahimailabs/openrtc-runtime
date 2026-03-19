@@ -1,6 +1,6 @@
 [project]
 name = "openrtc"
-version = "0.0.1"
+dynamic = ["version"]
 description = "OpenRTC Python"
 readme = "README.md"
 authors = [
@@ -37,7 +37,7 @@ build-backend = "hatchling.build"
 source = "vcs"
 
 [tool.hatch.version.raw-options]
-root = "../.."
+root = "."
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/openrtc_python/_version.py"
@@ -71,3 +71,6 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openrtc_python"]
