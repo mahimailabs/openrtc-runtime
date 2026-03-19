@@ -22,7 +22,7 @@ classifiers = [
 license = "MIT"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "livekit-agents~=1.4",
+    "livekit-agents[silero,turn-detector]~=1.4",
 ]
 
 [project.urls]

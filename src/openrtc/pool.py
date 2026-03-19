@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
-from livekit.plugins import silero
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 logger = logging.getLogger("openrtc")
 
@@ -115,8 +113,9 @@ class AgentPool:
 
     def _prewarm(self, proc: JobProcess) -> None:
         """Load shared runtime assets into ``proc.userdata`` once per worker."""
-        proc.userdata["vad"] = silero.VAD.load()
-        proc.userdata["turn_detection"] = MultilingualModel()
+        silero_module, turn_detector_model = self._load_shared_runtime_dependencies()
+        proc.userdata["vad"] = silero_module.VAD.load()
+        proc.userdata["turn_detection"] = turn_detector_model()
 
     def _resolve_agent(self, ctx: JobContext) -> AgentConfig:
         """Resolve the agent for a session from metadata or fallback order.
@@ -134,16 +133,22 @@ class AgentPool:
         if not self._agents:
             raise RuntimeError("No agents are registered in the pool.")
 
-        selected_name = self._agent_name_from_metadata(getattr(ctx.job, "metadata", None))
+        selected_name = self._agent_name_from_metadata(
+            getattr(ctx.job, "metadata", None)
+        )
         if selected_name is not None:
             return self._get_registered_agent(selected_name, source="job metadata")
 
-        selected_name = self._agent_name_from_metadata(getattr(ctx.room, "metadata", None))
+        selected_name = self._agent_name_from_metadata(
+            getattr(ctx.room, "metadata", None)
+        )
         if selected_name is not None:
             return self._get_registered_agent(selected_name, source="room metadata")
 
         default_agent = next(iter(self._agents.values()))
-        logger.debug("No routing metadata found; defaulting to agent '%s'.", default_agent.name)
+        logger.debug(
+            "No routing metadata found; defaulting to agent '%s'.", default_agent.name
+        )
         return default_agent
 
     async def _handle_session(self, ctx: JobContext) -> None:
@@ -187,3 +192,24 @@ class AgentPool:
             raise ValueError(f"Unknown agent '{name}' requested via {source}.") from exc
         logger.debug("Resolved agent '%s' via %s.", name, source)
         return config
+
+    def _load_shared_runtime_dependencies(self) -> tuple[Any, type[Any]]:
+        """Load the optional LiveKit runtime dependencies used during prewarm.
+
+        Returns:
+            A tuple of the imported Silero module and the multilingual turn detector
+            model class.
+
+        Raises:
+            RuntimeError: If the required LiveKit plugins are not installed.
+        """
+        try:
+            from livekit.plugins import silero
+            from livekit.plugins.turn_detector.multilingual import MultilingualModel
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "OpenRTC requires the LiveKit Silero and turn-detector plugins. "
+                "Install the package with livekit-agents[silero,turn-detector]."
+            ) from exc
+
+        return silero, MultilingualModel

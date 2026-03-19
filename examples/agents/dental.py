@@ -7,10 +7,17 @@ class DentalAgent(Agent):
     """Example dental reception assistant."""
 
     def __init__(self) -> None:
-        super().__init__(instructions="You help patients schedule and prepare for dental visits.")
+        super().__init__(
+            instructions="You help patients schedule and prepare for dental visits."
+        )
 
     @function_tool
-    async def schedule_cleaning(self, context: RunContext, patient_name: str, date: str) -> str:
+    async def schedule_cleaning(
+        self,
+        context: RunContext,
+        patient_name: str,
+        date: str,
+    ) -> str:
         """Schedule a dental cleaning.
 
         Args:

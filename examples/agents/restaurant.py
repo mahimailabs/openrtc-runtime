@@ -7,10 +7,17 @@ class RestaurantAgent(Agent):
     """Example restaurant reservation assistant."""
 
     def __init__(self) -> None:
-        super().__init__(instructions="You help callers book and manage restaurant reservations.")
+        super().__init__(
+            instructions="You help callers book and manage restaurant reservations."
+        )
 
     @function_tool
-    async def check_availability(self, context: RunContext, party_size: int, time: str) -> str:
+    async def check_availability(
+        self,
+        context: RunContext,
+        party_size: int,
+        time: str,
+    ) -> str:
         """Check whether a reservation slot is available.
 
         Args:
@@ -24,7 +31,12 @@ class RestaurantAgent(Agent):
         return f"We can usually accommodate {party_size} guests around {time}."
 
     @function_tool
-    async def create_reservation(self, context: RunContext, name: str, time: str) -> str:
+    async def create_reservation(
+        self,
+        context: RunContext,
+        name: str,
+        time: str,
+    ) -> str:
         """Create a reservation request.
 
         Args:
