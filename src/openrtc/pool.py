@@ -1,0 +1,189 @@
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
+
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
+from livekit.plugins import silero
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
+
+logger = logging.getLogger("openrtc")
+
+
+@dataclass(slots=True)
+class AgentConfig:
+    """Configuration for a registered LiveKit agent.
+
+    Args:
+        name: Unique name used to identify and route to the agent.
+        agent_cls: A ``livekit.agents.Agent`` subclass.
+        stt: Speech-to-text provider string or provider instance.
+        llm: Large language model provider string or provider instance.
+        tts: Text-to-speech provider string or provider instance.
+        greeting: Optional initial greeting reserved for future use.
+    """
+
+    name: str
+    agent_cls: type[Agent]
+    stt: Any = None
+    llm: Any = None
+    tts: Any = None
+    greeting: str | None = None
+
+
+class AgentPool:
+    """Manage multiple LiveKit agents inside a single worker process."""
+
+    def __init__(self) -> None:
+        """Create a pool with shared prewarm and a universal session entrypoint."""
+        self._server = AgentServer()
+        self._agents: dict[str, AgentConfig] = {}
+        self._server.setup_fnc = self._prewarm
+
+        @self._server.rtc_session()
+        async def universal_session(ctx: JobContext) -> None:
+            await self._handle_session(ctx)
+
+    @property
+    def server(self) -> AgentServer:
+        """Return the underlying LiveKit ``AgentServer`` instance."""
+        return self._server
+
+    def add(
+        self,
+        name: str,
+        agent_cls: type[Agent],
+        *,
+        stt: Any = None,
+        llm: Any = None,
+        tts: Any = None,
+        greeting: str | None = None,
+    ) -> AgentConfig:
+        """Register an agent in the pool.
+
+        Args:
+            name: Unique name used for dispatch.
+            agent_cls: Agent subclass to instantiate per session.
+            stt: STT provider string or instance.
+            llm: LLM provider string or instance.
+            tts: TTS provider string or instance.
+            greeting: Optional greeting reserved for later milestones.
+
+        Returns:
+            The created agent configuration.
+
+        Raises:
+            TypeError: If ``agent_cls`` is not a LiveKit ``Agent`` subclass.
+            ValueError: If ``name`` is empty or already registered.
+        """
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise ValueError("Agent name must be a non-empty string.")
+        if normalized_name in self._agents:
+            raise ValueError(f"Agent '{normalized_name}' is already registered.")
+        if not isinstance(agent_cls, type) or not issubclass(agent_cls, Agent):
+            raise TypeError("agent_cls must be a subclass of livekit.agents.Agent.")
+
+        config = AgentConfig(
+            name=normalized_name,
+            agent_cls=agent_cls,
+            stt=stt,
+            llm=llm,
+            tts=tts,
+            greeting=greeting,
+        )
+        self._agents[normalized_name] = config
+        logger.debug("Registered agent '%s'.", normalized_name)
+        return config
+
+    def list_agents(self) -> list[str]:
+        """Return registered agent names in registration order."""
+        return list(self._agents)
+
+    def run(self) -> None:
+        """Run the LiveKit worker for the registered agents.
+
+        Raises:
+            RuntimeError: If no agents were registered before startup.
+        """
+        if not self._agents:
+            raise RuntimeError("Register at least one agent before calling run().")
+        cli.run_app(self._server)
+
+    def _prewarm(self, proc: JobProcess) -> None:
+        """Load shared runtime assets into ``proc.userdata`` once per worker."""
+        proc.userdata["vad"] = silero.VAD.load()
+        proc.userdata["turn_detection"] = MultilingualModel()
+
+    def _resolve_agent(self, ctx: JobContext) -> AgentConfig:
+        """Resolve the agent for a session from metadata or fallback order.
+
+        Args:
+            ctx: LiveKit job context for the incoming room session.
+
+        Returns:
+            The selected agent configuration.
+
+        Raises:
+            RuntimeError: If no agents are registered.
+            ValueError: If metadata references an unknown agent.
+        """
+        if not self._agents:
+            raise RuntimeError("No agents are registered in the pool.")
+
+        selected_name = self._agent_name_from_metadata(getattr(ctx.job, "metadata", None))
+        if selected_name is not None:
+            return self._get_registered_agent(selected_name, source="job metadata")
+
+        selected_name = self._agent_name_from_metadata(getattr(ctx.room, "metadata", None))
+        if selected_name is not None:
+            return self._get_registered_agent(selected_name, source="room metadata")
+
+        default_agent = next(iter(self._agents.values()))
+        logger.debug("No routing metadata found; defaulting to agent '%s'.", default_agent.name)
+        return default_agent
+
+    async def _handle_session(self, ctx: JobContext) -> None:
+        """Create and start a LiveKit ``AgentSession`` for the resolved agent."""
+        config = self._resolve_agent(ctx)
+        session = AgentSession(
+            stt=config.stt,
+            llm=config.llm,
+            tts=config.tts,
+            vad=ctx.proc.userdata["vad"],
+            turn_detection=ctx.proc.userdata["turn_detection"],
+        )
+
+        await session.start(agent=config.agent_cls(), room=ctx.room)
+        await ctx.connect()
+
+    def _agent_name_from_metadata(self, metadata: Any) -> str | None:
+        if metadata is None:
+            return None
+        if isinstance(metadata, Mapping):
+            value = metadata.get("agent")
+            return value.strip() if isinstance(value, str) and value.strip() else None
+        if isinstance(metadata, str):
+            stripped = metadata.strip()
+            if not stripped:
+                return None
+            try:
+                decoded = json.loads(stripped)
+            except json.JSONDecodeError:
+                logger.debug("Ignoring non-JSON metadata: %s", stripped)
+                return None
+            if isinstance(decoded, Mapping):
+                value = decoded.get("agent")
+                return value.strip() if isinstance(value, str) and value.strip() else None
+        return None
+
+    def _get_registered_agent(self, name: str, *, source: str) -> AgentConfig:
+        try:
+            config = self._agents[name]
+        except KeyError as exc:
+            raise ValueError(f"Unknown agent '{name}' requested via {source}.") from exc
+        logger.debug("Resolved agent '%s' via %s.", name, source)
+        return config
