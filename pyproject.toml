@@ -72,5 +72,13 @@ warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
 
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
+    "ruff>=0.15.6",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/openrtc_python"]
