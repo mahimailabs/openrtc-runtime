@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from openrtc import AgentPool
-
 from examples.agents.dental import DentalAgent
 from examples.agents.restaurant import RestaurantAgent
+from openrtc import AgentPool
 
 
 def main() -> None:
