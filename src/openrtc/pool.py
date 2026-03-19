@@ -182,7 +182,9 @@ class AgentPool:
                 return None
             if isinstance(decoded, Mapping):
                 value = decoded.get("agent")
-                return value.strip() if isinstance(value, str) and value.strip() else None
+                return (
+                    value.strip() if isinstance(value, str) and value.strip() else None
+                )
         return None
 
     def _get_registered_agent(self, name: str, *, source: str) -> AgentConfig:
