@@ -27,9 +27,10 @@ When a room is assigned to the worker:
 
 1. OpenRTC resolves the target agent from job metadata, room metadata, or the
    first registered agent.
-2. It creates an `AgentSession` using the selected agent configuration.
-3. It injects prewarmed VAD and turn detection models from `proc.userdata`.
-4. It starts the resolved agent instance and connects the LiveKit job context.
+2. Create an `AgentSession` using the selected agent configuration.
+3. Prewarmed VAD and turn detection models are injected from `proc.userdata`.
+4. The resolved agent instance is then started and connected to the LiveKit job
+   context.
 
 ## Shared runtime dependencies
 

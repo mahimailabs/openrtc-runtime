@@ -25,4 +25,5 @@ The current package is intentionally small and focused:
 - [Architecture](./concepts/architecture)
 - [AgentPool API](./api/pool)
 - [Examples](./examples)
+- [CLI](./cli)
 - [GitHub Pages deployment](./deployment/github-pages)

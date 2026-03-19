@@ -34,7 +34,7 @@ pool.add(
     "support",
     SupportAgent,
     stt="deepgram/nova-3:multi",
-    llm="openai/gpt-4.1-mini",
+    llm="openai/gpt-5-mini",
     tts="cartesia/sonic-3",
 )
 

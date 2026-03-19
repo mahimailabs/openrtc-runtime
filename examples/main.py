@@ -11,7 +11,7 @@ def main() -> None:
         "restaurant",
         RestaurantAgent,
         stt="deepgram/nova-3:multi",
-        llm="openai/gpt-4.1-mini",
+        llm="openai/gpt-5-mini",
         tts="cartesia/sonic-3",
         greeting="Welcome to OpenRTC restaurant reservations.",
     )
@@ -19,7 +19,7 @@ def main() -> None:
         "dental",
         DentalAgent,
         stt="deepgram/nova-3:multi",
-        llm="openai/gpt-4.1-mini",
+        llm="openai/gpt-5-mini",
         tts="cartesia/sonic-3",
         greeting="Welcome to OpenRTC dental scheduling.",
     )
