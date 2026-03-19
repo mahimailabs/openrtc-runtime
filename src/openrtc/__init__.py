@@ -1,6 +1,18 @@
 from __future__ import annotations
 
-from ._version import __version__
-from .pool import AgentConfig, AgentPool
+from importlib.metadata import PackageNotFoundError, version
 
-__all__ = ["AgentConfig", "AgentPool", "__version__"]
+from .pool import AgentConfig, AgentDiscoveryConfig, AgentPool, agent_config
+
+try:
+    __version__ = version("openrtc")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
+
+__all__ = [
+    "AgentConfig",
+    "AgentDiscoveryConfig",
+    "AgentPool",
+    "__version__",
+    "agent_config",
+]

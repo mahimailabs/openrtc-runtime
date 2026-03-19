@@ -1,28 +1,17 @@
 from __future__ import annotations
 
-from examples.agents.dental import DentalAgent
-from examples.agents.restaurant import RestaurantAgent
+from pathlib import Path
+
 from openrtc import AgentPool
 
 
 def main() -> None:
-    pool = AgentPool()
-    pool.add(
-        "restaurant",
-        RestaurantAgent,
-        stt="deepgram/nova-3:multi",
-        llm="openai/gpt-4.1-mini",
-        tts="cartesia/sonic-3",
-        greeting="Welcome to OpenRTC restaurant reservations.",
+    pool = AgentPool(
+        default_stt="deepgram/nova-3:multi",
+        default_llm="openai/gpt-4.1-mini",
+        default_tts="cartesia/sonic-3",
     )
-    pool.add(
-        "dental",
-        DentalAgent,
-        stt="deepgram/nova-3:multi",
-        llm="openai/gpt-4.1-mini",
-        tts="cartesia/sonic-3",
-        greeting="Welcome to OpenRTC dental scheduling.",
-    )
+    pool.discover(Path(__file__).with_name("agents"))
     pool.run()
 
 

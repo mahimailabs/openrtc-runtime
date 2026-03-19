@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from livekit.agents import Agent, RunContext, function_tool
 
+from openrtc import agent_config
 
+
+@agent_config(name="restaurant", greeting="Welcome to OpenRTC restaurant reservations.")
 class RestaurantAgent(Agent):
     """Example restaurant reservation assistant."""
 

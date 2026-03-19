@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from openrtc import AgentPool
+
+_AGENT_TEMPLATE = """from __future__ import annotations
+
+from livekit.agents import Agent
+from openrtc import agent_config
+
+{config_block}
+
+{decorator}class {class_name}(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions={instructions!r})
+"""
+
+
+def _write_agent_module(
+    directory: Path,
+    filename: str,
+    *,
+    class_name: str = "DiscoveredAgent",
+    instructions: str = "A discovered agent.",
+    config_block: str = "",
+    decorator: str = "",
+) -> None:
+    directory.joinpath(filename).write_text(
+        _AGENT_TEMPLATE.format(
+            class_name=class_name,
+            instructions=instructions,
+            config_block=config_block,
+            decorator=decorator,
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_discover_prefers_decorator_metadata_and_uses_pool_defaults(
+    tmp_path: Path,
+) -> None:
+    _write_agent_module(
+        tmp_path,
+        "restaurant.py",
+        decorator=(
+            "@agent_config(\n"
+            '    name="restaurant",\n'
+            '    stt="deepgram/nova-3:multi",\n'
+            '    llm="openai/gpt-4.1-mini",\n'
+            '    greeting="Welcome to reservations.",\n'
+            ")\n"
+        ),
+    )
+    _write_agent_module(
+        tmp_path,
+        "dental.py",
+        class_name="DentalAgent",
+        decorator='@agent_config(name="dental")\n',
+    )
+
+    pool = AgentPool(
+        default_stt="fallback-stt",
+        default_llm="fallback-llm",
+        default_tts="fallback-tts",
+        default_greeting="fallback greeting",
+    )
+    discovered = pool.discover(tmp_path)
+
+    assert [config.name for config in discovered] == ["dental", "restaurant"]
+    dental = next(config for config in discovered if config.name == "dental")
+    assert dental.stt == "fallback-stt"
+    assert dental.llm == "fallback-llm"
+    assert dental.tts == "fallback-tts"
+    assert dental.greeting == "fallback greeting"
+
+    restaurant = next(config for config in discovered if config.name == "restaurant")
+    assert restaurant.stt == "deepgram/nova-3:multi"
+    assert restaurant.llm == "openai/gpt-4.1-mini"
+    assert restaurant.tts == "fallback-tts"
+    assert restaurant.greeting == "Welcome to reservations."
+    assert pool.list_agents() == ["dental", "restaurant"]
+
+
+def test_discover_supports_legacy_module_level_metadata(tmp_path: Path) -> None:
+    _write_agent_module(
+        tmp_path,
+        "legacy.py",
+        config_block=(
+            'AGENT_NAME = "legacy"\n'
+            'AGENT_STT = "deepgram/nova-3:multi"\n'
+            'AGENT_LLM = "openai/gpt-4.1-mini"\n'
+            'AGENT_TTS = "cartesia/sonic-3"\n'
+            'AGENT_GREETING = "Hello from legacy metadata."\n'
+        ),
+    )
+
+    pool = AgentPool()
+    discovered = pool.discover(tmp_path)
+
+    assert [config.name for config in discovered] == ["legacy"]
+    assert discovered[0].greeting == "Hello from legacy metadata."
+
+
+def test_discover_skips_private_modules(tmp_path: Path) -> None:
+    _write_agent_module(tmp_path, "_hidden.py")
+    _write_agent_module(
+        tmp_path, "visible.py", decorator='@agent_config(name="visible")\n'
+    )
+
+    pool = AgentPool()
+    discovered = pool.discover(tmp_path)
+
+    assert [config.name for config in discovered] == ["visible"]
+
+
+def test_discover_raises_for_import_errors(tmp_path: Path) -> None:
+    tmp_path.joinpath("broken.py").write_text("raise RuntimeError('boom')\n")
+
+    pool = AgentPool()
+
+    with pytest.raises(RuntimeError, match="Failed to import agent module 'broken.py'"):
+        pool.discover(tmp_path)
+
+
+def test_discover_raises_when_no_local_agent_subclass_exists(tmp_path: Path) -> None:
+    tmp_path.joinpath("helper.py").write_text(
+        "from livekit.agents import Agent\nAlias = Agent\n",
+        encoding="utf-8",
+    )
+
+    pool = AgentPool()
+
+    with pytest.raises(RuntimeError, match="does not define a local Agent subclass"):
+        pool.discover(tmp_path)
+
+
+def test_discover_ignores_imported_agent_subclasses(tmp_path: Path) -> None:
+    module_path = tmp_path / "imported.py"
+    module_path.write_text(
+        "from __future__ import annotations\n\n"
+        "from livekit.agents import Agent as ImportedBaseAgent\n"
+        "from openrtc import agent_config\n\n"
+        "@agent_config(name='local')\n"
+        "class LocalAgent(ImportedBaseAgent):\n"
+        "    def __init__(self) -> None:\n"
+        "        super().__init__(instructions='local')\n",
+        encoding="utf-8",
+    )
+
+    pool = AgentPool()
+    discovered = pool.discover(tmp_path)
+
+    assert [config.name for config in discovered] == ["local"]
+    assert discovered[0].agent_cls.__name__ == "LocalAgent"
