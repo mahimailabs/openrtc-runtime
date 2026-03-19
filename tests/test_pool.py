@@ -26,6 +26,22 @@ def test_add_registers_agent() -> None:
     assert pool.list_agents() == ["test"]
 
 
+def test_add_uses_pool_defaults_when_agent_values_are_omitted() -> None:
+    pool = AgentPool(
+        default_stt="deepgram/nova-3:multi",
+        default_llm="openai/gpt-4.1-mini",
+        default_tts="cartesia/sonic-3",
+        default_greeting="Hello from OpenRTC.",
+    )
+
+    config = pool.add("test", DemoAgent)
+
+    assert config.stt == "deepgram/nova-3:multi"
+    assert config.llm == "openai/gpt-4.1-mini"
+    assert config.tts == "cartesia/sonic-3"
+    assert config.greeting == "Hello from OpenRTC."
+
+
 def test_add_duplicate_name_raises() -> None:
     pool = AgentPool()
     pool.add("test", DemoAgent)

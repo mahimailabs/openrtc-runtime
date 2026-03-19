@@ -51,10 +51,21 @@ def test_discover_finds_agents_and_reads_module_config(tmp_path: Path) -> None:
     )
     _write_agent_module(tmp_path, "dental.py", class_name="DentalAgent")
 
-    pool = AgentPool()
+    pool = AgentPool(
+        default_stt="fallback-stt",
+        default_llm="fallback-llm",
+        default_tts="fallback-tts",
+        default_greeting="fallback greeting",
+    )
     discovered = pool.discover(tmp_path)
 
     assert [config.name for config in discovered] == ["dental", "restaurant"]
+    dental = next(config for config in discovered if config.name == "dental")
+    assert dental.stt == "fallback-stt"
+    assert dental.llm == "fallback-llm"
+    assert dental.tts == "fallback-tts"
+    assert dental.greeting == "fallback greeting"
+
     restaurant = next(config for config in discovered if config.name == "restaurant")
     assert restaurant.stt == "deepgram/nova-3:multi"
     assert restaurant.llm == "openai/gpt-4.1-mini"

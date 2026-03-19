@@ -38,10 +38,28 @@ class AgentConfig:
 class AgentPool:
     """Manage multiple LiveKit agents inside a single worker process."""
 
-    def __init__(self) -> None:
-        """Create a pool with shared prewarm and a universal session entrypoint."""
+    def __init__(
+        self,
+        *,
+        default_stt: Any = None,
+        default_llm: Any = None,
+        default_tts: Any = None,
+        default_greeting: str | None = None,
+    ) -> None:
+        """Create a pool with shared defaults, prewarm, and a universal entrypoint.
+
+        Args:
+            default_stt: Default STT provider used when an agent does not override it.
+            default_llm: Default LLM provider used when an agent does not override it.
+            default_tts: Default TTS provider used when an agent does not override it.
+            default_greeting: Default greeting used when an agent does not override it.
+        """
         self._server = AgentServer()
         self._agents: dict[str, AgentConfig] = {}
+        self._default_stt = default_stt
+        self._default_llm = default_llm
+        self._default_tts = default_tts
+        self._default_greeting = default_greeting
         self._server.setup_fnc = self._prewarm
 
         @self._server.rtc_session()
@@ -91,10 +109,10 @@ class AgentPool:
         config = AgentConfig(
             name=normalized_name,
             agent_cls=agent_cls,
-            stt=stt,
-            llm=llm,
-            tts=tts,
-            greeting=greeting,
+            stt=self._resolve_provider(stt, self._default_stt),
+            llm=self._resolve_provider(llm, self._default_llm),
+            tts=self._resolve_provider(tts, self._default_tts),
+            greeting=self._resolve_greeting(greeting),
         )
         self._agents[normalized_name] = config
         logger.debug("Registered agent '%s'.", normalized_name)
@@ -245,6 +263,12 @@ class AgentPool:
             raise ValueError(f"Unknown agent '{name}' requested via {source}.") from exc
         logger.debug("Resolved agent '%s' via %s.", name, source)
         return config
+
+    def _resolve_provider(self, value: Any, default_value: Any) -> Any:
+        return default_value if value is None else value
+
+    def _resolve_greeting(self, greeting: str | None) -> str | None:
+        return self._default_greeting if greeting is None else greeting
 
     def _load_agent_module(self, module_path: Path) -> ModuleType:
         module_name = f"openrtc_discovered_{module_path.stem}"
