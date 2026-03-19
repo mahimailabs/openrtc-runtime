@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import sys
 import types
 from pathlib import Path
@@ -11,7 +12,9 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 
-if "livekit.agents" not in sys.modules:
+try:
+    importlib.import_module("livekit.agents")
+except ImportError:
     livekit_module = types.ModuleType("livekit")
     agents_module = types.ModuleType("livekit.agents")
 
