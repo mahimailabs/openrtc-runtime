@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from livekit.agents import Agent
 
 from openrtc import AgentPool
 
@@ -138,21 +137,16 @@ def test_discover_raises_when_no_local_agent_subclass_exists(tmp_path: Path) -> 
         pool.discover(tmp_path)
 
 
-class ImportedBaseAgent(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions="base")
-
-
 def test_discover_ignores_imported_agent_subclasses(tmp_path: Path) -> None:
     module_path = tmp_path / "imported.py"
     module_path.write_text(
         "from __future__ import annotations\n\n"
-        "from tests.test_discovery import ImportedBaseAgent\n"
+        "from livekit.agents import Agent as ImportedBaseAgent\n"
         "from openrtc import agent_config\n\n"
         "@agent_config(name='local')\n"
         "class LocalAgent(ImportedBaseAgent):\n"
         "    def __init__(self) -> None:\n"
-        "        super().__init__()\n",
+        "        super().__init__(instructions='local')\n",
         encoding="utf-8",
     )
 
