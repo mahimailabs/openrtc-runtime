@@ -29,7 +29,7 @@ jobs:
           python -m pip install -e ".[cli]" pytest pytest-asyncio pytest-cov
 
       - name: Run tests with coverage
-        run: pytest --cov=openrtc --cov-report=xml
+        run: pytest --cov=openrtc --cov-report=xml --cov-fail-under=80
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

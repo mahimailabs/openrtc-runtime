@@ -415,4 +415,5 @@ All commands are documented in `CONTRIBUTING.md`. Quick reference:
 - Version is derived from git tags via `hatch-vcs`. In a dev checkout the version will be something like `0.0.9.dev0+g<hash>`.
 - `mypy` has 3 pre-existing errors in `pool.py` — these are not regressions from your changes.
 - Running `openrtc start` or `openrtc dev` requires a running LiveKit server and provider API keys. For development validation, use `openrtc list` which exercises discovery and routing without network dependencies.
-- `pytest-cov` is in the dev dependency group; run `uv run pytest --cov=openrtc --cov-report=xml` like CI.
+- `pytest-cov` is in the dev dependency group; CI uses `--cov-fail-under=80`; run
+  `uv run pytest --cov=openrtc --cov-report=xml --cov-fail-under=80` to match.
