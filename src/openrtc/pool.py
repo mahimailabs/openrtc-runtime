@@ -111,7 +111,8 @@ class AgentConfig:
         tts: Text-to-speech provider string or provider instance.
         greeting: Optional initial greeting played after the session connects.
         session_kwargs: Additional keyword arguments forwarded to ``AgentSession``.
-        source_path: When known (e.g. after discovery), path to the defining ``.py`` file.
+        source_path: When known (e.g. after discovery), filesystem path to the agent
+            module ``.py`` file; ``None`` when unknown (e.g. programmatic ``add()`` without path).
     """
 
     name: str
@@ -122,7 +123,6 @@ class AgentConfig:
     greeting: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=dict)
     source_path: Path | None = None
-    """Filesystem path to the agent module when registered via discovery, else ``None``."""
     _agent_ref: _AgentClassRef = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:

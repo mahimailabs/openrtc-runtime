@@ -46,8 +46,41 @@ def _pool_kwargs(
     }
 
 
+def _livekit_sys_argv(subcommand: str) -> None:
+    """Set ``sys.argv`` for ``livekit.agents.cli.run_app`` without dropping user flags.
+
+    When the process was not started as ``openrtc <subcommand> ...`` (e.g. tests
+    that patch ``sys.argv``), only ``[argv0, subcommand]`` is used.
+    """
+    prog = sys.argv[0]
+    if len(sys.argv) >= 2 and sys.argv[1] == subcommand:
+        sys.argv = [prog, subcommand, *sys.argv[2:]]
+    else:
+        sys.argv = [prog, subcommand]
+
+
 def _discover_or_exit(agents_dir: Path, pool: AgentPool) -> list[AgentConfig]:
-    discovered = pool.discover(agents_dir)
+    try:
+        discovered = pool.discover(agents_dir)
+    except FileNotFoundError:
+        logger.error(
+            "Agents directory does not exist: %s. Pass a valid --agents-dir path.",
+            agents_dir,
+        )
+        raise typer.Exit(code=1) from None
+    except NotADirectoryError:
+        logger.error(
+            "--agents-dir is not a directory: %s. Pass a directory of agent modules.",
+            agents_dir,
+        )
+        raise typer.Exit(code=1) from None
+    except PermissionError as exc:
+        logger.error(
+            "Permission denied reading agents directory %s: %s",
+            agents_dir,
+            exc,
+        )
+        raise typer.Exit(code=1) from exc
     if not discovered:
         logger.error("No agent modules were discovered in %s.", agents_dir)
         raise typer.Exit(code=1)
@@ -194,7 +227,7 @@ def _print_list_rich_table(
     table.add_column("TTS")
     table.add_column("Greeting")
     if resources:
-        table.add_column("Source file", style="dim")
+        table.add_column("Source size", style="dim")
 
     for config in discovered:
         greeting = "" if config.greeting is None else config.greeting
@@ -230,7 +263,7 @@ def _print_list_plain(
         )
         if resources and config.source_path is not None:
             sz = file_size_bytes(config.source_path)
-            line += f", source_file={format_byte_size(sz)}"
+            line += f", source_size={format_byte_size(sz)}"
         print(line)
 
     if resources:
@@ -300,7 +333,7 @@ def start_command(
         **_pool_kwargs(default_stt, default_llm, default_tts, default_greeting)
     )
     _discover_or_exit(agents_dir, pool)
-    sys.argv = [sys.argv[0], "start"]
+    _livekit_sys_argv("start")
     pool.run()
 
 
@@ -317,7 +350,7 @@ def dev_command(
         **_pool_kwargs(default_stt, default_llm, default_tts, default_greeting)
     )
     _discover_or_exit(agents_dir, pool)
-    sys.argv = [sys.argv[0], "dev"]
+    _livekit_sys_argv("dev")
     pool.run()
 
 

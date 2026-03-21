@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import logging
-import resource
 import sys
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - stdlib ``resource`` is Unix-only
+    resource = None
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -158,6 +162,8 @@ def _linux_rss_bytes() -> int | None:
 
 def _macos_rss_bytes() -> int | None:
     """Return ``ru_maxrss`` on Darwin (bytes per CPython; max resident set, not current RSS)."""
+    if resource is None:
+        return None
     try:
         usage = resource.getrusage(resource.RUSAGE_SELF)
     except OSError:

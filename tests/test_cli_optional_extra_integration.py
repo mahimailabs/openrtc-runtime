@@ -44,11 +44,15 @@ from openrtc.cli import main
 
 sys.exit(main(["list", "--agents-dir", "."]))
 """
-    proc = subprocess.run(
-        [sys.executable, "-c", code],
-        cwd=_REPO_ROOT,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"subprocess timed out: {exc!r}")
     assert proc.returncode == 1, proc.stderr + proc.stdout
     assert "openrtc[cli]" in (proc.stderr + proc.stdout)

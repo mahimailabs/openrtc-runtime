@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -174,6 +175,18 @@ def test_cli_returns_non_zero_when_no_agents_are_discovered(
     exit_code = main(["list", "--agents-dir", "./agents"])
 
     assert exit_code == 1
+
+
+def test_list_exits_cleanly_when_agents_dir_does_not_exist(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    missing = tmp_path / "nonexistent_agents"
+    runner = CliRunner()
+    with caplog.at_level(logging.ERROR, logger="openrtc"):
+        result = runner.invoke(app, ["list", "--agents-dir", str(missing)])
+    assert result.exit_code == 1
+    assert "does not exist" in caplog.text
 
 
 def test_cli_entrypoint_documents_optional_extra() -> None:
