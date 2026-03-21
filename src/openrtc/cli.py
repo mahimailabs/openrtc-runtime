@@ -1,93 +1,56 @@
+"""Console script entrypoint for OpenRTC.
+
+The Typer/Rich implementation lives in :mod:`openrtc.cli_app` and is installed
+with the optional extra ``openrtc[cli]``.
+"""
+
 from __future__ import annotations
 
-import argparse
-import logging
+import importlib
 import sys
-from pathlib import Path
 from typing import Any
 
-from openrtc.pool import AgentPool
+CLI_EXTRA_INSTALL_HINT = (
+    "The OpenRTC CLI requires optional dependencies. "
+    "Install with: pip install 'openrtc[cli]'"
+)
 
-logger = logging.getLogger("openrtc")
 
+def _optional_typer_rich_missing() -> bool:
+    """Return True only when ``typer`` or ``rich`` cannot be imported.
 
-def build_parser() -> argparse.ArgumentParser:
-    """Create the OpenRTC command-line parser."""
-    parser = argparse.ArgumentParser(
-        prog="openrtc",
-        description="Discover and run multiple LiveKit agents in one worker.",
-    )
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    for command_name in ("start", "dev", "list"):
-        command_parser = subparsers.add_parser(command_name)
-        command_parser.add_argument(
-            "--agents-dir",
-            type=Path,
-            required=True,
-            help="Directory containing discoverable agent modules.",
-        )
-        command_parser.add_argument(
-            "--default-stt",
-            help=(
-                "Default STT provider used when a discovered agent does not "
-                "override STT via @agent_config(...)."
-            ),
-        )
-        command_parser.add_argument(
-            "--default-llm",
-            help=(
-                "Default LLM provider used when a discovered agent does not "
-                "override LLM via @agent_config(...)."
-            ),
-        )
-        command_parser.add_argument(
-            "--default-tts",
-            help=(
-                "Default TTS provider used when a discovered agent does not "
-                "override TTS via @agent_config(...)."
-            ),
-        )
-        command_parser.add_argument(
-            "--default-greeting",
-            help=(
-                "Default greeting used when a discovered agent does not "
-                "override greeting via @agent_config(...)."
-            ),
-        )
-
-    return parser
+    Any other :exc:`ModuleNotFoundError` (e.g. a sub-dependency of Typer, or a
+    missing core package) is re-raised so callers see the real failure rather
+    than the optional-extra install hint.
+    """
+    try:
+        importlib.import_module("typer")
+        importlib.import_module("rich")
+    except ModuleNotFoundError as exc:
+        if exc.name in ("typer", "rich"):
+            return True
+        raise
+    return False
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the OpenRTC CLI."""
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    pool = AgentPool(**_pool_kwargs_from_args(args))
-    discovered = pool.discover(args.agents_dir)
-    if not discovered:
-        logger.error("No agent modules were discovered in %s.", args.agents_dir)
+    """Run the OpenRTC CLI when optional ``cli`` dependencies are installed."""
+    if _optional_typer_rich_missing():
+        print(CLI_EXTRA_INSTALL_HINT, file=sys.stderr)
         return 1
 
-    if args.command == "list":
-        for config in discovered:
-            print(
-                f"{config.name}: class={config.agent_cls.__name__}, "
-                f"stt={config.stt!r}, llm={config.llm!r}, tts={config.tts!r}, "
-                f"greeting={config.greeting!r}"
-            )
-        return 0
+    # Do not catch ImportError here: failures (e.g. missing livekit, broken
+    # openrtc install) must surface with their original tracebacks.
+    from openrtc.cli_app import main as run_cli
 
-    sys.argv = [sys.argv[0], args.command]
-    pool.run()
-    return 0
+    return run_cli(argv)
 
 
-def _pool_kwargs_from_args(args: argparse.Namespace) -> dict[str, Any]:
-    return {
-        "default_stt": args.default_stt,
-        "default_llm": args.default_llm,
-        "default_tts": args.default_tts,
-        "default_greeting": args.default_greeting,
-    }
+def __getattr__(name: str) -> Any:
+    if name == "app":
+        if _optional_typer_rich_missing():
+            raise ImportError(CLI_EXTRA_INSTALL_HINT)
+        from openrtc.cli_app import app as typer_app
+
+        return typer_app
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

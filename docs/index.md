@@ -18,6 +18,8 @@ The current package is intentionally small and focused:
 - select an agent using room or job metadata
 - share runtime dependencies across sessions in one worker process
 - start a LiveKit worker using the registered pool
+- use the optional CLI (`pip install 'openrtc[cli]'`) for discovery, stable
+  `--json` / `--plain` output, and local `--resources` footprint hints
 
 ## Read the docs
 

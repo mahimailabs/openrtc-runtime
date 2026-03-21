@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import importlib
+import json
+import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
+from typer.testing import CliRunner
 
-from openrtc.cli import main
+from openrtc.cli import app, main
 
 
 @dataclass
@@ -55,9 +59,30 @@ def original_argv() -> list[str]:
     return sys.argv.copy()
 
 
+def test_list_with_resources_shows_footprint_and_summary(tmp_path: Path) -> None:
+    agent_path = tmp_path / "one.py"
+    agent_path.write_text(
+        "from __future__ import annotations\n"
+        "from livekit.agents import Agent\n"
+        "class One(Agent):\n"
+        "    def __init__(self) -> None:\n"
+        "        super().__init__(instructions='x')\n",
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["list", "--agents-dir", str(tmp_path), "--resources"])
+
+    assert result.exit_code == 0
+    out = result.stdout
+    assert "one" in out
+    assert "One" in out
+    assert "Resource summary" in out
+    assert "OpenRTC runs every agent" in out
+
+
 def test_list_command_prints_discovered_agents(
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
     stub_pool = StubPool(
         discovered=[
@@ -71,13 +96,16 @@ def test_list_command_prints_discovered_agents(
             )
         ]
     )
-    monkeypatch.setattr("openrtc.cli.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
 
-    exit_code = main(["list", "--agents-dir", "./agents"])
+    runner = CliRunner()
+    result = runner.invoke(app, ["list", "--agents-dir", "./agents"])
 
-    assert exit_code == 0
-    assert stub_pool.discover_calls == [Path("./agents")]
-    assert "restaurant: class=StubAgent" in capsys.readouterr().out
+    assert result.exit_code == 0
+    assert stub_pool.discover_calls == [Path("./agents").resolve()]
+    out = result.stdout
+    assert "restaurant" in out
+    assert "StubAgent" in out
 
 
 def test_cli_passes_pool_defaults_into_agent_pool(
@@ -92,7 +120,7 @@ def test_cli_passes_pool_defaults_into_agent_pool(
         created_pools.append(pool)
         return pool
 
-    monkeypatch.setattr("openrtc.cli.AgentPool", build_pool)
+    monkeypatch.setattr("openrtc.cli_app.AgentPool", build_pool)
 
     exit_code = main(
         [
@@ -127,22 +155,145 @@ def test_run_commands_inject_livekit_mode_and_run_pool(
     stub_pool = StubPool(
         discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
     )
-    monkeypatch.setattr("openrtc.cli.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
     monkeypatch.setattr(sys, "argv", original_argv.copy())
 
     exit_code = main([command, "--agents-dir", "./agents"])
 
     assert exit_code == 0
     assert stub_pool.run_called is True
-    assert sys.argv == [original_argv[0], command]
+    # Programmatic `main([...])` restores sys.argv after the Typer app finishes.
+    assert sys.argv == original_argv
 
 
 def test_cli_returns_non_zero_when_no_agents_are_discovered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_pool = StubPool(discovered=[])
-    monkeypatch.setattr("openrtc.cli.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
 
     exit_code = main(["list", "--agents-dir", "./agents"])
 
     assert exit_code == 1
+
+
+def test_list_exits_cleanly_when_agents_dir_does_not_exist(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    missing = tmp_path / "nonexistent_agents"
+    runner = CliRunner()
+    with caplog.at_level(logging.ERROR, logger="openrtc"):
+        result = runner.invoke(app, ["list", "--agents-dir", str(missing)])
+    assert result.exit_code == 1
+    assert "does not exist" in caplog.text
+
+
+def test_cli_entrypoint_documents_optional_extra() -> None:
+    from openrtc.cli import CLI_EXTRA_INSTALL_HINT
+
+    assert "openrtc[cli]" in CLI_EXTRA_INSTALL_HINT
+
+
+def test_main_returns_one_when_typer_not_installed(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    real_import_module = importlib.import_module
+
+    def import_module_without_typer(name: str, package: str | None = None) -> Any:
+        if name == "typer":
+            raise ModuleNotFoundError("No module named 'typer'", name="typer")
+        return real_import_module(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", import_module_without_typer)
+
+    exit_code = main(["list", "--agents-dir", "./agents"])
+
+    assert exit_code == 1
+    err = capsys.readouterr().err
+    assert "openrtc[cli]" in err
+
+
+def test_main_propagates_module_not_found_for_non_optional_modules(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing modules other than typer/rich must not be masked as the [cli] hint."""
+    real_import_module = importlib.import_module
+
+    def import_module_missing_click(name: str, package: str | None = None) -> Any:
+        if name == "typer":
+            raise ModuleNotFoundError("No module named 'click'", name="click")
+        return real_import_module(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", import_module_missing_click)
+
+    with pytest.raises(ModuleNotFoundError, match="click"):
+        main(["list", "--agents-dir", "./agents"])
+
+
+def test_list_json_output_is_valid_json(tmp_path: Path) -> None:
+    agent_path = tmp_path / "one.py"
+    agent_path.write_text(
+        "from __future__ import annotations\n"
+        "from livekit.agents import Agent\n"
+        "class One(Agent):\n"
+        "    def __init__(self) -> None:\n"
+        "        super().__init__(instructions='x')\n",
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["list", "--agents-dir", str(tmp_path), "--json", "--resources"]
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["schema_version"] == 1
+    assert data["command"] == "list"
+    assert len(data["agents"]) == 1
+    assert data["agents"][0]["name"] == "one"
+    assert "resource_summary" in data
+    assert data["resource_summary"]["resident_set"]["metric"] in (
+        "linux_vm_rss",
+        "darwin_ru_max_rss",
+        "unavailable",
+    )
+
+
+def test_list_plain_matches_line_oriented_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_pool = StubPool(
+        discovered=[
+            StubConfig(
+                name="restaurant",
+                agent_cls=StubAgent,
+                stt="openai/gpt-4o-mini-transcribe",
+                llm="openai/gpt-4.1-mini",
+                tts="openai/gpt-4o-mini-tts",
+                greeting="hello",
+            )
+        ]
+    )
+    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["list", "--agents-dir", "./agents", "--plain"])
+
+    assert result.exit_code == 0
+    assert (
+        "restaurant: class=StubAgent, stt='openai/gpt-4o-mini-transcribe', "
+        "llm='openai/gpt-4.1-mini', tts='openai/gpt-4o-mini-tts', greeting='hello'"
+        in result.stdout
+    )
+
+
+def test_list_plain_and_json_conflict() -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["list", "--agents-dir", "./agents", "--plain", "--json"]
+    )
+
+    assert result.exit_code != 0

@@ -185,3 +185,16 @@ def test_discovered_agent_config_is_pickleable_across_module_reload(
     assert restored.name == "dental"
     assert restored.agent_cls.__name__ == "DentalAgent"
     assert restored.agent_cls.__module__ == module_name
+    assert restored.source_path == (tmp_path / "dental.py").resolve()
+
+
+def test_discover_records_source_path_next_to_agent_module(tmp_path: Path) -> None:
+    _write_agent_module(
+        tmp_path,
+        "zoo.py",
+        class_name="ZooAgent",
+    )
+    pool = AgentPool()
+    discovered = pool.discover(tmp_path)
+    assert len(discovered) == 1
+    assert discovered[0].source_path == (tmp_path / "zoo.py").resolve()

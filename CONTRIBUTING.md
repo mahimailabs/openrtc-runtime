@@ -15,6 +15,9 @@ This repository uses `uv` for local development.
 uv sync --group dev
 ```
 
+The dev group includes Typer and Rich so `uv run openrtc …` works without
+`--extra cli`. End users install the CLI with `pip install 'openrtc[cli]'`.
+
 If you prefer, you can also install the package and dev dependencies with pip,
 but `uv` is the preferred workflow for contributors.
 
@@ -44,8 +47,9 @@ Keep these responsibilities in mind when contributing:
 
 - `src/openrtc/pool.py` contains the core pooling, discovery, routing, and
   session-construction logic.
-- `src/openrtc/cli.py` contains the package CLI for discover/list/start/dev
-  workflows.
+- `src/openrtc/cli.py` is the console entrypoint; `src/openrtc/cli_app.py`
+  implements the Typer/Rich CLI (optional extra ``openrtc[cli]``; dev deps
+  include it for local runs).
 - `src/openrtc/__init__.py` defines the public package surface.
 - `tests/` contains unit tests for pool behavior, discovery, routing, and CLI
   behavior.
@@ -75,6 +79,9 @@ When making changes, please preserve the core product constraints:
 If your change affects public behavior, update the relevant docs:
 
 - `README.md` for user-facing usage changes
+- `docs/` (VitePress site: CLI, getting started, API, architecture)—keep these in
+  sync when you change the public CLI, install extras, or `AgentPool` / discovery
+  behavior
 - docstrings in `src/openrtc/`
 - examples, when new behavior should be demonstrated
 

@@ -13,6 +13,8 @@ OpenRTC keeps the public API intentionally narrow.
 - optional `stt`, `llm`, and `tts` providers
 - optional `greeting` generated after `ctx.connect()`
 - optional `session_kwargs` forwarded to `AgentSession`
+- optional `source_path` when the module file is known (e.g. after discovery), for
+  tooling and footprint estimates—not used for routing
 
 ### `AgentDiscoveryConfig`
 

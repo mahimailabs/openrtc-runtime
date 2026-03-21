@@ -98,8 +98,14 @@ Install OpenRTC from PyPI:
 pip install openrtc
 ```
 
-`openrtc` depends on `livekit-agents[openai,silero,turn-detector]`, so the runtime
-plugins required by shared prewarm are installed with the base package.
+The base package pulls in `livekit-agents[openai,silero,turn-detector]`, so the
+runtime plugins required by shared prewarm are installed without extra flags.
+
+Install the Typer/Rich CLI (`openrtc list`, `openrtc start`, `openrtc dev`) with:
+
+```bash
+pip install 'openrtc[cli]'
+```
 
 If you are developing locally, the repository uses `uv` for environment and
 command management.
@@ -282,6 +288,16 @@ openrtc list \
 
 These CLI defaults are raw passthrough strings for `livekit-agents`, not
 provider-object construction.
+
+Stable output for scripts and CI:
+
+- `--plain` — line-oriented text without ANSI or table borders (similar to the
+  legacy `print` format). Use `--resources` for source-size and RSS lines.
+- `--json` — machine-readable JSON with a `schema_version` field; combine with
+  `--resources` for `resource_summary` (footprint + resident-set metadata).
+  The `resident_set` object includes a `description`: on **Linux** it reflects
+  current **VmRSS**; on **macOS** it is **peak** `ru_maxrss` (bytes), not
+  instantaneous live RSS—compare runs only on the same OS.
 
 ### Run in production mode
 

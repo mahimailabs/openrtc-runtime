@@ -26,10 +26,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e . pytest pytest-asyncio pytest-cov
+          python -m pip install -e ".[cli]" pytest pytest-asyncio pytest-cov
 
       - name: Run tests with coverage
-        run: pytest --cov=openrtc --cov-report=xml
+        run: pytest --cov=openrtc --cov-report=xml --cov-fail-under=80
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
