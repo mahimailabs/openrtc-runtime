@@ -428,7 +428,6 @@ class AgentPool:
         )
 
 
-
 def _normalize_optional_name(value: Any, *, field_name: str) -> str | None:
     if value is None:
         return None

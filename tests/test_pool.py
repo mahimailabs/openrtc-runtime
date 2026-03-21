@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import pickle
+from types import SimpleNamespace
 
 import pytest
 from livekit.agents import Agent
 
+import openrtc.pool as pool_module
 from openrtc import AgentPool
 
 
@@ -146,14 +148,32 @@ def test_run_without_agents_raises() -> None:
         pool.run()
 
 
-def test_worker_callbacks_are_pickleable_and_keep_registered_agents() -> None:
+def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registered_session_callback = None
+    original_rtc_session = pool_module.AgentServer.rtc_session
+
+    def capture_rtc_session(self: object, *args: object, **kwargs: object):
+        decorator = original_rtc_session(self, *args, **kwargs)
+
+        def capture(function: object) -> object:
+            nonlocal registered_session_callback
+            registered_session_callback = function
+            return decorator(function)
+
+        return capture
+
+    monkeypatch.setattr(pool_module.AgentServer, "rtc_session", capture_rtc_session)
+
     pool = AgentPool()
     pool.add("test", DemoAgent)
 
     setup_callback = pickle.loads(pickle.dumps(pool.server.setup_fnc))
-    session_callback = pickle.loads(pickle.dumps(pool.server._session_handler))
+    assert registered_session_callback is not None
+    session_callback = pickle.loads(pickle.dumps(registered_session_callback))
 
-    process = type("Process", (), {"userdata": {}})()
+    process = SimpleNamespace(userdata={})
 
     class FakeVAD:
         @staticmethod
@@ -163,22 +183,18 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents() -> None:
     class FakeSilero:
         VAD = FakeVAD
 
-    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
         "openrtc.pool._load_shared_runtime_dependencies",
         lambda: (FakeSilero, lambda: "turn"),
     )
-    try:
-        setup_callback(process)
-    finally:
-        monkeypatch.undo()
+    setup_callback(process)
 
     assert process.userdata == {"vad": "vad", "turn_detection": "turn"}
 
     class FakeJobContext:
         def __init__(self) -> None:
-            self.job = type("Job", (), {"metadata": {"agent": "test"}})()
-            self.room = type("Room", (), {"metadata": None, "name": "test-room"})()
+            self.job = SimpleNamespace(metadata={"agent": "test"})
+            self.room = SimpleNamespace(metadata=None, name="test-room")
             self.proc = process
             self.connected = False
 
@@ -200,12 +216,8 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents() -> None:
             raise AssertionError("Greeting should not be generated in this test.")
 
     ctx = FakeJobContext()
-    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
-    try:
-        asyncio.run(session_callback(ctx))
-    finally:
-        monkeypatch.undo()
+    asyncio.run(session_callback(ctx))
 
     assert ctx.connected is True
     assert FakeSession.instances[0].started is True
