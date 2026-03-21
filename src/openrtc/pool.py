@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import logging
+import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import partial
@@ -405,9 +406,11 @@ class AgentPool:
             raise RuntimeError(f"Could not create import spec for {module_path}.")
 
         module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
         try:
             spec.loader.exec_module(module)
         except Exception as exc:
+            sys.modules.pop(module_name, None)
             raise RuntimeError(
                 f"Failed to import agent module '{module_path.name}': {exc}"
             ) from exc
