@@ -6,9 +6,6 @@
 
 <br />
 
-
-<!-- <h1 align="center" style="display: none;">OpenRTC</h1> -->
-
 <div align="center">
   <strong>A Python framework for running multiple LiveKit voice agents in a single worker process with shared prewarmed models.</strong>
 </div>
@@ -42,8 +39,8 @@ LiveKit worker per agent.
     <li><a href="#greetings-and-session-options">Greetings and session options</a></li>
     <li><a href="#provider-model-strings">Provider model strings</a></li>
     <li><a href="#cli-usage">CLI usage</a></li>
+    <li><a href="#public-api-at-a-glance">Public API at a glance</a></li>
     <li><a href="#project-structure">Project structure</a></li>
-    <li><a href="#migration-from-legacy-agent_-module-globals">Migration from legacy</a></li>
     <li><a href="#contributing">Contributing</a></li>
   </ol>
 </details>
@@ -94,12 +91,14 @@ OpenRTC is built to reduce duplicate worker overhead.
 
 ## Installation
 
-Install OpenRTC with the common runtime dependencies required for shared
-prewarm:
+Install OpenRTC from PyPI:
 
 ```bash
-pip install openrtc[common]
+pip install openrtc
 ```
+
+`openrtc` depends on `livekit-agents[silero,turn-detector]`, so the runtime
+plugins required by shared prewarm are installed with the base package.
 
 If you are developing locally, the repository uses `uv` for environment and
 command management.
@@ -220,6 +219,9 @@ For each incoming room, `AgentPool` resolves the agent in this order:
 This lets one worker process host several agents while staying compatible with
 standard LiveKit job and room metadata.
 
+If metadata references an unknown registered name, OpenRTC raises a `ValueError`
+instead of silently falling back.
+
 ## Greetings and session options
 
 OpenRTC can play a greeting after `ctx.connect()` and pass extra options into
@@ -269,7 +271,7 @@ instead of strings.
 
 ## CLI usage
 
-OpenRTC includes a small CLI for agent discovery.
+OpenRTC includes a CLI for discovery-based workflows.
 
 ### List discovered agents
 
@@ -293,6 +295,28 @@ openrtc start --agents-dir ./agents
 openrtc dev --agents-dir ./agents
 ```
 
+Both `start` and `dev` discover agents first and then hand off to the underlying
+LiveKit worker runtime.
+
+## Public API at a glance
+
+OpenRTC currently exposes:
+
+- `AgentPool`
+- `AgentConfig`
+- `AgentDiscoveryConfig`
+- `agent_config(...)`
+
+On `AgentPool`, the primary public methods and properties are:
+
+- `add(...)`
+- `discover(...)`
+- `list_agents()`
+- `get(name)`
+- `remove(name)`
+- `run()`
+- `server`
+
 ## Project structure
 
 ```text
@@ -302,49 +326,9 @@ src/openrtc/
 └── pool.py
 ```
 
-- `pool.py` contains the core `AgentPool` implementation
-- `cli.py` provides agent discovery and worker startup commands
+- `pool.py` contains the core `AgentPool` implementation and discovery helpers
+- `cli.py` provides discovery and worker startup commands
 - `__init__.py` exposes the public package API
-
-## Migration from legacy `AGENT_*` module globals
-
-Older prototypes used module-level constants such as `AGENT_NAME` and
-`AGENT_STT`. OpenRTC now standardizes on `@agent_config(...)` plus
-`AgentPool(...)` defaults.
-
-Before:
-
-```python
-AGENT_NAME = "restaurant"
-AGENT_STT = "deepgram/nova-3:multi"
-AGENT_LLM = "openai/gpt-4.1-mini"
-AGENT_TTS = "cartesia/sonic-3"
-AGENT_GREETING = "Welcome to reservations."
-```
-
-After:
-
-```python
-from openrtc import agent_config
-
-
-@agent_config(
-    name="restaurant",
-    greeting="Welcome to reservations.",
-)
-class RestaurantAgent(Agent):
-    ...
-```
-
-Move shared provider settings into the pool:
-
-```python
-pool = AgentPool(
-    default_stt="deepgram/nova-3:multi",
-    default_llm="openai/gpt-4.1-mini",
-    default_tts="cartesia/sonic-3",
-)
-```
 
 ## Contributing
 

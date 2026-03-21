@@ -41,10 +41,10 @@ export default defineConfig({
       ],
     },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/mahimairaja/openrtc-python' },
+      { icon: 'github', link: 'https://github.com/mahimailabs/openrtc' },
     ],
     editLink: {
-      pattern: 'https://github.com/mahimairaja/openrtc-python/edit/main/docs/:path',
+      pattern: 'https://github.com/mahimailabs/openrtc/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
     search: {

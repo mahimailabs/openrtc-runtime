@@ -484,7 +484,7 @@ class AgentPool:
         except ModuleNotFoundError as exc:
             raise RuntimeError(
                 "OpenRTC requires the LiveKit Silero and turn-detector plugins. "
-                "Install the package with livekit-agents[silero,turn-detector]."
+                "Reinstall openrtc, or install livekit-agents[silero,turn-detector]."
             ) from exc
 
         return silero, MultilingualModel
