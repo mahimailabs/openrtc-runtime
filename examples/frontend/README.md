@@ -1,87 +1,47 @@
-# Welcome to React Router!
+# OpenRTC Frontend Example
 
-A modern, production-ready template for building full-stack React applications using React Router.
+Simple React Router demo for the two example agents hosted by the same OpenRTC
+worker:
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+- `/dentist` starts the `dental` agent
+- `/restaurant` starts the `restaurant` agent
 
-## Features
+## Environment
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
-
-## Getting Started
-
-### Installation
-
-Install the dependencies:
+Set the same LiveKit connection values used by the Python worker:
 
 ```bash
-npm install
+export LIVEKIT_URL=ws://localhost:7880
+export LIVEKIT_API_KEY=devkey
+export LIVEKIT_API_SECRET=secret
 ```
 
-### Development
+The frontend server uses these values to:
 
-Start the development server with HMR:
+1. create a room with room metadata such as `{"agent":"dental"}`
+2. issue a participant token for the browser
+
+## Run the demo
+
+Start the OpenRTC worker from the repository root:
 
 ```bash
+cd examples
+../.venv/bin/python main.py dev
+```
+
+Then start the frontend:
+
+```bash
+cd examples/frontend
+npm install
 npm run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+Open `http://localhost:5173` and choose either the dentist or restaurant demo.
 
-## Building for Production
+## Dispatch behavior
 
-Create a production build:
-
-```bash
-npm run build
-```
-
-## Deployment
-
-### Docker Deployment
-
-To build and run using Docker:
-
-```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
-```
-
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+The frontend token route creates a unique room for each call and sets room
+metadata to the selected agent name. The Python `AgentPool` reads that metadata
+and dispatches the correct agent inside the shared worker.
