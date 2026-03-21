@@ -55,6 +55,30 @@ def original_argv() -> list[str]:
     return sys.argv.copy()
 
 
+def test_list_with_resources_shows_footprint_and_summary(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    agent_path = tmp_path / "one.py"
+    agent_path.write_text(
+        "from __future__ import annotations\n"
+        "from livekit.agents import Agent\n"
+        "class One(Agent):\n"
+        "    def __init__(self) -> None:\n"
+        "        super().__init__(instructions='x')\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(["list", "--agents-dir", str(tmp_path), "--resources"])
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "one:" in out
+    assert "source_file=" in out
+    assert "Resource summary" in out
+    assert "OpenRTC runs every agent" in out
+
+
 def test_list_command_prints_discovered_agents(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

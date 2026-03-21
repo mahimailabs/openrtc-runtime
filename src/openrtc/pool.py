@@ -111,6 +111,7 @@ class AgentConfig:
         tts: Text-to-speech provider string or provider instance.
         greeting: Optional initial greeting played after the session connects.
         session_kwargs: Additional keyword arguments forwarded to ``AgentSession``.
+        source_path: When known (e.g. after discovery), path to the defining ``.py`` file.
     """
 
     name: str
@@ -120,6 +121,8 @@ class AgentConfig:
     tts: Any = None
     greeting: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=dict)
+    source_path: Path | None = None
+    """Filesystem path to the agent module when registered via discovery, else ``None``."""
     _agent_ref: _AgentClassRef = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -137,6 +140,9 @@ class AgentConfig:
             "greeting": self.greeting,
             "session_kwargs": dict(self.session_kwargs),
             "agent_ref": self._agent_ref,
+            "source_path": (
+                None if self.source_path is None else str(self.source_path.resolve())
+            ),
         }
 
     def __setstate__(self, state: Mapping[str, Any]) -> None:
@@ -147,6 +153,8 @@ class AgentConfig:
         self.greeting = state["greeting"]
         self.session_kwargs = dict(state["session_kwargs"])
         self._agent_ref = state["agent_ref"]
+        raw_source = state.get("source_path")
+        self.source_path = None if raw_source is None else Path(str(raw_source))
         self.agent_cls = _resolve_agent_class(self._agent_ref)
 
 
@@ -259,6 +267,7 @@ class AgentPool:
         tts: Any = None,
         greeting: str | None = None,
         session_kwargs: Mapping[str, Any] | None = None,
+        source_path: Path | str | None = None,
         **session_options: Any,
     ) -> AgentConfig:
         """Register an agent in the pool.
@@ -278,6 +287,8 @@ class AgentPool:
                 directly to ``add()``. When the same option appears in both
                 ``session_kwargs`` and direct keyword arguments, the direct
                 keyword argument takes precedence.
+            source_path: Optional path to the agent's Python module on disk
+                (used for discovery metadata and footprint reporting).
 
         Returns:
             The created agent configuration.
@@ -294,6 +305,12 @@ class AgentPool:
         if not isinstance(agent_cls, type) or not issubclass(agent_cls, Agent):
             raise TypeError("agent_cls must be a subclass of livekit.agents.Agent.")
 
+        resolved_source: Path | None
+        if source_path is None:
+            resolved_source = None
+        else:
+            resolved_source = Path(source_path).expanduser().resolve()
+
         config = AgentConfig(
             name=normalized_name,
             agent_cls=agent_cls,
@@ -305,6 +322,7 @@ class AgentPool:
                 session_kwargs=session_kwargs,
                 direct_session_kwargs=session_options,
             ),
+            source_path=resolved_source,
         )
         self._agents[normalized_name] = config
         logger.debug("Registered agent '%s'.", normalized_name)
@@ -353,6 +371,7 @@ class AgentPool:
                 llm=metadata.llm,
                 tts=metadata.tts,
                 greeting=metadata.greeting,
+                source_path=module_path,
             )
             logger.info(
                 "Discovered agent '%s' from %s using class %s.",
