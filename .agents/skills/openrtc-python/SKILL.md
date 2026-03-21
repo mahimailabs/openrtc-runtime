@@ -1,5 +1,5 @@
 ---
-name: openrtc-voice-agents
+name: openrtc-python
 description: >-
   Write and wire up LiveKit voice agents using OpenRTC so that multiple agents
   run inside a single shared worker process. Use when the user asks to create a
