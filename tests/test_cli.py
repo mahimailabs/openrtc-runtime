@@ -220,6 +220,8 @@ def test_list_json_output_is_valid_json(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     data = json.loads(result.stdout)
+    assert data["schema_version"] == 1
+    assert data["command"] == "list"
     assert len(data["agents"]) == 1
     assert data["agents"][0]["name"] == "one"
     assert "resource_summary" in data

@@ -124,8 +124,9 @@ def list_command(
         typer.Option(
             "--resources",
             help=(
-                "Show on-disk source sizes and approximate process memory (RSS) "
-                "for this CLI process after discovery."
+                "Include footprint fields (with --json and --plain) or extra "
+                "columns/summary (default Rich table). "
+                "On-disk sizes and RSS are best-effort estimates for this process."
             ),
         ),
     ] = False,
@@ -262,7 +263,12 @@ def _build_list_json_payload(
             )
         agents.append(entry)
 
-    payload: dict[str, Any] = {"agents": agents}
+    # Bump when the JSON shape changes so automation can branch safely.
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "command": "list",
+        "agents": agents,
+    }
     if include_resources:
         footprints = agent_disk_footprints(discovered)
         total_source = sum(f.size_bytes for f in footprints)

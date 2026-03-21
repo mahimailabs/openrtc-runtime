@@ -292,9 +292,9 @@ provider-object construction.
 Stable output for scripts and CI:
 
 - `--plain` — line-oriented text without ANSI or table borders (similar to the
-  legacy `print` format).
-- `--json` — machine-readable JSON; combine with `--resources` to include
-  footprint fields and platform-specific RSS metadata.
+  legacy `print` format). Use `--resources` for source-size and RSS lines.
+- `--json` — machine-readable JSON with a `schema_version` field; combine with
+  `--resources` for `resource_summary` (footprint + resident-set metadata).
 
 ### Run in production mode
 
