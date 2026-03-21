@@ -98,7 +98,7 @@ Install OpenRTC from PyPI:
 pip install openrtc
 ```
 
-`openrtc` depends on `livekit-agents[silero,turn-detector]`, so the runtime
+`openrtc` depends on `livekit-agents[openai,silero,turn-detector]`, so the runtime
 plugins required by shared prewarm are installed with the base package.
 
 If you are developing locally, the repository uses `uv` for environment and
@@ -114,14 +114,10 @@ LIVEKIT_API_KEY=devkey
 LIVEKIT_API_SECRET=secret
 ```
 
-Add only the provider keys needed for the models you actually use:
+For provider-native OpenAI plugin objects, set:
 
 ```bash
-DEEPGRAM_API_KEY=...
 OPENAI_API_KEY=...
-CARTESIA_API_KEY=...
-GROQ_API_KEY=...
-ELEVENLABS_API_KEY=...
 ```
 
 ## Quick start: register agents directly with `add()`
@@ -130,6 +126,7 @@ Use `AgentPool.add(...)` when you want the most explicit setup.
 
 ```python
 from livekit.agents import Agent
+from livekit.plugins import openai
 from openrtc import AgentPool
 
 
@@ -147,17 +144,17 @@ pool = AgentPool()
 pool.add(
     "restaurant",
     RestaurantAgent,
-    stt="deepgram/nova-3:multi",
-    llm="openai/gpt-4.1-mini",
-    tts="cartesia/sonic-3",
+    stt=openai.STT(model="gpt-4o-mini-transcribe"),
+    llm=openai.responses.LLM(model="gpt-4.1-mini"),
+    tts=openai.TTS(model="gpt-4o-mini-tts"),
     greeting="Welcome to reservations.",
 )
 pool.add(
     "dental",
     DentalAgent,
-    stt="deepgram/nova-3:multi",
-    llm="openai/gpt-4.1-mini",
-    tts="cartesia/sonic-3",
+    stt=openai.STT(model="gpt-4o-mini-transcribe"),
+    llm=openai.responses.LLM(model="gpt-4.1-mini"),
+    tts=openai.TTS(model="gpt-4o-mini-tts"),
 )
 pool.run()
 ```
@@ -175,12 +172,13 @@ classes at module scope so worker processes can reload them.
 ```python
 from pathlib import Path
 
+from livekit.plugins import openai
 from openrtc import AgentPool
 
 pool = AgentPool(
-    default_stt="deepgram/nova-3:multi",
-    default_llm="openai/gpt-4.1-mini",
-    default_tts="cartesia/sonic-3",
+    default_stt=openai.STT(model="gpt-4o-mini-transcribe"),
+    default_llm=openai.responses.LLM(model="gpt-4.1-mini"),
+    default_tts=openai.TTS(model="gpt-4o-mini-tts"),
 )
 pool.discover(Path("./agents"))
 pool.run()
@@ -237,7 +235,7 @@ pool.add(
     "restaurant",
     RestaurantAgent,
     greeting="Welcome to reservations.",
-    session_kwargs={"allow_interruptions": False},
+    session_kwargs={"turn_handling": {"interruption": {"enabled": False}}},
     max_tool_steps=4,
     preemptive_generation=True,
 )
@@ -246,33 +244,27 @@ pool.add(
 Direct keyword arguments take precedence over the same keys inside
 `session_kwargs`.
 
-## Provider model strings
+By default, OpenRTC builds explicit `turn_handling` for each session using the
+multilingual turn detector with VAD-based interruption. That keeps the shared
+turn detector available without implicitly enabling LiveKit adaptive
+interruption. To opt into adaptive interruption explicitly, pass
+`session_kwargs={"turn_handling": {"interruption": {"mode": "adaptive"}}}`.
 
-OpenRTC passes provider strings through to `livekit-agents`, so the common case
-stays simple.
+## Provider configuration
 
-### STT examples
+OpenRTC now passes `stt`, `llm`, and `tts` through to `livekit-agents`
+unchanged.
 
-- `deepgram/nova-3`
-- `deepgram/nova-3:multi`
-- `assemblyai/...`
-- `google/...`
+For self-hosted and provider-native setups, pass instantiated provider objects:
 
-### LLM examples
+- `openai.STT(model="gpt-4o-mini-transcribe")`
+- `openai.responses.LLM(model="gpt-4.1-mini")`
+- `openai.TTS(model="gpt-4o-mini-tts")`
 
-- `openai/gpt-4.1-mini`
-- `openai/gpt-4.1`
-- `groq/llama-4-scout`
-- `anthropic/claude-sonnet-4-20250514`
-
-### TTS examples
-
-- `cartesia/sonic-3`
-- `elevenlabs/...`
-- `openai/tts-1`
-
-If you need advanced provider configuration, you can still pass provider objects
-instead of strings.
+If you pass raw strings such as `openai/gpt-4.1-mini`, OpenRTC leaves them
+unchanged and `livekit-agents` will interpret them according to the current
+LiveKit runtime, which may mean inference-backed behavior on compatible cloud
+deployments.
 
 ## CLI usage
 
@@ -283,10 +275,13 @@ OpenRTC includes a CLI for discovery-based workflows.
 ```bash
 openrtc list \
   --agents-dir ./agents \
-  --default-stt deepgram/nova-3:multi \
+  --default-stt openai/gpt-4o-mini-transcribe \
   --default-llm openai/gpt-4.1-mini \
-  --default-tts cartesia/sonic-3
+  --default-tts openai/gpt-4o-mini-tts
 ```
+
+These CLI defaults are raw passthrough strings for `livekit-agents`, not
+provider-object construction.
 
 ### Run in production mode
 

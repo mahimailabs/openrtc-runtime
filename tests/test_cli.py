@@ -64,9 +64,9 @@ def test_list_command_prints_discovered_agents(
             StubConfig(
                 name="restaurant",
                 agent_cls=StubAgent,
-                stt="deepgram/nova-3",
+                stt="openai/gpt-4o-mini-transcribe",
                 llm="openai/gpt-4.1-mini",
-                tts="cartesia/sonic-3",
+                tts="openai/gpt-4o-mini-tts",
                 greeting="hello",
             )
         ]
@@ -100,11 +100,11 @@ def test_cli_passes_pool_defaults_into_agent_pool(
             "--agents-dir",
             "./agents",
             "--default-stt",
-            "deepgram/nova-3:multi",
+            "openai/gpt-4o-mini-transcribe",
             "--default-llm",
             "openai/gpt-4.1-mini",
             "--default-tts",
-            "cartesia/sonic-3",
+            "openai/gpt-4o-mini-tts",
             "--default-greeting",
             "Hello from OpenRTC.",
         ]
@@ -112,9 +112,9 @@ def test_cli_passes_pool_defaults_into_agent_pool(
 
     assert exit_code == 0
     assert len(created_pools) == 1
-    assert created_pools[0].default_stt == "deepgram/nova-3:multi"
+    assert created_pools[0].default_stt == "openai/gpt-4o-mini-transcribe"
     assert created_pools[0].default_llm == "openai/gpt-4.1-mini"
-    assert created_pools[0].default_tts == "cartesia/sonic-3"
+    assert created_pools[0].default_tts == "openai/gpt-4o-mini-tts"
     assert created_pools[0].default_greeting == "Hello from OpenRTC."
 
 

@@ -24,9 +24,9 @@ def test_add_registers_agent() -> None:
     config = pool.add(
         "test",
         DemoAgent,
-        stt="deepgram/nova-3",
+        stt="openai/gpt-4o-mini-transcribe",
         llm="openai/gpt-5-mini",
-        tts="cartesia/sonic-3",
+        tts="openai/gpt-4o-mini-tts",
     )
 
     assert config.name == "test"
@@ -35,17 +35,17 @@ def test_add_registers_agent() -> None:
 
 def test_add_uses_pool_defaults_when_agent_values_are_omitted() -> None:
     pool = AgentPool(
-        default_stt="deepgram/nova-3:multi",
+        default_stt="openai/gpt-4o-mini-transcribe",
         default_llm="openai/gpt-4.1-mini",
-        default_tts="cartesia/sonic-3",
+        default_tts="openai/gpt-4o-mini-tts",
         default_greeting="Hello from OpenRTC.",
     )
 
     config = pool.add("test", DemoAgent)
 
-    assert config.stt == "deepgram/nova-3:multi"
+    assert config.stt == "openai/gpt-4o-mini-transcribe"
     assert config.llm == "openai/gpt-4.1-mini"
-    assert config.tts == "cartesia/sonic-3"
+    assert config.tts == "openai/gpt-4o-mini-tts"
     assert config.greeting == "Hello from OpenRTC."
 
 
@@ -113,6 +113,19 @@ def test_add_rejects_local_agent_classes() -> None:
 
     with pytest.raises(ValueError, match="module scope"):
         pool.add("local", LocalAgent)
+
+
+def test_add_rejects_non_pickleable_unsupported_provider_object() -> None:
+    class UnsupportedProvider:
+        def __init__(self) -> None:
+            import threading
+
+            self.lock = threading.RLock()
+
+    pool = AgentPool()
+
+    with pytest.raises(ValueError, match="not spawn-safe"):
+        pool.add("test", DemoAgent, stt=UnsupportedProvider())
 
 
 def test_add_rejects_main_module_agent_without_file(
@@ -231,6 +244,30 @@ def test_load_module_from_path_cleans_up_sys_modules_on_failure(tmp_path: Path) 
     assert module_name not in sys.modules
 
 
+def test_agent_config_is_pickleable_with_openai_provider_objects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    openai = pytest.importorskip("livekit.plugins.openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    pool = AgentPool()
+
+    config = pool.add(
+        "test",
+        DemoAgent,
+        stt=openai.STT(model="gpt-4o-mini-transcribe"),
+        llm=openai.responses.LLM(model="gpt-4.1-mini"),
+        tts=openai.TTS(model="gpt-4o-mini-tts"),
+    )
+
+    restored = pickle.loads(pickle.dumps(config))
+
+    assert restored.name == "test"
+    assert restored.agent_cls is DemoAgent
+    assert restored.stt.__class__.__module__ == "livekit.plugins.openai.stt"
+    assert restored.llm.__class__.__module__ == "livekit.plugins.openai.responses.llm"
+    assert restored.tts.__class__.__module__ == "livekit.plugins.openai.tts"
+
+
 def test_list_agents_returns_registration_order() -> None:
     pool = AgentPool()
     pool.add("restaurant", DemoAgent)
@@ -280,6 +317,7 @@ def test_run_without_agents_raises() -> None:
 def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    openai = pytest.importorskip("livekit.plugins.openai")
     registered_session_callback = None
     original_rtc_session = pool_module.AgentServer.rtc_session
 
@@ -295,7 +333,12 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
 
     monkeypatch.setattr(pool_module.AgentServer, "rtc_session", capture_rtc_session)
 
-    pool = AgentPool()
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    pool = AgentPool(
+        default_stt=openai.STT(model="gpt-4o-mini-transcribe"),
+        default_llm=openai.responses.LLM(model="gpt-4.1-mini"),
+        default_tts=openai.TTS(model="gpt-4o-mini-tts"),
+    )
     pool.add("test", DemoAgent)
 
     setup_callback = pickle.loads(pickle.dumps(pool.server.setup_fnc))
@@ -309,16 +352,27 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
         def load() -> str:
             return "vad"
 
+    turn_factory_calls = 0
+
+    class FakeTurnDetector:
+        def __init__(self) -> None:
+            nonlocal turn_factory_calls
+            turn_factory_calls += 1
+
     class FakeSilero:
         VAD = FakeVAD
 
     monkeypatch.setattr(
         "openrtc.pool._load_shared_runtime_dependencies",
-        lambda: (FakeSilero, lambda: "turn"),
+        lambda: (FakeSilero, FakeTurnDetector),
     )
     setup_callback(process)
 
-    assert process.userdata == {"vad": "vad", "turn_detection": "turn"}
+    assert process.userdata == {
+        "vad": "vad",
+        "turn_detection_factory": FakeTurnDetector,
+    }
+    assert turn_factory_calls == 0
 
     class FakeJobContext:
         def __init__(self) -> None:
@@ -350,3 +404,15 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
 
     assert ctx.connected is True
     assert FakeSession.instances[0].started is True
+    assert FakeSession.instances[0].kwargs["stt"].__class__.__module__ == "livekit.plugins.openai.stt"
+    assert (
+        FakeSession.instances[0].kwargs["llm"].__class__.__module__
+        == "livekit.plugins.openai.responses.llm"
+    )
+    assert FakeSession.instances[0].kwargs["tts"].__class__.__module__ == "livekit.plugins.openai.tts"
+    assert FakeSession.instances[0].kwargs["turn_handling"]["interruption"]["mode"] == "vad"
+    assert (
+        FakeSession.instances[0].kwargs["turn_handling"]["turn_detection"].__class__
+        is FakeTurnDetector
+    )
+    assert turn_factory_calls == 1

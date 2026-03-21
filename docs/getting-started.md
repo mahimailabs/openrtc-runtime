@@ -3,7 +3,7 @@
 ## Requirements
 
 OpenRTC currently supports Python `>=3.10,<3.14` and depends on
-`livekit-agents[silero,turn-detector]~=1.4`.
+`livekit-agents[openai,silero,turn-detector]~=1.4`.
 
 ## Install
 
@@ -24,6 +24,7 @@ python -m pip install -e .
 
 ```python
 from livekit.agents import Agent
+from livekit.plugins import openai
 from openrtc import AgentPool
 
 
@@ -36,9 +37,9 @@ pool = AgentPool()
 pool.add(
     "support",
     SupportAgent,
-    stt="deepgram/nova-3:multi",
-    llm="openai/gpt-5-mini",
-    tts="cartesia/sonic-3",
+    stt=openai.STT(model="gpt-4o-mini-transcribe"),
+    llm=openai.responses.LLM(model="gpt-5-mini"),
+    tts=openai.TTS(model="gpt-4o-mini-tts"),
 )
 
 pool.run()
@@ -72,12 +73,13 @@ If you prefer one agent module per file, use discovery with optional
 ```python
 from pathlib import Path
 
+from livekit.plugins import openai
 from openrtc import AgentPool
 
 pool = AgentPool(
-    default_stt="deepgram/nova-3:multi",
-    default_llm="openai/gpt-4.1-mini",
-    default_tts="cartesia/sonic-3",
+    default_stt=openai.STT(model="gpt-4o-mini-transcribe"),
+    default_llm=openai.responses.LLM(model="gpt-4.1-mini"),
+    default_tts=openai.TTS(model="gpt-4o-mini-tts"),
 )
 pool.discover(Path("./agents"))
 pool.run()

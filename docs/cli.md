@@ -44,11 +44,15 @@ Example:
 ```bash
 openrtc list \
   --agents-dir ./examples/agents \
-  --default-stt deepgram/nova-3:multi \
+  --default-stt openai/gpt-4o-mini-transcribe \
   --default-llm openai/gpt-4.1-mini \
-  --default-tts cartesia/sonic-3 \
+  --default-tts openai/gpt-4o-mini-tts \
   --default-greeting "Hello from OpenRTC."
 ```
+
+These defaults are passed through to `livekit-agents` as raw strings. If you
+need provider-native plugin objects, configure them in Python with `AgentPool`
+instead of through the CLI flags.
 
 ## Notes
 

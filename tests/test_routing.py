@@ -23,7 +23,10 @@ class DentalAgent(Agent):
 @dataclass
 class FakeProcess:
     userdata: dict[str, Any] = field(
-        default_factory=lambda: {"vad": object(), "turn_detection": object()}
+        default_factory=lambda: {
+            "vad": object(),
+            "turn_detection_factory": lambda: object(),
+        }
     )
 
 
@@ -191,7 +194,30 @@ def test_handle_session_passes_session_kwargs_and_provider_objects(
     assert session.kwargs["preemptive_generation"] is True
     assert session.kwargs["max_tool_steps"] == 4
     assert session.kwargs["vad"] is ctx.proc.userdata["vad"]
-    assert session.kwargs["turn_detection"] is ctx.proc.userdata["turn_detection"]
+    assert session.kwargs["turn_handling"]["interruption"]["mode"] == "vad"
+    assert session.kwargs["turn_handling"]["turn_detection"] is not None
+
+
+def test_handle_session_passes_provider_strings_through_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    pool = AgentPool()
+    pool.add(
+        "dental",
+        DentalAgent,
+        stt="openai/gpt-4o-mini-transcribe",
+        llm="openai/gpt-4.1-mini",
+        tts="openai/gpt-4o-mini-tts",
+    )
+    ctx = FakeJobContext(job_metadata={"agent": "dental"})
+
+    asyncio.run(pool._handle_session(ctx))
+
+    session = FakeSession.instances[0]
+    assert session.kwargs["stt"] == "openai/gpt-4o-mini-transcribe"
+    assert session.kwargs["llm"] == "openai/gpt-4.1-mini"
+    assert session.kwargs["tts"] == "openai/gpt-4o-mini-tts"
 
 
 def test_handle_session_supports_direct_session_kwargs(
@@ -211,8 +237,34 @@ def test_handle_session_supports_direct_session_kwargs(
     asyncio.run(pool._handle_session(ctx))
 
     session = FakeSession.instances[0]
-    assert session.kwargs["allow_interruptions"] is True
     assert session.kwargs["max_tool_steps"] == 6
+    assert session.kwargs["turn_handling"]["interruption"]["mode"] == "vad"
+
+
+def test_handle_session_preserves_explicit_turn_handling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    custom_turn_detection = object()
+    pool = AgentPool()
+    pool.add(
+        "dental",
+        DentalAgent,
+        session_kwargs={
+            "turn_handling": {
+                "turn_detection": custom_turn_detection,
+                "interruption": {"mode": "adaptive", "enabled": False},
+            }
+        },
+    )
+    ctx = FakeJobContext(job_metadata={"agent": "dental"})
+
+    asyncio.run(pool._handle_session(ctx))
+
+    session = FakeSession.instances[0]
+    assert session.kwargs["turn_handling"]["turn_detection"] is custom_turn_detection
+    assert session.kwargs["turn_handling"]["interruption"]["mode"] == "adaptive"
+    assert session.kwargs["turn_handling"]["interruption"]["enabled"] is False
 
 
 def test_handle_session_generates_greeting_after_connect(
