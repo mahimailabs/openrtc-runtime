@@ -11,7 +11,17 @@ OpenRTC keeps the public API intentionally narrow.
 - unique `name`
 - `agent_cls` subclass
 - optional `stt`, `llm`, and `tts` providers
-- optional `greeting` placeholder for future use
+- optional `greeting` generated after `ctx.connect()`
+- optional `session_kwargs` forwarded to `AgentSession`
+
+### `AgentDiscoveryConfig`
+
+`AgentDiscoveryConfig` stores optional discovery metadata attached by
+`@agent_config(...)`:
+
+- optional explicit `name`
+- optional `stt`, `llm`, and `tts` overrides
+- optional `greeting` override
 
 ### `AgentPool`
 
@@ -25,12 +35,13 @@ are loaded once and reused across sessions.
 
 When a room is assigned to the worker:
 
-1. OpenRTC resolves the target agent from job metadata, room metadata, or the
-   first registered agent.
-2. Create an `AgentSession` using the selected agent configuration.
+1. OpenRTC resolves the target agent from job metadata, room metadata, room-name
+   prefix matching, or the first registered agent.
+2. It creates an `AgentSession` using the selected agent configuration.
 3. Prewarmed VAD and turn detection models are injected from `proc.userdata`.
-4. The resolved agent instance is then started and connected to the LiveKit job
-   context.
+4. The resolved agent instance is started for the room.
+5. OpenRTC connects the room context.
+6. If a greeting is configured, it generates the greeting after connect.
 
 ## Shared runtime dependencies
 
@@ -39,8 +50,9 @@ During prewarm, OpenRTC loads:
 - `livekit.plugins.silero`
 - `livekit.plugins.turn_detector.multilingual.MultilingualModel`
 
-If those plugins are unavailable, OpenRTC raises a `RuntimeError` explaining
-that the package should be installed with the required extras.
+These plugins are expected to be available from the package installation.
+If they are missing at runtime, OpenRTC raises a `RuntimeError` with install
+instructions.
 
 ## Why this shape?
 
@@ -48,5 +60,6 @@ This design keeps the package easy to reason about:
 
 - routing logic is explicit
 - worker-scoped dependencies are loaded once
+- discovery metadata is opt-in and typed
 - agent registration stays stable and readable
 - the public API remains small enough for contributors to extend safely

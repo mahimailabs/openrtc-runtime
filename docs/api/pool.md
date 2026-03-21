@@ -3,7 +3,7 @@
 ## Imports
 
 ```python
-from openrtc import AgentConfig, AgentPool
+from openrtc import AgentConfig, AgentDiscoveryConfig, AgentPool, agent_config
 ```
 
 ## `AgentConfig`
@@ -17,18 +17,67 @@ class AgentConfig:
     llm: Any = None
     tts: Any = None
     greeting: str | None = None
+    session_kwargs: dict[str, Any] = field(default_factory=dict)
 ```
 
 `AgentConfig` is returned from `AgentPool.add()` and represents a registered
 LiveKit agent configuration.
 
-## `AgentPool()`
+## `AgentDiscoveryConfig`
+
+```python
+@dataclass(slots=True)
+class AgentDiscoveryConfig:
+    name: str | None = None
+    stt: Any = None
+    llm: Any = None
+    tts: Any = None
+    greeting: str | None = None
+```
+
+`AgentDiscoveryConfig` stores optional metadata attached to an agent class with
+`@agent_config(...)`.
+
+## `agent_config(...)`
+
+```python
+@agent_config(
+    name="restaurant",
+    stt="deepgram/nova-3:multi",
+    llm="openai/gpt-4.1-mini",
+    tts="cartesia/sonic-3",
+    greeting="Welcome to reservations.",
+)
+class RestaurantAgent(Agent):
+    ...
+```
+
+Use `agent_config(...)` to attach discovery metadata to a standard LiveKit
+`Agent` subclass.
+
+## `AgentPool(...)`
 
 Create a pool that manages multiple LiveKit agents in one worker process.
 
 ```python
-pool = AgentPool()
+pool = AgentPool(
+    default_stt="deepgram/nova-3:multi",
+    default_llm="openai/gpt-4.1-mini",
+    default_tts="cartesia/sonic-3",
+    default_greeting="Hello from OpenRTC.",
+)
 ```
+
+Constructor defaults are used when an agent registration or discovered agent
+module omits those values.
+
+## `server`
+
+```python
+server = pool.server
+```
+
+Returns the underlying LiveKit `AgentServer` instance.
 
 ## `add()`
 
@@ -41,6 +90,8 @@ pool.add(
     llm=None,
     tts=None,
     greeting=None,
+    session_kwargs=None,
+    **session_options,
 )
 ```
 
@@ -52,6 +103,12 @@ Registers a named LiveKit `Agent` subclass.
 - names must be unique
 - `agent_cls` must be a subclass of `livekit.agents.Agent`
 
+### Session options
+
+- `session_kwargs` forwards a mapping of keyword arguments to `AgentSession`
+- direct `**session_options` are also forwarded to `AgentSession`
+- when the same key appears in both places, the direct keyword argument wins
+
 ### Returns
 
 An `AgentConfig` instance for the registration.
@@ -61,6 +118,30 @@ An `AgentConfig` instance for the registration.
 - `ValueError` for an empty or duplicate name
 - `TypeError` if `agent_cls` is not a LiveKit `Agent` subclass
 
+## `discover()`
+
+```python
+pool.discover("./agents")
+```
+
+Discovers Python modules in a directory, imports them, finds a local `Agent`
+subclass, and registers it.
+
+Discovery behavior:
+
+- skips `__init__.py`
+- skips files whose stem starts with `_`
+- uses `@agent_config(...)` metadata when present
+- otherwise uses the filename stem as the agent name
+- falls back to pool defaults for omitted provider and greeting fields
+
+### Raises
+
+- `FileNotFoundError` if the directory does not exist
+- `NotADirectoryError` if the path is not a directory
+- `RuntimeError` if a module cannot be imported or defines no local `Agent`
+  subclass
+
 ## `list_agents()`
 
 ```python
@@ -68,6 +149,30 @@ pool.list_agents()
 ```
 
 Returns registered agent names in registration order.
+
+## `get()`
+
+```python
+pool.get("restaurant")
+```
+
+Returns a registered `AgentConfig`.
+
+### Raises
+
+- `KeyError` if the agent name is unknown
+
+## `remove()`
+
+```python
+pool.remove("restaurant")
+```
+
+Removes and returns a registered `AgentConfig`.
+
+### Raises
+
+- `KeyError` if the agent name is unknown
 
 ## `run()`
 
@@ -79,22 +184,33 @@ Starts the LiveKit worker application.
 
 ### Raises
 
-`RuntimeError` if called before any agents are registered.
+- `RuntimeError` if called before any agents are registered
+
+## Routing behavior
+
+`AgentPool` resolves the active agent in this order:
+
+1. `ctx.job.metadata["agent"]`
+2. `ctx.job.metadata["demo"]`
+3. `ctx.room.metadata["agent"]`
+4. `ctx.room.metadata["demo"]`
+5. room-name prefix matching such as `restaurant-call-123`
+6. the first registered agent
+
+If metadata references an unknown agent, OpenRTC raises `ValueError`.
 
 ## Example
 
 ```python
-from examples.agents.restaurant import RestaurantAgent
+from pathlib import Path
+
 from openrtc import AgentPool
 
-pool = AgentPool()
-pool.add(
-    "restaurant",
-    RestaurantAgent,
-    stt="deepgram/nova-3:multi",
-    llm="openai/gpt-5-mini",
-    tts="cartesia/sonic-3",
+pool = AgentPool(
+    default_stt="deepgram/nova-3:multi",
+    default_llm="openai/gpt-4.1-mini",
+    default_tts="cartesia/sonic-3",
 )
-
+pool.discover(Path("./agents"))
 pool.run()
 ```

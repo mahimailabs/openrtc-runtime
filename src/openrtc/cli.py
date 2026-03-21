@@ -29,19 +29,31 @@ def build_parser() -> argparse.ArgumentParser:
         )
         command_parser.add_argument(
             "--default-stt",
-            help="Default STT provider used when an agent module omits AGENT_STT.",
+            help=(
+                "Default STT provider used when a discovered agent does not "
+                "override STT via @agent_config(...)."
+            ),
         )
         command_parser.add_argument(
             "--default-llm",
-            help="Default LLM provider used when an agent module omits AGENT_LLM.",
+            help=(
+                "Default LLM provider used when a discovered agent does not "
+                "override LLM via @agent_config(...)."
+            ),
         )
         command_parser.add_argument(
             "--default-tts",
-            help="Default TTS provider used when an agent module omits AGENT_TTS.",
+            help=(
+                "Default TTS provider used when a discovered agent does not "
+                "override TTS via @agent_config(...)."
+            ),
         )
         command_parser.add_argument(
             "--default-greeting",
-            help=("Default greeting used when an agent module omits AGENT_GREETING."),
+            help=(
+                "Default greeting used when a discovered agent does not "
+                "override greeting via @agent_config(...)."
+            ),
         )
 
     return parser

@@ -11,6 +11,9 @@ OpenRTC currently supports Python `>=3.10,<3.14` and depends on
 pip install openrtc
 ```
 
+The base package includes the LiveKit Silero and turn-detector plugins used by
+OpenRTC's shared prewarm path.
+
 If you are contributing locally, install the package in editable mode:
 
 ```bash
@@ -45,9 +48,12 @@ pool.run()
 
 `AgentPool` resolves an agent in this order:
 
-1. `ctx.job.metadata`
-2. `ctx.room.metadata`
-3. the first registered agent
+1. `ctx.job.metadata["agent"]`
+2. `ctx.job.metadata["demo"]`
+3. `ctx.room.metadata["agent"]`
+4. `ctx.room.metadata["demo"]`
+5. room name prefix matching, such as `support-call-123`
+6. the first registered agent
 
 Use JSON metadata with an `agent` field, for example:
 
@@ -57,3 +63,22 @@ Use JSON metadata with an `agent` field, for example:
 
 If metadata references an unknown agent name, OpenRTC raises a `ValueError`
 with a clear message instead of silently falling back.
+
+## Discovery-based setup
+
+If you prefer one agent module per file, use discovery with optional
+`@agent_config(...)` metadata:
+
+```python
+from pathlib import Path
+
+from openrtc import AgentPool
+
+pool = AgentPool(
+    default_stt="deepgram/nova-3:multi",
+    default_llm="openai/gpt-4.1-mini",
+    default_tts="cartesia/sonic-3",
+)
+pool.discover(Path("./agents"))
+pool.run()
+```
