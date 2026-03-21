@@ -79,6 +79,9 @@ When making changes, please preserve the core product constraints:
 If your change affects public behavior, update the relevant docs:
 
 - `README.md` for user-facing usage changes
+- `docs/` (VitePress site: CLI, getting started, API, architecture)—keep these in
+  sync when you change the public CLI, install extras, or `AgentPool` / discovery
+  behavior
 - docstrings in `src/openrtc/`
 - examples, when new behavior should be demonstrated
 

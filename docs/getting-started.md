@@ -14,11 +14,24 @@ pip install openrtc
 The base package includes the LiveKit Silero and turn-detector plugins used by
 OpenRTC's shared prewarm path.
 
+Install the **Typer/Rich CLI** (`openrtc list`, `openrtc start`, `openrtc dev`)
+with:
+
+```bash
+pip install 'openrtc[cli]'
+```
+
+See [CLI](./cli) for output modes (`--plain`, `--json`, `--resources`) and
+optional-dependency behavior.
+
 If you are contributing locally, install the package in editable mode:
 
 ```bash
 python -m pip install -e .
 ```
+
+Contributor environments typically use `uv sync --group dev`, which includes
+Typer and Rich so the CLI runs without passing `--extra cli`.
 
 ## Quick start
 

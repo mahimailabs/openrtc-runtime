@@ -18,10 +18,16 @@ class AgentConfig:
     tts: Any = None
     greeting: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=dict)
+    source_path: Path | None = None
 ```
 
 `AgentConfig` is returned from `AgentPool.add()` and represents a registered
 LiveKit agent configuration.
+
+`source_path` is set when an agent is registered via **`discover()`** (path to
+the module file) or when **`add(..., source_path=...)`** is used. It enables
+tooling such as the `openrtc list --resources` footprint output and is included
+in pickle state for worker processes.
 
 ## `AgentDiscoveryConfig`
 
@@ -95,11 +101,15 @@ pool.add(
     tts=None,
     greeting=None,
     session_kwargs=None,
+    source_path=None,
     **session_options,
 )
 ```
 
 Registers a named LiveKit `Agent` subclass.
+
+Optional **`source_path`** records the filesystem path to the agent’s module
+(used for discovery metadata and footprint reporting).
 
 ### Validation rules
 
