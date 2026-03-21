@@ -389,3 +389,30 @@ When in doubt:
 - Choose the more explicit API
 - Choose the more testable implementation
 - Choose the option that is friendlier to open-source contributors
+
+---
+
+## Cursor Cloud specific instructions
+
+### Services overview
+
+**OpenRTC** is a single Python package (`src/openrtc/`) with no runtime services required for development. All tests use stubs/mocks for LiveKit (see `tests/conftest.py`), so no LiveKit server, API keys, or external providers are needed to run the test suite.
+
+### Common dev commands
+
+All commands are documented in `CONTRIBUTING.md`. Quick reference:
+
+- **Install deps:** `uv sync --group dev`
+- **Tests:** `uv run pytest` (36 tests, all self-contained)
+- **Lint:** `uv run ruff check .`
+- **Format check:** `uv run ruff format --check .`
+- **Type check:** `uv run mypy src/` (3 pre-existing errors as of this writing)
+- **CLI demo:** `uv run openrtc list --agents-dir ./examples/agents --default-stt "deepgram/nova-3:multi" --default-llm "openai/gpt-4.1-mini" --default-tts "cartesia/sonic-3"`
+
+### Non-obvious notes
+
+- The `tests/conftest.py` creates a fake `livekit.agents` module when the real one isn't importable. This allows tests to run without the full LiveKit SDK. The real SDK *is* installed by `uv sync`, but if you see import weirdness in tests, this shim is the reason.
+- Version is derived from git tags via `hatch-vcs`. In a dev checkout the version will be something like `0.0.9.dev0+g<hash>`.
+- `mypy` has 3 pre-existing errors in `pool.py` — these are not regressions from your changes.
+- Running `openrtc start` or `openrtc dev` requires a running LiveKit server and provider API keys. For development validation, use `openrtc list` which exercises discovery and routing without network dependencies.
+- `pytest-cov` is not in the dev dependency group but is used in CI. If you need coverage reports, install it with `uv pip install pytest-cov`.
