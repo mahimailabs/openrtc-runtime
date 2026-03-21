@@ -578,7 +578,9 @@ def _resolve_agent_class(agent_ref: _AgentClassRef) -> type[Agent]:
         None if agent_ref.module_path is None else Path(agent_ref.module_path).resolve()
     )
 
-    if module_path is not None and agent_ref.module_name.startswith("openrtc_discovered_"):
+    if module_path is not None and agent_ref.module_name.startswith(
+        "openrtc_discovered_"
+    ):
         module = _load_module_from_path(agent_ref.module_name, module_path)
     else:
         try:
