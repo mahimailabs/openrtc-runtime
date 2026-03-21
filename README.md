@@ -168,6 +168,10 @@ Use discovery when you want one agent module per file. OpenRTC will import each
 module, find a local `Agent` subclass, and optionally read overrides from the
 `@agent_config(...)` decorator.
 
+Discovered agents are safe to run under `livekit dev`, including spawn-based
+worker runtimes such as macOS. For direct `add()` registration, define agent
+classes at module scope so worker processes can reload them.
+
 ```python
 from pathlib import Path
 
