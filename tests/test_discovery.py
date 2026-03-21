@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pickle
+import sys
 from pathlib import Path
 
 import pytest
@@ -159,3 +161,27 @@ def test_discover_ignores_imported_agent_subclasses(tmp_path: Path) -> None:
 
     assert [config.name for config in discovered] == ["local"]
     assert discovered[0].agent_cls.__name__ == "LocalAgent"
+
+
+def test_discovered_agent_config_is_pickleable_across_module_reload(
+    tmp_path: Path,
+) -> None:
+    _write_agent_module(
+        tmp_path,
+        "dental.py",
+        class_name="DentalAgent",
+        decorator='@agent_config(name="dental")\n',
+    )
+
+    pool = AgentPool()
+    discovered = pool.discover(tmp_path)
+
+    config = discovered[0]
+    module_name = config.agent_cls.__module__
+    sys.modules.pop(module_name, None)
+
+    restored = pickle.loads(pickle.dumps(config))
+
+    assert restored.name == "dental"
+    assert restored.agent_cls.__name__ == "DentalAgent"
+    assert restored.agent_cls.__module__ == module_name

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import importlib
 import importlib.util
+import inspect
 import json
 import logging
 import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import partial
+from hashlib import sha1
 from pathlib import Path
 from types import ModuleType
 from typing import Any, TypeVar
@@ -25,6 +28,15 @@ class _PoolRuntimeState:
     """Serializable runtime state shared with worker callbacks."""
 
     agents: dict[str, AgentConfig]
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentClassRef:
+    """Serializable reference to an agent class."""
+
+    module_name: str
+    qualname: str
+    module_path: str | None = None
 
 
 def _prewarm_worker(
@@ -85,6 +97,31 @@ class AgentConfig:
     tts: Any = None
     greeting: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=dict)
+    _agent_ref: _AgentClassRef = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        self._agent_ref = _build_agent_class_ref(self.agent_cls)
+
+    def __getstate__(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "stt": self.stt,
+            "llm": self.llm,
+            "tts": self.tts,
+            "greeting": self.greeting,
+            "session_kwargs": dict(self.session_kwargs),
+            "agent_ref": self._agent_ref,
+        }
+
+    def __setstate__(self, state: Mapping[str, Any]) -> None:
+        self.name = state["name"]
+        self.stt = state["stt"]
+        self.llm = state["llm"]
+        self.tts = state["tts"]
+        self.greeting = state["greeting"]
+        self.session_kwargs = dict(state["session_kwargs"])
+        self._agent_ref = state["agent_ref"]
+        self.agent_cls = _resolve_agent_class(self._agent_ref)
 
 
 @dataclass(slots=True)
@@ -400,21 +437,13 @@ class AgentPool:
         return AgentDiscoveryConfig()
 
     def _load_agent_module(self, module_path: Path) -> ModuleType:
-        module_name = f"openrtc_discovered_{module_path.stem}"
-        spec = importlib.util.spec_from_file_location(module_name, module_path)
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"Could not create import spec for {module_path}.")
-
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
+        module_name = _discovered_module_name(module_path)
         try:
-            spec.loader.exec_module(module)
+            return _load_module_from_path(module_name, module_path)
         except Exception as exc:
-            sys.modules.pop(module_name, None)
             raise RuntimeError(
                 f"Failed to import agent module '{module_path.name}': {exc}"
             ) from exc
-        return module
 
     def _find_local_agent_subclass(self, module: ModuleType) -> type[Agent]:
         for value in vars(module).values():
@@ -518,6 +547,101 @@ def _get_registered_agent(
         raise ValueError(f"Unknown agent '{name}' requested via {source}.") from exc
     logger.info("Resolved agent '%s' via %s.", name, source)
     return config
+
+
+def _build_agent_class_ref(agent_cls: type[Agent]) -> _AgentClassRef:
+    module_name = agent_cls.__module__
+    qualname = agent_cls.__qualname__
+    if "<locals>" in qualname:
+        raise ValueError(
+            "agent_cls must be defined at module scope so spawned workers can "
+            "reload it safely."
+        )
+
+    module_path = _try_get_module_path(agent_cls)
+    if module_name == "__main__" and module_path is None:
+        raise ValueError(
+            "agent_cls defined in __main__ must come from a real Python file so "
+            "spawned workers can reload it."
+        )
+
+    return _AgentClassRef(
+        module_name=module_name,
+        qualname=qualname,
+        module_path=None if module_path is None else str(module_path),
+    )
+
+
+def _resolve_agent_class(agent_ref: _AgentClassRef) -> type[Agent]:
+    module: ModuleType | None = None
+    module_path = (
+        None if agent_ref.module_path is None else Path(agent_ref.module_path).resolve()
+    )
+
+    if module_path is not None and agent_ref.module_name.startswith(
+        "openrtc_discovered_"
+    ):
+        module = _load_module_from_path(agent_ref.module_name, module_path)
+    else:
+        try:
+            module = importlib.import_module(agent_ref.module_name)
+        except ModuleNotFoundError:
+            if module_path is None:
+                raise
+            module = _load_module_from_path(agent_ref.module_name, module_path)
+
+    agent_cls = _resolve_qualname(module, agent_ref.qualname)
+    if not isinstance(agent_cls, type) or not issubclass(agent_cls, Agent):
+        raise TypeError(
+            f"{agent_ref.qualname!r} in module {module.__name__!r} is not a "
+            "livekit.agents.Agent subclass."
+        )
+    return agent_cls
+
+
+def _resolve_qualname(module: ModuleType, qualname: str) -> Any:
+    value: Any = module
+    for part in qualname.split("."):
+        value = getattr(value, part)
+    return value
+
+
+def _try_get_module_path(agent_cls: type[Agent]) -> Path | None:
+    try:
+        source_path = inspect.getsourcefile(agent_cls)
+    except (OSError, TypeError):
+        source_path = None
+    if source_path is None:
+        return None
+    return Path(source_path).resolve()
+
+
+def _discovered_module_name(module_path: Path) -> str:
+    resolved_path = module_path.resolve()
+    digest = sha1(str(resolved_path).encode("utf-8")).hexdigest()[:12]
+    return f"openrtc_discovered_{resolved_path.stem}_{digest}"
+
+
+def _load_module_from_path(module_name: str, module_path: Path) -> ModuleType:
+    resolved_path = module_path.resolve()
+    existing_module = sys.modules.get(module_name)
+    if existing_module is not None:
+        existing_file = getattr(existing_module, "__file__", None)
+        if existing_file is not None and Path(existing_file).resolve() == resolved_path:
+            return existing_module
+
+    spec = importlib.util.spec_from_file_location(module_name, resolved_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not create import spec for {resolved_path}.")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    return module
 
 
 def _load_shared_runtime_dependencies() -> tuple[Any, type[Any]]:

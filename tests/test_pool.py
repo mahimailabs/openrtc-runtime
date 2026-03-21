@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import pickle
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -100,6 +102,133 @@ def test_add_non_agent_raises(agent_cls: type[object]) -> None:
 
     with pytest.raises(TypeError):
         pool.add("test", agent_cls)  # type: ignore[arg-type]
+
+
+def test_add_rejects_local_agent_classes() -> None:
+    class LocalAgent(Agent):
+        def __init__(self) -> None:
+            super().__init__(instructions="Local agent")
+
+    pool = AgentPool()
+
+    with pytest.raises(ValueError, match="module scope"):
+        pool.add("local", LocalAgent)
+
+
+def test_add_rejects_main_module_agent_without_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(DemoAgent, "__module__", "__main__")
+    monkeypatch.setattr(pool_module.inspect, "getsourcefile", lambda _value: None)
+
+    pool = AgentPool()
+
+    with pytest.raises(ValueError, match="defined in __main__"):
+        pool.add("main-agent", DemoAgent)
+
+
+@pytest.mark.parametrize("error_type", [OSError, TypeError])
+def test_try_get_module_path_returns_none_when_inspect_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    error_type: type[Exception],
+) -> None:
+    def raise_error(_value: object) -> str:
+        raise error_type("boom")
+
+    monkeypatch.setattr(pool_module.inspect, "getsourcefile", raise_error)
+
+    assert pool_module._try_get_module_path(DemoAgent) is None
+
+
+def test_resolve_agent_class_reuses_loaded_discovered_module(tmp_path: Path) -> None:
+    module_path = tmp_path / "agent_module.py"
+    module_path.write_text(
+        "from livekit.agents import Agent\n\n"
+        "class SampleAgent(Agent):\n"
+        "    def __init__(self) -> None:\n"
+        "        super().__init__(instructions='demo')\n",
+        encoding="utf-8",
+    )
+
+    module_name = pool_module._discovered_module_name(module_path)
+    module = pool_module._load_module_from_path(module_name, module_path)
+    agent_ref = pool_module._build_agent_class_ref(module.SampleAgent)
+
+    resolved = pool_module._resolve_agent_class(agent_ref)
+
+    assert resolved is module.SampleAgent
+
+
+def test_resolve_agent_class_falls_back_to_module_path(tmp_path: Path) -> None:
+    module_path = tmp_path / "fallback_agent.py"
+    module_path.write_text(
+        "from livekit.agents import Agent\n\n"
+        "class FallbackAgent(Agent):\n"
+        "    def __init__(self) -> None:\n"
+        "        super().__init__(instructions='fallback')\n",
+        encoding="utf-8",
+    )
+
+    agent_ref = pool_module._AgentClassRef(
+        module_name="missing_runtime_module",
+        qualname="FallbackAgent",
+        module_path=str(module_path),
+    )
+
+    resolved = pool_module._resolve_agent_class(agent_ref)
+
+    assert resolved.__name__ == "FallbackAgent"
+    assert issubclass(resolved, Agent)
+
+
+def test_resolve_agent_class_raises_when_module_cannot_be_imported() -> None:
+    agent_ref = pool_module._AgentClassRef(
+        module_name="missing_runtime_module_without_path",
+        qualname="MissingAgent",
+        module_path=None,
+    )
+
+    with pytest.raises(ModuleNotFoundError):
+        pool_module._resolve_agent_class(agent_ref)
+
+
+def test_resolve_agent_class_rejects_non_agent_symbol(tmp_path: Path) -> None:
+    module_path = tmp_path / "non_agent_module.py"
+    module_path.write_text(
+        "class NotAnAgent:\n    pass\n",
+        encoding="utf-8",
+    )
+
+    agent_ref = pool_module._AgentClassRef(
+        module_name="missing_non_agent_module",
+        qualname="NotAnAgent",
+        module_path=str(module_path),
+    )
+
+    with pytest.raises(TypeError, match="is not a livekit.agents.Agent subclass"):
+        pool_module._resolve_agent_class(agent_ref)
+
+
+def test_load_module_from_path_reuses_existing_module(tmp_path: Path) -> None:
+    module_path = tmp_path / "reused_module.py"
+    module_path.write_text("VALUE = 1\n", encoding="utf-8")
+
+    module_name = "openrtc_test_reused_module"
+    first_module = pool_module._load_module_from_path(module_name, module_path)
+    second_module = pool_module._load_module_from_path(module_name, module_path)
+
+    assert second_module is first_module
+
+
+def test_load_module_from_path_cleans_up_sys_modules_on_failure(tmp_path: Path) -> None:
+    module_path = tmp_path / "broken_module.py"
+    module_path.write_text("raise RuntimeError('boom')\n", encoding="utf-8")
+
+    module_name = "openrtc_test_broken_module"
+    with pytest.raises(RuntimeError, match="boom"):
+        pool_module._load_module_from_path(module_name, module_path)
+
+    assert module_name not in sys.modules
 
 
 def test_list_agents_returns_registration_order() -> None:

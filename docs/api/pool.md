@@ -102,6 +102,7 @@ Registers a named LiveKit `Agent` subclass.
 - `name` must be a non-empty string after trimming whitespace
 - names must be unique
 - `agent_cls` must be a subclass of `livekit.agents.Agent`
+- `agent_cls` must be defined at module scope for spawn-based worker runtimes
 
 ### Session options
 
@@ -134,6 +135,7 @@ Discovery behavior:
 - uses `@agent_config(...)` metadata when present
 - otherwise uses the filename stem as the agent name
 - falls back to pool defaults for omitted provider and greeting fields
+- preserves file-backed agent loading so discovered agents work with `livekit dev`
 
 ### Raises
 

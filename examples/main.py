@@ -1,8 +1,10 @@
-from __future__ import annotations
-
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from openrtc import AgentPool
+
+load_dotenv()
 
 
 def main() -> None:
