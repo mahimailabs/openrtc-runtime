@@ -5,6 +5,7 @@ import json
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from types import ModuleType
 from typing import Any, TypeVar
@@ -16,6 +17,50 @@ logger = logging.getLogger("openrtc")
 _AgentType = TypeVar("_AgentType", bound=type[Agent])
 _AGENT_METADATA_ATTR = "__openrtc_agent_config__"
 _METADATA_AGENT_KEYS = ("agent", "demo")
+
+
+@dataclass(slots=True)
+class _PoolRuntimeState:
+    """Serializable runtime state shared with worker callbacks."""
+
+    agents: dict[str, AgentConfig]
+
+
+def _prewarm_worker(
+    runtime_state: _PoolRuntimeState,
+    proc: JobProcess,
+) -> None:
+    """Load shared runtime assets into ``proc.userdata`` once per worker."""
+    if not runtime_state.agents:
+        raise RuntimeError("Register at least one agent before calling run().")
+    silero_module, turn_detector_model = _load_shared_runtime_dependencies()
+    proc.userdata["vad"] = silero_module.VAD.load()
+    proc.userdata["turn_detection"] = turn_detector_model()
+
+
+async def _run_universal_session(
+    runtime_state: _PoolRuntimeState,
+    ctx: JobContext,
+) -> None:
+    """Dispatch a session through the owning ``AgentPool``."""
+    if not runtime_state.agents:
+        raise RuntimeError("No agents are registered in the pool.")
+    config = _resolve_agent_config(runtime_state.agents, ctx)
+    session = AgentSession(
+        stt=config.stt,
+        llm=config.llm,
+        tts=config.tts,
+        vad=ctx.proc.userdata["vad"],
+        turn_detection=ctx.proc.userdata["turn_detection"],
+        **config.session_kwargs,
+    )
+
+    await session.start(agent=config.agent_cls(), room=ctx.room)
+    await ctx.connect()
+
+    if config.greeting is not None:
+        logger.debug("Generating greeting for agent '%s'.", config.name)
+        await session.generate_reply(instructions=config.greeting)
 
 
 @dataclass(slots=True)
@@ -127,15 +172,13 @@ class AgentPool:
         """
         self._server = AgentServer()
         self._agents: dict[str, AgentConfig] = {}
+        self._runtime_state = _PoolRuntimeState(agents=self._agents)
         self._default_stt = default_stt
         self._default_llm = default_llm
         self._default_tts = default_tts
         self._default_greeting = default_greeting
-        self._server.setup_fnc = self._prewarm
-
-        @self._server.rtc_session()
-        async def universal_session(ctx: JobContext) -> None:
-            await self._handle_session(ctx)
+        self._server.setup_fnc = partial(_prewarm_worker, self._runtime_state)
+        self._server.rtc_session()(partial(_run_universal_session, self._runtime_state))
 
     @property
     def server(self) -> AgentServer:
@@ -307,12 +350,6 @@ class AgentPool:
             raise RuntimeError("Register at least one agent before calling run().")
         cli.run_app(self._server)
 
-    def _prewarm(self, proc: JobProcess) -> None:
-        """Load shared runtime assets into ``proc.userdata`` once per worker."""
-        silero_module, turn_detector_model = self._load_shared_runtime_dependencies()
-        proc.userdata["vad"] = silero_module.VAD.load()
-        proc.userdata["turn_detection"] = turn_detector_model()
-
     def _resolve_agent(self, ctx: JobContext) -> AgentConfig:
         """Resolve the agent for a session from metadata or fallback order.
 
@@ -326,89 +363,11 @@ class AgentPool:
             RuntimeError: If no agents are registered.
             ValueError: If metadata references an unknown agent.
         """
-        if not self._agents:
-            raise RuntimeError("No agents are registered in the pool.")
-
-        selected_name = self._agent_name_from_metadata(
-            getattr(ctx.job, "metadata", None)
-        )
-        if selected_name is not None:
-            return self._get_registered_agent(selected_name, source="job metadata")
-
-        selected_name = self._agent_name_from_metadata(
-            getattr(ctx.room, "metadata", None)
-        )
-        if selected_name is not None:
-            return self._get_registered_agent(selected_name, source="room metadata")
-
-        room_name = getattr(ctx.room, "name", None)
-        if isinstance(room_name, str):
-            for agent_name, config in self._agents.items():
-                if room_name.startswith(f"{agent_name}-"):
-                    logger.info(
-                        "Resolved agent '%s' via room name prefix from room '%s'.",
-                        agent_name,
-                        room_name,
-                    )
-                    return config
-
-        default_agent = next(iter(self._agents.values()))
-        logger.info("Resolved agent '%s' via default fallback.", default_agent.name)
-        return default_agent
+        return _resolve_agent_config(self._agents, ctx)
 
     async def _handle_session(self, ctx: JobContext) -> None:
         """Create and start a LiveKit ``AgentSession`` for the resolved agent."""
-        config = self._resolve_agent(ctx)
-        session = AgentSession(
-            stt=config.stt,
-            llm=config.llm,
-            tts=config.tts,
-            vad=ctx.proc.userdata["vad"],
-            turn_detection=ctx.proc.userdata["turn_detection"],
-            **config.session_kwargs,
-        )
-
-        await session.start(agent=config.agent_cls(), room=ctx.room)
-        await ctx.connect()
-
-        if config.greeting is not None:
-            logger.debug("Generating greeting for agent '%s'.", config.name)
-            await session.generate_reply(instructions=config.greeting)
-
-    def _agent_name_from_metadata(self, metadata: Any) -> str | None:
-        if metadata is None:
-            return None
-        if isinstance(metadata, Mapping):
-            return self._agent_name_from_mapping(metadata)
-        if isinstance(metadata, str):
-            stripped = metadata.strip()
-            if not stripped:
-                return None
-            try:
-                decoded = json.loads(stripped)
-            except json.JSONDecodeError:
-                logger.debug("Ignoring non-JSON metadata: %s", stripped)
-                return None
-            if isinstance(decoded, Mapping):
-                return self._agent_name_from_mapping(decoded)
-        return None
-
-    def _agent_name_from_mapping(self, metadata: Mapping[str, Any]) -> str | None:
-        for key in _METADATA_AGENT_KEYS:
-            value = metadata.get(key)
-            if isinstance(value, str):
-                normalized_value = value.strip()
-                if normalized_value:
-                    return normalized_value
-        return None
-
-    def _get_registered_agent(self, name: str, *, source: str) -> AgentConfig:
-        try:
-            config = self._agents[name]
-        except KeyError as exc:
-            raise ValueError(f"Unknown agent '{name}' requested via {source}.") from exc
-        logger.info("Resolved agent '%s' via %s.", name, source)
-        return config
+        await _run_universal_session(self._runtime_state, ctx)
 
     def _resolve_provider(self, value: Any, default_value: Any) -> Any:
         return default_value if value is None else value
@@ -468,26 +427,6 @@ class AgentPool:
             f"Module '{module.__name__}' does not define a local Agent subclass."
         )
 
-    def _load_shared_runtime_dependencies(self) -> tuple[Any, type[Any]]:
-        """Load the optional LiveKit runtime dependencies used during prewarm.
-
-        Returns:
-            A tuple of the imported Silero module and the multilingual turn detector
-            model class.
-
-        Raises:
-            RuntimeError: If the required LiveKit plugins are not installed.
-        """
-        try:
-            from livekit.plugins import silero
-            from livekit.plugins.turn_detector.multilingual import MultilingualModel
-        except ModuleNotFoundError as exc:
-            raise RuntimeError(
-                "OpenRTC requires the LiveKit Silero and turn-detector plugins. "
-                "Reinstall openrtc, or install livekit-agents[silero,turn-detector]."
-            ) from exc
-
-        return silero, MultilingualModel
 
 
 def _normalize_optional_name(value: Any, *, field_name: str) -> str | None:
@@ -502,3 +441,92 @@ def _normalize_optional_name(value: Any, *, field_name: str) -> str | None:
     if not normalized_value:
         raise RuntimeError(f"OpenRTC metadata field {field_name!r} cannot be empty.")
     return normalized_value
+
+
+def _resolve_agent_config(
+    agents: Mapping[str, AgentConfig],
+    ctx: JobContext,
+) -> AgentConfig:
+    """Resolve the agent for a session from metadata or fallback order."""
+    if not agents:
+        raise RuntimeError("No agents are registered in the pool.")
+
+    selected_name = _agent_name_from_metadata(getattr(ctx.job, "metadata", None))
+    if selected_name is not None:
+        return _get_registered_agent(agents, selected_name, source="job metadata")
+
+    selected_name = _agent_name_from_metadata(getattr(ctx.room, "metadata", None))
+    if selected_name is not None:
+        return _get_registered_agent(agents, selected_name, source="room metadata")
+
+    room_name = getattr(ctx.room, "name", None)
+    if isinstance(room_name, str):
+        for agent_name, config in agents.items():
+            if room_name.startswith(f"{agent_name}-"):
+                logger.info(
+                    "Resolved agent '%s' via room name prefix from room '%s'.",
+                    agent_name,
+                    room_name,
+                )
+                return config
+
+    default_agent = next(iter(agents.values()))
+    logger.info("Resolved agent '%s' via default fallback.", default_agent.name)
+    return default_agent
+
+
+def _agent_name_from_metadata(metadata: Any) -> str | None:
+    if metadata is None:
+        return None
+    if isinstance(metadata, Mapping):
+        return _agent_name_from_mapping(metadata)
+    if isinstance(metadata, str):
+        stripped = metadata.strip()
+        if not stripped:
+            return None
+        try:
+            decoded = json.loads(stripped)
+        except json.JSONDecodeError:
+            logger.debug("Ignoring non-JSON metadata: %s", stripped)
+            return None
+        if isinstance(decoded, Mapping):
+            return _agent_name_from_mapping(decoded)
+    return None
+
+
+def _agent_name_from_mapping(metadata: Mapping[str, Any]) -> str | None:
+    for key in _METADATA_AGENT_KEYS:
+        value = metadata.get(key)
+        if isinstance(value, str):
+            normalized_value = value.strip()
+            if normalized_value:
+                return normalized_value
+    return None
+
+
+def _get_registered_agent(
+    agents: Mapping[str, AgentConfig],
+    name: str,
+    *,
+    source: str,
+) -> AgentConfig:
+    try:
+        config = agents[name]
+    except KeyError as exc:
+        raise ValueError(f"Unknown agent '{name}' requested via {source}.") from exc
+    logger.info("Resolved agent '%s' via %s.", name, source)
+    return config
+
+
+def _load_shared_runtime_dependencies() -> tuple[Any, type[Any]]:
+    """Load the optional LiveKit runtime dependencies used during prewarm."""
+    try:
+        from livekit.plugins import silero
+        from livekit.plugins.turn_detector.multilingual import MultilingualModel
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "OpenRTC requires the LiveKit Silero and turn-detector plugins. "
+            "Reinstall openrtc, or install livekit-agents[silero,turn-detector]."
+        ) from exc
+
+    return silero, MultilingualModel

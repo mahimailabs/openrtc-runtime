@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import pickle
+
 import pytest
 from livekit.agents import Agent
 
@@ -141,3 +144,68 @@ def test_run_without_agents_raises() -> None:
 
     with pytest.raises(RuntimeError):
         pool.run()
+
+
+def test_worker_callbacks_are_pickleable_and_keep_registered_agents() -> None:
+    pool = AgentPool()
+    pool.add("test", DemoAgent)
+
+    setup_callback = pickle.loads(pickle.dumps(pool.server.setup_fnc))
+    session_callback = pickle.loads(pickle.dumps(pool.server._session_handler))
+
+    process = type("Process", (), {"userdata": {}})()
+
+    class FakeVAD:
+        @staticmethod
+        def load() -> str:
+            return "vad"
+
+    class FakeSilero:
+        VAD = FakeVAD
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "openrtc.pool._load_shared_runtime_dependencies",
+        lambda: (FakeSilero, lambda: "turn"),
+    )
+    try:
+        setup_callback(process)
+    finally:
+        monkeypatch.undo()
+
+    assert process.userdata == {"vad": "vad", "turn_detection": "turn"}
+
+    class FakeJobContext:
+        def __init__(self) -> None:
+            self.job = type("Job", (), {"metadata": {"agent": "test"}})()
+            self.room = type("Room", (), {"metadata": None, "name": "test-room"})()
+            self.proc = process
+            self.connected = False
+
+        async def connect(self) -> None:
+            self.connected = True
+
+    class FakeSession:
+        instances: list[FakeSession] = []
+
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+            self.started = False
+            FakeSession.instances.append(self)
+
+        async def start(self, *, agent: Agent, room: object) -> None:
+            self.started = isinstance(agent, DemoAgent) and room is not None
+
+        async def generate_reply(self, *, instructions: str) -> None:
+            raise AssertionError("Greeting should not be generated in this test.")
+
+    ctx = FakeJobContext()
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    try:
+        asyncio.run(session_callback(ctx))
+    finally:
+        monkeypatch.undo()
+
+    assert ctx.connected is True
+    assert FakeSession.instances[0].started is True
