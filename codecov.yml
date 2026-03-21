@@ -1,0 +1,23 @@
+# Codecov repository settings (validate: curl --data-binary @codecov.yml https://codecov.io/validate)
+# CI still enforces coverage via pytest --cov-fail-under=80; this configures
+# Codecov checks and PR comments. Patch status is informational so small PRs
+# are not blocked twice (pytest remains the hard gate for overall %).
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        informational: true
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: false
