@@ -3,10 +3,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
 from livekit.agents import Agent
 
+import openrtc.resources as resources_module
 from openrtc.pool import AgentPool
 from openrtc.resources import (
+    ProcessResidentSetInfo,
     agent_disk_footprints,
     file_size_bytes,
     format_byte_size,
@@ -40,7 +43,7 @@ def test_agent_disk_footprints_skips_unknown_paths() -> None:
     assert agent_disk_footprints([cfg]) == []
 
 
-def test_process_resident_set_bytes_matches_info() -> None:
+def test_process_resident_set_info_smoke() -> None:
     info = get_process_resident_set_info()
     assert info.metric in (
         "linux_vm_rss",
@@ -48,7 +51,26 @@ def test_process_resident_set_bytes_matches_info() -> None:
         "unavailable",
     )
     assert len(info.description) > 5
-    assert process_resident_set_bytes() == info.bytes_value
+    b = process_resident_set_bytes()
+    assert b is None or isinstance(b, int)
+    # Equality of info.bytes_value vs b is not asserted: each call re-reads
+    # /proc or rusage, so values can differ between consecutive samples.
+
+
+def test_process_resident_set_bytes_delegates_to_get_process_resident_set_info(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = ProcessResidentSetInfo(
+        bytes_value=12345,
+        metric="linux_vm_rss",
+        description="stub",
+    )
+    monkeypatch.setattr(
+        resources_module,
+        "get_process_resident_set_info",
+        lambda: fake,
+    )
+    assert process_resident_set_bytes() == 12345
 
 
 def test_resident_set_descriptions_align_with_platform() -> None:
