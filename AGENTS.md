@@ -400,6 +400,8 @@ When in doubt:
 
 ### Common dev commands
 
+**Python:** `requires-python` is **3.11+** (see `pyproject.toml`); 3.10 is not supported.
+
 All commands are documented in `CONTRIBUTING.md`. Quick reference:
 
 - **Install deps:** `uv sync --group dev`

@@ -16,7 +16,7 @@ Run N LiveKit voice agents in one worker. Pay the model-load cost once.
 
 <div align="center">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python Version"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python Version"></a>
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
   <a href="https://pypi.org/project/openrtc/"><img src="https://img.shields.io/pypi/v/openrtc.svg" alt="PyPI version"></a>
   <a href="https://codecov.io/gh/mahimairaja/openrtc-python"><img src="https://codecov.io/gh/mahimairaja/openrtc-python/graph/badge.svg?token=W7VQ5FGSA9" alt="codecov"></a>
@@ -57,6 +57,10 @@ You already ship three voice agents with `livekit-agents`. Each agent is its own
 
 ## Installation
 
+OpenRTC **requires Python 3.11 or newer**. The LiveKit Silero / turn-detector
+plugins depend on `onnxruntime`, which does not ship supported wheels for
+Python 3.10 in current releases—use 3.11+ to avoid install failures.
+
 ```bash
 pip install openrtc
 ```
@@ -69,8 +73,6 @@ With **uv** (recommended in [CONTRIBUTING.md](CONTRIBUTING.md)):
 uv add openrtc
 uv add "openrtc[cli,tui]"
 ```
-
-On **CPython 3.10**, a conditional `onnxruntime` pin keeps resolution compatible with wheels (newer `onnxruntime` releases are 3.11+ only). Prefer **3.11+** if you hit resolver issues.
 
 ```bash
 pip install 'openrtc[cli]'

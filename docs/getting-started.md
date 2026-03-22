@@ -2,12 +2,11 @@
 
 ## Requirements
 
-OpenRTC currently supports Python `>=3.10,<3.14` and depends on
-`livekit-agents[openai,silero,turn-detector]~=1.4`. On **Python 3.10** the
-resolver keeps a compatible `onnxruntime` release (LiveKit’s Silero /
-turn-detector stack depends on it); **3.11+** is the smoothest path if you see
-install issues. See the repository’s `CONTRIBUTING.md` for `uv` workflows and
-Python 3.10 notes.
+OpenRTC requires Python **`>=3.11,<3.14`** and depends on
+`livekit-agents[openai,silero,turn-detector]~=1.4`. **3.10 is not supported**
+(LiveKit’s Silero / turn-detector stack pulls `onnxruntime`, which does not ship
+wheels for CPython 3.10 in current releases). See the repository’s
+`CONTRIBUTING.md` for `uv` workflows.
 
 ## Install
 
