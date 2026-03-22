@@ -42,7 +42,9 @@ app = typer.Typer(
         "[code]python agent.py <command>[/code]. "
         "Add [code]--agents-dir[/code] so OpenRTC discovers and registers agents; use "
         "[code]--url[/code] / [code]--api-key[/code] / [code]--api-secret[/code] or "
-        "the usual [code]LIVEKIT_*[/code] environment variables for the server."
+        "the usual [code]LIVEKIT_*[/code] environment variables for the server. "
+        "Use [code]openrtc tui --watch FILE[/code] (with the [code]tui[/code] extra) to "
+        "tail [code]--metrics-jsonl[/code] in a separate terminal."
     ),
     pretty_exceptions_show_locals=False,
     rich_markup_mode="rich",
@@ -110,7 +112,9 @@ class RuntimeReporter:
     def _run(self) -> None:
         now = time.monotonic()
         next_periodic = (
-            now + self._refresh_seconds if self._needs_periodic_file_or_ui else float("inf")
+            now + self._refresh_seconds
+            if self._needs_periodic_file_or_ui
+            else float("inf")
         )
         next_jsonl = now + self._jsonl_interval if self._jsonl_sink else float("inf")
 
@@ -645,9 +649,27 @@ MetricsJsonlIntervalArg = Annotated[
     typer.Option(
         "--metrics-jsonl-interval",
         min=0.25,
-        help=(
-            "Seconds between JSONL records (default: same as --dashboard-refresh)."
-        ),
+        help=("Seconds between JSONL records (default: same as --dashboard-refresh)."),
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+TuiWatchPathArg = Annotated[
+    Path,
+    typer.Option(
+        "--watch",
+        help="JSONL file written by the worker's --metrics-jsonl.",
+        resolve_path=True,
+        path_type=Path,
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+TuiFromStartArg = Annotated[
+    bool,
+    typer.Option(
+        "--from-start",
+        help="Read the file from the beginning instead of tailing from EOF.",
         rich_help_panel=PANEL_OPENRTC,
     ),
 ]
@@ -1077,6 +1099,23 @@ def download_files_command(
         api_secret=api_secret,
         log_level=log_level,
     )
+
+
+@app.command("tui")
+def tui_command(
+    watch: TuiWatchPathArg,
+    from_start: TuiFromStartArg = False,
+) -> None:
+    """Sidecar Textual UI for a --metrics-jsonl stream (requires the ``tui`` extra)."""
+    try:
+        from openrtc.tui_app import run_metrics_tui
+    except ImportError as exc:
+        logger.error(
+            "The TUI requires Textual. Install with: pip install 'openrtc[tui]' "
+            "(the cli extra is required for the openrtc command)."
+        )
+        raise typer.Exit(code=1) from exc
+    run_metrics_tui(watch, from_start=from_start)
 
 
 def _run_pool_with_reporting(

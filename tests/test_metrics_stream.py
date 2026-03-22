@@ -9,6 +9,7 @@ from openrtc.metrics_stream import (
     KIND_SNAPSHOT,
     METRICS_STREAM_SCHEMA_VERSION,
     JsonlMetricsSink,
+    parse_metrics_jsonl_line,
     snapshot_envelope,
 )
 from openrtc.resources import (
@@ -50,6 +51,24 @@ class _StubPool:
 
     def runtime_snapshot(self) -> PoolRuntimeSnapshot:
         return self._snap
+
+
+def test_parse_metrics_jsonl_line() -> None:
+    good = json.dumps(
+        {
+            "schema_version": METRICS_STREAM_SCHEMA_VERSION,
+            "kind": KIND_SNAPSHOT,
+            "seq": 9,
+            "wall_time_unix": 12.0,
+            "payload": {"registered_agents": 0},
+        }
+    )
+    parsed = parse_metrics_jsonl_line(good)
+    assert parsed is not None
+    assert parsed["seq"] == 9
+    assert parse_metrics_jsonl_line("") is None
+    assert parse_metrics_jsonl_line("not-json") is None
+    assert parse_metrics_jsonl_line('{"schema_version": 999}') is None
 
 
 def test_snapshot_envelope_shape() -> None:

@@ -38,6 +38,22 @@ def snapshot_envelope(*, seq: int, snapshot: PoolRuntimeSnapshot) -> dict[str, A
     }
 
 
+def parse_metrics_jsonl_line(line: str) -> dict[str, Any] | None:
+    """Return a parsed snapshot record, or ``None`` if the line is not a snapshot."""
+    stripped = line.strip()
+    if not stripped:
+        return None
+    try:
+        record: dict[str, Any] = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+    if record.get("schema_version") != METRICS_STREAM_SCHEMA_VERSION:
+        return None
+    if record.get("kind") != KIND_SNAPSHOT:
+        return None
+    return record
+
+
 class JsonlMetricsSink:
     """Append-only JSONL writer; truncates the file when opened (new worker run)."""
 
