@@ -32,20 +32,26 @@ logger = logging.getLogger("openrtc")
 
 PANEL_OPENRTC = "OpenRTC"
 PANEL_LIVEKIT = "Connection"
+PANEL_ADVANCED = "Advanced"
+
+_QUICKSTART_EPILOG = (
+    "[bold]Typical usage[/bold]: set [code]LIVEKIT_URL[/code], [code]LIVEKIT_API_KEY[/code], "
+    "and [code]LIVEKIT_API_SECRET[/code], then run "
+    "[code]openrtc dev --agents-dir PATH[/code] (or [code]start[/code] in production). "
+    "Defaults are conservative (e.g. no dashboard, 1s refresh); tuning flags are under "
+    "the [bold]Advanced[/bold] group in each command's [code]--help[/code]."
+)
 
 app = typer.Typer(
     name="openrtc",
     help=(
-        "Run multiple LiveKit voice agents from one shared worker. Subcommands mirror "
-        "the LiveKit Agents CLI ([code]dev[/code], [code]start[/code], [code]console[/code], "
-        "[code]connect[/code], [code]download-files[/code]) as in "
-        "[code]python agent.py <command>[/code]. "
-        "Add [code]--agents-dir[/code] so OpenRTC discovers and registers agents; use "
-        "[code]--url[/code] / [code]--api-key[/code] / [code]--api-secret[/code] or "
-        "the usual [code]LIVEKIT_*[/code] environment variables for the server. "
-        "Use [code]openrtc tui --watch FILE[/code] (with the [code]tui[/code] extra) to "
-        "tail [code]--metrics-jsonl[/code] in a separate terminal."
+        "Run multiple LiveKit voice agents from one shared worker. Commands match "
+        "LiveKit Agents ([code]dev[/code], [code]start[/code], [code]console[/code], "
+        "[code]connect[/code], [code]download-files[/code]) plus [code]list[/code] and "
+        "[code]tui[/code]. Only [code]--agents-dir[/code] is required for worker commands; "
+        "credentials use [code]LIVEKIT_*[/code] env vars by default (CLI flags optional)."
     ),
+    epilog=_QUICKSTART_EPILOG,
     pretty_exceptions_show_locals=False,
     rich_markup_mode="rich",
     no_args_is_help=True,
@@ -547,7 +553,7 @@ AgentsDirArg = Annotated[
     Path,
     typer.Option(
         "--agents-dir",
-        help="Directory containing discoverable agent modules.",
+        help="Directory of agent modules to load (only required flag for most workflows).",
         exists=False,
         resolve_path=True,
         path_type=Path,
@@ -599,7 +605,7 @@ DefaultGreetingArg = Annotated[
             "Default greeting used when a discovered agent does not "
             "override greeting via @agent_config(...)."
         ),
-        rich_help_panel=PANEL_OPENRTC,
+        rich_help_panel=PANEL_ADVANCED,
     ),
 ]
 
@@ -607,7 +613,7 @@ DashboardArg = Annotated[
     bool,
     typer.Option(
         "--dashboard",
-        help="Show a live Rich dashboard with worker memory and active sessions.",
+        help="Show a live Rich dashboard (off by default; use for local debugging).",
         rich_help_panel=PANEL_OPENRTC,
     ),
 ]
@@ -617,8 +623,8 @@ DashboardRefreshArg = Annotated[
     typer.Option(
         "--dashboard-refresh",
         min=0.25,
-        help="Refresh interval in seconds for the runtime dashboard and metrics file.",
-        rich_help_panel=PANEL_OPENRTC,
+        help="Refresh interval in seconds for dashboard / metrics file / JSONL (default 1s).",
+        rich_help_panel=PANEL_ADVANCED,
     ),
 ]
 
@@ -626,10 +632,10 @@ MetricsJsonFileArg = Annotated[
     Path | None,
     typer.Option(
         "--metrics-json-file",
-        help="Write live runtime metrics snapshots to this JSON file for automation.",
+        help="Overwrite a JSON file each tick with the latest snapshot (automation / CI).",
         resolve_path=True,
         path_type=Path,
-        rich_help_panel=PANEL_OPENRTC,
+        rich_help_panel=PANEL_ADVANCED,
     ),
 ]
 
@@ -638,8 +644,8 @@ MetricsJsonlArg = Annotated[
     typer.Option(
         "--metrics-jsonl",
         help=(
-            "Append versioned metrics snapshots as JSON Lines for ``openrtc tui --watch`` "
-            "(truncates the file when the worker starts)."
+            "Append JSON Lines for ``openrtc tui --watch`` (off by default; "
+            "truncates when the worker starts)."
         ),
         resolve_path=True,
         path_type=Path,
@@ -653,7 +659,7 @@ MetricsJsonlIntervalArg = Annotated[
         "--metrics-jsonl-interval",
         min=0.25,
         help=("Seconds between JSONL records (default: same as --dashboard-refresh)."),
-        rich_help_panel=PANEL_OPENRTC,
+        rich_help_panel=PANEL_ADVANCED,
     ),
 ]
 
@@ -673,7 +679,7 @@ TuiFromStartArg = Annotated[
     typer.Option(
         "--from-start",
         help="Read the file from the beginning instead of tailing from EOF.",
-        rich_help_panel=PANEL_OPENRTC,
+        rich_help_panel=PANEL_ADVANCED,
     ),
 ]
 
@@ -721,7 +727,7 @@ ConnectParticipantArg = Annotated[
     typer.Option(
         "--participant-identity",
         help="Agent participant identity when connecting to the room.",
-        rich_help_panel=PANEL_LIVEKIT,
+        rich_help_panel=PANEL_ADVANCED,
     ),
 ]
 
@@ -732,7 +738,7 @@ LiveKitLogLevelArg = Annotated[
         help="Log level (e.g. DEBUG, INFO, WARN, ERROR).",
         envvar="LIVEKIT_LOG_LEVEL",
         case_sensitive=False,
-        rich_help_panel=PANEL_LIVEKIT,
+        rich_help_panel=PANEL_ADVANCED,
     ),
 ]
 
@@ -750,6 +756,7 @@ def list_command(
                 "Memory line is OS-specific (Linux: current VmRSS; macOS: peak "
                 "ru_maxrss, not live RSS—see JSON description)."
             ),
+            rich_help_panel=PANEL_ADVANCED,
         ),
     ] = False,
     json_output: Annotated[
@@ -1075,23 +1082,23 @@ def connect_command(
 @app.command("download-files")
 def download_files_command(
     agents_dir: AgentsDirArg,
-    default_stt: DefaultSttArg = None,
-    default_llm: DefaultLlmArg = None,
-    default_tts: DefaultTtsArg = None,
-    default_greeting: DefaultGreetingArg = None,
     url: LiveKitUrlArg = None,
     api_key: LiveKitApiKeyArg = None,
     api_secret: LiveKitApiSecretArg = None,
     log_level: LiveKitLogLevelArg = None,
 ) -> None:
-    """Download plugin assets (LiveKit [code]download-files[/code])."""
+    """Download plugin assets (LiveKit [code]download-files[/code]).
+
+    Uses the same discovery path as other commands so the worker entrypoint is
+    valid; provider defaults are not needed for this subcommand.
+    """
     _delegate_discovered_pool_to_livekit(
         agents_dir=agents_dir,
         subcommand="download-files",
-        default_stt=default_stt,
-        default_llm=default_llm,
-        default_tts=default_tts,
-        default_greeting=default_greeting,
+        default_stt=None,
+        default_llm=None,
+        default_tts=None,
+        default_greeting=None,
         dashboard=False,
         dashboard_refresh=1.0,
         metrics_json_file=None,

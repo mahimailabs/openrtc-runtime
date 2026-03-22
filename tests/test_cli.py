@@ -230,6 +230,26 @@ def test_cli_returns_non_zero_when_no_agents_are_discovered(
     assert exit_code == 1
 
 
+def test_download_files_has_minimal_options_no_provider_defaults(
+    tmp_path: Path,
+) -> None:
+    """download-files only needs agents dir + connection; no --default-* flags."""
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "download-files",
+            "--agents-dir",
+            str(tmp_path),
+            "--default-stt",
+            "deepgram/x",
+        ],
+    )
+    assert result.exit_code != 0
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "No such option" in out and "default-stt" in out
+
+
 def test_list_exits_cleanly_when_agents_dir_does_not_exist(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
