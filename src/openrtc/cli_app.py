@@ -20,11 +20,11 @@ from openrtc.cli_dashboard import (
 from openrtc.cli_livekit import (
     _delegate_discovered_pool_to_livekit,
     _discover_or_exit,
-    _pool_kwargs,
     _run_connect_handoff,
     _run_pool_with_reporting,
     _strip_openrtc_only_flags_for_livekit,
 )
+from openrtc.cli_params import SharedLiveKitWorkerOptions, agent_provider_kwargs
 from openrtc.cli_reporter import RuntimeReporter
 from openrtc.cli_types import (
     _LIVEKIT_CLI_CONTEXT_SETTINGS,
@@ -119,7 +119,7 @@ def list_command(
         raise typer.BadParameter("Use only one of --plain and --json.")
 
     pool = AgentPool(
-        **_pool_kwargs(default_stt, default_llm, default_tts, default_greeting)
+        **agent_provider_kwargs(default_stt, default_llm, default_tts, default_greeting)
     )
     discovered = _discover_or_exit(agents_dir, pool)
 
@@ -137,118 +137,70 @@ def list_command(
         print_resource_summary_rich(discovered)
 
 
-@app.command("start", context_settings=_LIVEKIT_CLI_CONTEXT_SETTINGS)
-def start_command(
-    _ctx: Context,
-    agents_dir: AgentsDirArg,
-    default_stt: DefaultSttArg = None,
-    default_llm: DefaultLlmArg = None,
-    default_tts: DefaultTtsArg = None,
-    default_greeting: DefaultGreetingArg = None,
-    url: LiveKitUrlArg = None,
-    api_key: LiveKitApiKeyArg = None,
-    api_secret: LiveKitApiSecretArg = None,
-    log_level: LiveKitLogLevelArg = None,
-    dashboard: DashboardArg = False,
-    dashboard_refresh: DashboardRefreshArg = 1.0,
-    metrics_json_file: MetricsJsonFileArg = None,
-    metrics_jsonl: MetricsJsonlArg = None,
-    metrics_jsonl_interval: MetricsJsonlIntervalArg = None,
-) -> None:
-    """Run the worker (same role as [code]python agent.py start[/code] with LiveKit)."""
-    _delegate_discovered_pool_to_livekit(
-        agents_dir=agents_dir,
-        subcommand="start",
-        default_stt=default_stt,
-        default_llm=default_llm,
-        default_tts=default_tts,
-        default_greeting=default_greeting,
-        dashboard=dashboard,
-        dashboard_refresh=dashboard_refresh,
-        metrics_json_file=metrics_json_file,
-        metrics_jsonl=metrics_jsonl,
-        metrics_jsonl_interval=metrics_jsonl_interval,
-        url=url,
-        api_key=api_key,
-        api_secret=api_secret,
-        log_level=log_level,
-    )
+_STANDARD_LIVEKIT_WORKER_SPECS: tuple[tuple[str, str], ...] = (
+    (
+        "start",
+        "Run the worker (same role as [code]python agent.py start[/code] with LiveKit).",
+    ),
+    (
+        "dev",
+        "Development worker with reload (same role as [code]python agent.py dev[/code]).",
+    ),
+    (
+        "console",
+        "Local console session (same role as [code]python agent.py console[/code]).",
+    ),
+)
 
 
-@app.command("dev", context_settings=_LIVEKIT_CLI_CONTEXT_SETTINGS)
-def dev_command(
-    _ctx: Context,
-    agents_dir: AgentsDirArg,
-    default_stt: DefaultSttArg = None,
-    default_llm: DefaultLlmArg = None,
-    default_tts: DefaultTtsArg = None,
-    default_greeting: DefaultGreetingArg = None,
-    url: LiveKitUrlArg = None,
-    api_key: LiveKitApiKeyArg = None,
-    api_secret: LiveKitApiSecretArg = None,
-    log_level: LiveKitLogLevelArg = None,
-    dashboard: DashboardArg = False,
-    dashboard_refresh: DashboardRefreshArg = 1.0,
-    metrics_json_file: MetricsJsonFileArg = None,
-    metrics_jsonl: MetricsJsonlArg = None,
-    metrics_jsonl_interval: MetricsJsonlIntervalArg = None,
-) -> None:
-    """Development worker with reload (same role as [code]python agent.py dev[/code])."""
-    _delegate_discovered_pool_to_livekit(
-        agents_dir=agents_dir,
-        subcommand="dev",
-        default_stt=default_stt,
-        default_llm=default_llm,
-        default_tts=default_tts,
-        default_greeting=default_greeting,
-        dashboard=dashboard,
-        dashboard_refresh=dashboard_refresh,
-        metrics_json_file=metrics_json_file,
-        metrics_jsonl=metrics_jsonl,
-        metrics_jsonl_interval=metrics_jsonl_interval,
-        url=url,
-        api_key=api_key,
-        api_secret=api_secret,
-        log_level=log_level,
-    )
+def _make_standard_livekit_worker_handler(subcommand: str):
+    """Build a Typer command that shares one option signature for start/dev/console."""
+
+    def handler(
+        _ctx: Context,
+        agents_dir: AgentsDirArg,
+        default_stt: DefaultSttArg = None,
+        default_llm: DefaultLlmArg = None,
+        default_tts: DefaultTtsArg = None,
+        default_greeting: DefaultGreetingArg = None,
+        url: LiveKitUrlArg = None,
+        api_key: LiveKitApiKeyArg = None,
+        api_secret: LiveKitApiSecretArg = None,
+        log_level: LiveKitLogLevelArg = None,
+        dashboard: DashboardArg = False,
+        dashboard_refresh: DashboardRefreshArg = 1.0,
+        metrics_json_file: MetricsJsonFileArg = None,
+        metrics_jsonl: MetricsJsonlArg = None,
+        metrics_jsonl_interval: MetricsJsonlIntervalArg = None,
+    ) -> None:
+        _delegate_discovered_pool_to_livekit(
+            subcommand,
+            SharedLiveKitWorkerOptions.from_cli(
+                agents_dir,
+                default_stt=default_stt,
+                default_llm=default_llm,
+                default_tts=default_tts,
+                default_greeting=default_greeting,
+                url=url,
+                api_key=api_key,
+                api_secret=api_secret,
+                log_level=log_level,
+                dashboard=dashboard,
+                dashboard_refresh=dashboard_refresh,
+                metrics_json_file=metrics_json_file,
+                metrics_jsonl=metrics_jsonl,
+                metrics_jsonl_interval=metrics_jsonl_interval,
+            ),
+        )
+
+    handler.__name__ = f"{subcommand}_command"
+    return handler
 
 
-@app.command("console", context_settings=_LIVEKIT_CLI_CONTEXT_SETTINGS)
-def console_command(
-    _ctx: Context,
-    agents_dir: AgentsDirArg,
-    default_stt: DefaultSttArg = None,
-    default_llm: DefaultLlmArg = None,
-    default_tts: DefaultTtsArg = None,
-    default_greeting: DefaultGreetingArg = None,
-    url: LiveKitUrlArg = None,
-    api_key: LiveKitApiKeyArg = None,
-    api_secret: LiveKitApiSecretArg = None,
-    log_level: LiveKitLogLevelArg = None,
-    dashboard: DashboardArg = False,
-    dashboard_refresh: DashboardRefreshArg = 1.0,
-    metrics_json_file: MetricsJsonFileArg = None,
-    metrics_jsonl: MetricsJsonlArg = None,
-    metrics_jsonl_interval: MetricsJsonlIntervalArg = None,
-) -> None:
-    """Local console session (same role as [code]python agent.py console[/code])."""
-    _delegate_discovered_pool_to_livekit(
-        agents_dir=agents_dir,
-        subcommand="console",
-        default_stt=default_stt,
-        default_llm=default_llm,
-        default_tts=default_tts,
-        default_greeting=default_greeting,
-        dashboard=dashboard,
-        dashboard_refresh=dashboard_refresh,
-        metrics_json_file=metrics_json_file,
-        metrics_jsonl=metrics_jsonl,
-        metrics_jsonl_interval=metrics_jsonl_interval,
-        url=url,
-        api_key=api_key,
-        api_secret=api_secret,
-        log_level=log_level,
-    )
+for _subcommand, _doc in _STANDARD_LIVEKIT_WORKER_SPECS:
+    _handler = _make_standard_livekit_worker_handler(_subcommand)
+    _handler.__doc__ = _doc
+    app.command(_subcommand, context_settings=_LIVEKIT_CLI_CONTEXT_SETTINGS)(_handler)
 
 
 @app.command("connect", context_settings=_LIVEKIT_CLI_CONTEXT_SETTINGS)
@@ -273,22 +225,24 @@ def connect_command(
 ) -> None:
     """Connect the worker to an existing room (LiveKit [code]connect[/code])."""
     _run_connect_handoff(
-        agents_dir=agents_dir,
-        default_stt=default_stt,
-        default_llm=default_llm,
-        default_tts=default_tts,
-        default_greeting=default_greeting,
+        SharedLiveKitWorkerOptions.from_cli(
+            agents_dir,
+            default_stt=default_stt,
+            default_llm=default_llm,
+            default_tts=default_tts,
+            default_greeting=default_greeting,
+            url=url,
+            api_key=api_key,
+            api_secret=api_secret,
+            log_level=log_level,
+            dashboard=dashboard,
+            dashboard_refresh=dashboard_refresh,
+            metrics_json_file=metrics_json_file,
+            metrics_jsonl=metrics_jsonl,
+            metrics_jsonl_interval=metrics_jsonl_interval,
+        ),
         room=room,
         participant_identity=participant_identity,
-        log_level=log_level,
-        url=url,
-        api_key=api_key,
-        api_secret=api_secret,
-        dashboard=dashboard,
-        dashboard_refresh=dashboard_refresh,
-        metrics_json_file=metrics_json_file,
-        metrics_jsonl=metrics_jsonl,
-        metrics_jsonl_interval=metrics_jsonl_interval,
     )
 
 
@@ -306,21 +260,14 @@ def download_files_command(
     valid; provider defaults are not needed for this subcommand.
     """
     _delegate_discovered_pool_to_livekit(
-        agents_dir=agents_dir,
-        subcommand="download-files",
-        default_stt=None,
-        default_llm=None,
-        default_tts=None,
-        default_greeting=None,
-        dashboard=False,
-        dashboard_refresh=1.0,
-        metrics_json_file=None,
-        metrics_jsonl=None,
-        metrics_jsonl_interval=None,
-        url=url,
-        api_key=api_key,
-        api_secret=api_secret,
-        log_level=log_level,
+        "download-files",
+        SharedLiveKitWorkerOptions.for_download_files(
+            agents_dir,
+            url=url,
+            api_key=api_key,
+            api_secret=api_secret,
+            log_level=log_level,
+        ),
     )
 
 

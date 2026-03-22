@@ -8,28 +8,14 @@ import os
 import sys
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 
 import typer
 
+from openrtc.cli_params import SharedLiveKitWorkerOptions
 from openrtc.cli_reporter import RuntimeReporter
 from openrtc.pool import AgentConfig, AgentPool
 
 logger = logging.getLogger("openrtc")
-
-
-def _pool_kwargs(
-    default_stt: str | None,
-    default_llm: str | None,
-    default_tts: str | None,
-    default_greeting: str | None,
-) -> dict[str, Any]:
-    return {
-        "default_stt": default_stt,
-        "default_llm": default_llm,
-        "default_tts": default_tts,
-        "default_greeting": default_greeting,
-    }
 
 
 _OPENRTC_ONLY_FLAGS_WITH_VALUE: frozenset[str] = frozenset(
@@ -154,83 +140,58 @@ def _livekit_env_overrides(
 
 
 def _delegate_discovered_pool_to_livekit(
-    *,
-    agents_dir: Path,
     subcommand: str,
-    default_stt: str | None,
-    default_llm: str | None,
-    default_tts: str | None,
-    default_greeting: str | None,
-    dashboard: bool,
-    dashboard_refresh: float,
-    metrics_json_file: Path | None,
-    metrics_jsonl: Path | None,
-    metrics_jsonl_interval: float | None,
-    url: str | None,
-    api_key: str | None,
-    api_secret: str | None,
-    log_level: str | None,
+    opts: SharedLiveKitWorkerOptions,
 ) -> None:
     """Discover agents, optionally set connection env, then run a LiveKit CLI subcommand."""
-    pool = AgentPool(
-        **_pool_kwargs(default_stt, default_llm, default_tts, default_greeting)
-    )
-    _discover_or_exit(agents_dir, pool)
+    pool = AgentPool(**opts.agent_pool_kwargs())
+    _discover_or_exit(opts.agents_dir, pool)
     with _livekit_env_overrides(
-        url=url, api_key=api_key, api_secret=api_secret, log_level=log_level
+        url=opts.url,
+        api_key=opts.api_key,
+        api_secret=opts.api_secret,
+        log_level=opts.log_level,
     ):
         _livekit_sys_argv(subcommand)
         _run_pool_with_reporting(
             pool,
-            dashboard=dashboard,
-            dashboard_refresh=dashboard_refresh,
-            metrics_json_file=metrics_json_file,
-            metrics_jsonl=metrics_jsonl,
-            metrics_jsonl_interval=metrics_jsonl_interval,
+            dashboard=opts.dashboard,
+            dashboard_refresh=opts.dashboard_refresh,
+            metrics_json_file=opts.metrics_json_file,
+            metrics_jsonl=opts.metrics_jsonl,
+            metrics_jsonl_interval=opts.metrics_jsonl_interval,
         )
 
 
 def _run_connect_handoff(
+    opts: SharedLiveKitWorkerOptions,
     *,
-    agents_dir: Path,
-    default_stt: str | None,
-    default_llm: str | None,
-    default_tts: str | None,
-    default_greeting: str | None,
     room: str,
     participant_identity: str | None,
-    log_level: str | None,
-    url: str | None,
-    api_key: str | None,
-    api_secret: str | None,
-    dashboard: bool,
-    dashboard_refresh: float,
-    metrics_json_file: Path | None,
-    metrics_jsonl: Path | None,
-    metrics_jsonl_interval: float | None,
 ) -> None:
     """Hand off to LiveKit ``connect`` with explicit argv (Typer consumes flags first)."""
-    pool = AgentPool(
-        **_pool_kwargs(default_stt, default_llm, default_tts, default_greeting)
-    )
-    _discover_or_exit(agents_dir, pool)
+    pool = AgentPool(**opts.agent_pool_kwargs())
+    _discover_or_exit(opts.agents_dir, pool)
     with _livekit_env_overrides(
-        url=url, api_key=api_key, api_secret=api_secret, log_level=None
+        url=opts.url,
+        api_key=opts.api_key,
+        api_secret=opts.api_secret,
+        log_level=None,
     ):
         prog = sys.argv[0]
         tail: list[str] = ["connect", "--room", room]
         if participant_identity is not None:
             tail.extend(["--participant-identity", participant_identity])
-        if log_level is not None:
-            tail.extend(["--log-level", log_level])
+        if opts.log_level is not None:
+            tail.extend(["--log-level", opts.log_level])
         sys.argv = [prog, *tail]
         _run_pool_with_reporting(
             pool,
-            dashboard=dashboard,
-            dashboard_refresh=dashboard_refresh,
-            metrics_json_file=metrics_json_file,
-            metrics_jsonl=metrics_jsonl,
-            metrics_jsonl_interval=metrics_jsonl_interval,
+            dashboard=opts.dashboard,
+            dashboard_refresh=opts.dashboard_refresh,
+            metrics_json_file=opts.metrics_json_file,
+            metrics_jsonl=opts.metrics_jsonl,
+            metrics_jsonl_interval=opts.metrics_jsonl_interval,
         )
 
 
