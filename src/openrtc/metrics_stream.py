@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -116,13 +117,13 @@ class JsonlMetricsSink:
             self._file.write(json.dumps(record, sort_keys=True) + "\n")
             self._file.flush()
 
-    def write_event(self, payload: dict[str, Any]) -> None:
+    def write_event(self, payload: Mapping[str, Any]) -> None:
         """Append one event line after the current ``seq`` (thread-safe)."""
         with self._lock:
             if self._file is None:
                 raise RuntimeError("JsonlMetricsSink.open() was not called")
             self._seq += 1
-            record = event_envelope(seq=self._seq, payload=payload)
+            record = event_envelope(seq=self._seq, payload=dict(payload))
             self._file.write(json.dumps(record, sort_keys=True) + "\n")
             self._file.flush()
 

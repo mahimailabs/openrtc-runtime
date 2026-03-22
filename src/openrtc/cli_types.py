@@ -1,0 +1,210 @@
+"""Typer :class:`typing.Annotated` aliases shared by OpenRTC CLI commands."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Annotated
+
+import typer
+
+PANEL_OPENRTC = "OpenRTC"
+PANEL_LIVEKIT = "Connection"
+PANEL_ADVANCED = "Advanced"
+
+AgentsDirArg = Annotated[
+    Path,
+    typer.Option(
+        "--agents-dir",
+        help="Directory of agent modules to load (only required flag for most workflows).",
+        exists=False,
+        resolve_path=True,
+        path_type=Path,
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+DefaultSttArg = Annotated[
+    str | None,
+    typer.Option(
+        "--default-stt",
+        help=(
+            "Default STT provider used when a discovered agent does not "
+            "override STT via @agent_config(...)."
+        ),
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+DefaultLlmArg = Annotated[
+    str | None,
+    typer.Option(
+        "--default-llm",
+        help=(
+            "Default LLM provider used when a discovered agent does not "
+            "override LLM via @agent_config(...)."
+        ),
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+DefaultTtsArg = Annotated[
+    str | None,
+    typer.Option(
+        "--default-tts",
+        help=(
+            "Default TTS provider used when a discovered agent does not "
+            "override TTS via @agent_config(...)."
+        ),
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+DefaultGreetingArg = Annotated[
+    str | None,
+    typer.Option(
+        "--default-greeting",
+        help=(
+            "Default greeting used when a discovered agent does not "
+            "override greeting via @agent_config(...)."
+        ),
+        rich_help_panel=PANEL_ADVANCED,
+    ),
+]
+
+DashboardArg = Annotated[
+    bool,
+    typer.Option(
+        "--dashboard",
+        help="Show a live Rich dashboard (off by default; use for local debugging).",
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+DashboardRefreshArg = Annotated[
+    float,
+    typer.Option(
+        "--dashboard-refresh",
+        min=0.25,
+        help="Refresh interval in seconds for dashboard / metrics file / JSONL (default 1s).",
+        rich_help_panel=PANEL_ADVANCED,
+    ),
+]
+
+MetricsJsonFileArg = Annotated[
+    Path | None,
+    typer.Option(
+        "--metrics-json-file",
+        help="Overwrite a JSON file each tick with the latest snapshot (automation / CI).",
+        resolve_path=True,
+        path_type=Path,
+        rich_help_panel=PANEL_ADVANCED,
+    ),
+]
+
+MetricsJsonlArg = Annotated[
+    Path | None,
+    typer.Option(
+        "--metrics-jsonl",
+        help=(
+            "Append JSON Lines for ``openrtc tui --watch`` (off by default; "
+            "truncates when the worker starts)."
+        ),
+        resolve_path=True,
+        path_type=Path,
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+MetricsJsonlIntervalArg = Annotated[
+    float | None,
+    typer.Option(
+        "--metrics-jsonl-interval",
+        min=0.25,
+        help=("Seconds between JSONL records (default: same as --dashboard-refresh)."),
+        rich_help_panel=PANEL_ADVANCED,
+    ),
+]
+
+TuiWatchPathArg = Annotated[
+    Path,
+    typer.Option(
+        "--watch",
+        help="JSONL file written by the worker's --metrics-jsonl.",
+        resolve_path=True,
+        path_type=Path,
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+TuiFromStartArg = Annotated[
+    bool,
+    typer.Option(
+        "--from-start",
+        help="Read the file from the beginning instead of tailing from EOF.",
+        rich_help_panel=PANEL_ADVANCED,
+    ),
+]
+
+LiveKitUrlArg = Annotated[
+    str | None,
+    typer.Option(
+        "--url",
+        help="WebSocket URL of the LiveKit server or Cloud project.",
+        envvar="LIVEKIT_URL",
+        rich_help_panel=PANEL_LIVEKIT,
+    ),
+]
+
+LiveKitApiKeyArg = Annotated[
+    str | None,
+    typer.Option(
+        "--api-key",
+        help="API key for the LiveKit server or Cloud project.",
+        envvar="LIVEKIT_API_KEY",
+        rich_help_panel=PANEL_LIVEKIT,
+    ),
+]
+
+LiveKitApiSecretArg = Annotated[
+    str | None,
+    typer.Option(
+        "--api-secret",
+        help="API secret for the LiveKit server or Cloud project.",
+        envvar="LIVEKIT_API_SECRET",
+        rich_help_panel=PANEL_LIVEKIT,
+    ),
+]
+
+ConnectRoomArg = Annotated[
+    str,
+    typer.Option(
+        "--room",
+        help="Room name to connect to (same as LiveKit Agents [code]connect[/code]).",
+        rich_help_panel=PANEL_LIVEKIT,
+    ),
+]
+
+ConnectParticipantArg = Annotated[
+    str | None,
+    typer.Option(
+        "--participant-identity",
+        help="Agent participant identity when connecting to the room.",
+        rich_help_panel=PANEL_ADVANCED,
+    ),
+]
+
+LiveKitLogLevelArg = Annotated[
+    str | None,
+    typer.Option(
+        "--log-level",
+        help="Log level (e.g. DEBUG, INFO, WARN, ERROR).",
+        envvar="LIVEKIT_LOG_LEVEL",
+        case_sensitive=False,
+        rich_help_panel=PANEL_ADVANCED,
+    ),
+]
+
+_LIVEKIT_CLI_CONTEXT_SETTINGS = {
+    "allow_extra_args": True,
+    "ignore_unknown_options": True,
+}

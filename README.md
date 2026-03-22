@@ -16,7 +16,7 @@ Run N LiveKit voice agents in one worker. Pay the model-load cost once.
 
 <div align="center">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python Version"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python Version"></a>
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
   <a href="https://pypi.org/project/openrtc/"><img src="https://img.shields.io/pypi/v/openrtc.svg" alt="PyPI version"></a>
   <a href="https://codecov.io/gh/mahimairaja/openrtc-python"><img src="https://codecov.io/gh/mahimairaja/openrtc-python/graph/badge.svg?token=W7VQ5FGSA9" alt="codecov"></a>
@@ -57,11 +57,22 @@ You already ship three voice agents with `livekit-agents`. Each agent is its own
 
 ## Installation
 
+OpenRTC **requires Python 3.11 or newer**. The LiveKit Silero / turn-detector
+plugins depend on `onnxruntime`, which does not ship supported wheels for
+Python 3.10 in current releases—use 3.11+ to avoid install failures.
+
 ```bash
 pip install openrtc
 ```
 
-The base install pulls in `livekit-agents[openai,silero,turn-detector]` so shared prewarm has the plugins it expects.
+The base install pulls in `livekit-agents[openai,silero,turn-detector]` so shared prewarm has the plugins it expects. The package ships a **PEP 561** `py.typed` marker for downstream type checkers.
+
+With **uv** (recommended in [CONTRIBUTING.md](CONTRIBUTING.md)):
+
+```bash
+uv add openrtc
+uv add "openrtc[cli,tui]"
+```
 
 ```bash
 pip install 'openrtc[cli]'
@@ -253,6 +264,7 @@ Everything openrtc exposes publicly is listed here. Anything else is internal an
 - `AgentConfig`
 - `AgentDiscoveryConfig`
 - `agent_config(...)`
+- `ProviderValue` — type alias for STT/LLM/TTS slot values (provider ID strings or LiveKit plugin instances)
 
 On `AgentPool`:
 
@@ -271,11 +283,18 @@ On `AgentPool`:
 ```text
 src/openrtc/
 ├── __init__.py
-├── cli.py
-├── cli_app.py
-├── metrics_stream.py
-├── tui_app.py
-└── pool.py
+├── py.typed
+├── cli.py                 # lazy console entry / missing-extra hints
+├── cli_app.py             # Typer commands and programmatic main()
+├── cli_types.py           # shared CLI option aliases
+├── cli_dashboard.py     # Rich dashboard and list output
+├── cli_reporter.py        # background metrics reporter thread
+├── cli_livekit.py         # LiveKit argv/env handoff, pool run
+├── cli_params.py          # shared worker handoff option bundles
+├── metrics_stream.py      # JSONL metrics schema
+├── provider_types.py      # ProviderValue and related typing
+├── tui_app.py             # optional Textual sidecar
+└── pool.py                # AgentPool, discovery, routing
 ```
 
 - `pool.py` — `AgentPool`, discovery, routing
@@ -285,7 +304,8 @@ src/openrtc/
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). CI runs **Ruff** and **mypy** on pull
+requests alongside the test suite.
 
 ## License
 

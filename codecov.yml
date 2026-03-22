@@ -3,12 +3,6 @@
 # Codecov checks and PR comments. Patch status is informational so small PRs
 # are not blocked twice (pytest remains the hard gate for overall %).
 
-# Optional Textual sidecar (`openrtc[tui]`). Excluded from Codecov totals/patch so
-# PR checks are not dominated by UI-only lines; `pytest --cov=openrtc` still
-# includes it unless you omit it locally.
-ignore:
-  - "**/openrtc/tui_app\\.py"
-
 coverage:
   precision: 2
   round: down

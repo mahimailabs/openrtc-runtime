@@ -1,3 +1,22 @@
+"""Pytest configuration and shared fixtures.
+
+LiveKit SDK shim (below): if ``livekit.agents`` cannot be imported, we register a
+minimal ``livekit`` / ``livekit.agents`` package so tests can import
+``openrtc.pool`` without the real wheel. The shapes here mirror only what
+OpenRTC uses today; they are **not** a full SDK copy.
+
+**Target:** align with ``livekit-agents`` as pinned in ``pyproject.toml`` (see
+``dependencies`` / ``livekit-agents[...]``). When bumping that version or when
+OpenRTC starts calling new ``livekit.agents`` APIs, re-check this block: either
+extend the stubs or rely on ``uv sync`` + real SDK (normal contributor setup) so
+pytest exercises the actual package.
+
+**Drift risk:** new attributes on real ``Agent``, ``AgentServer``, etc. will exist
+on the installed SDK but not on these stubs; code paths that only run under the
+shim could diverge. Prefer running ``uv run pytest`` after ``uv sync`` before
+release; use the shim mainly for documented minimal environments.
+"""
+
 from __future__ import annotations
 
 import importlib

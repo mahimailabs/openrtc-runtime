@@ -157,7 +157,7 @@ class MetricsTuiApp(App[None]):
             f"failures={payload.get('total_session_failures')}"
         )
 
-    def action_quit(self) -> None:
+    async def action_quit(self) -> None:
         self.exit()
 
 

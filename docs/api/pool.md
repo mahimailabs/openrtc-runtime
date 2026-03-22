@@ -3,8 +3,23 @@
 ## Imports
 
 ```python
-from openrtc import AgentConfig, AgentDiscoveryConfig, AgentPool, agent_config
+from dataclasses import field
+from typing import Any
+
+from livekit.agents import Agent
+
+from openrtc import (
+    AgentConfig,
+    AgentDiscoveryConfig,
+    AgentPool,
+    ProviderValue,
+    agent_config,
+)
 ```
+
+`ProviderValue` is `str | Any`: provider ID strings (for example
+`openai/gpt-4.1-mini`) or concrete LiveKit plugin instances (for example
+`openai.STT(...)`).
 
 ## `AgentConfig`
 
@@ -13,9 +28,9 @@ from openrtc import AgentConfig, AgentDiscoveryConfig, AgentPool, agent_config
 class AgentConfig:
     name: str
     agent_cls: type[Agent]
-    stt: Any = None
-    llm: Any = None
-    tts: Any = None
+    stt: ProviderValue | None = None
+    llm: ProviderValue | None = None
+    tts: ProviderValue | None = None
     greeting: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=dict)
     source_path: Path | None = None
@@ -35,9 +50,9 @@ in pickle state for worker processes.
 @dataclass(slots=True)
 class AgentDiscoveryConfig:
     name: str | None = None
-    stt: Any = None
-    llm: Any = None
-    tts: Any = None
+    stt: ProviderValue | None = None
+    llm: ProviderValue | None = None
+    tts: ProviderValue | None = None
     greeting: str | None = None
 ```
 

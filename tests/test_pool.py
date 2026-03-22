@@ -594,3 +594,24 @@ def test_drain_metrics_stream_events_delegates_to_runtime_store() -> None:
     pool = AgentPool()
     pool.add("test", DemoAgent, stt="a", llm="b", tts="c")
     assert pool.drain_metrics_stream_events() == []
+
+
+def test_is_not_given_detects_openai_sentinels_without_repr() -> None:
+    pytest.importorskip("openai")
+    from openai import NOT_GIVEN, not_given
+
+    from openrtc.pool import _is_not_given
+
+    assert _is_not_given(NOT_GIVEN) is True
+    assert _is_not_given(not_given) is True
+    assert _is_not_given("NOT_GIVEN") is False
+    assert _is_not_given(None) is False
+
+
+def test_is_not_given_ignores_unrelated_class_named_notgiven() -> None:
+    from openrtc.pool import _is_not_given
+
+    class NotGiven:
+        pass
+
+    assert _is_not_given(NotGiven()) is False

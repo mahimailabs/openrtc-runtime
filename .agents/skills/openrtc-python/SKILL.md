@@ -7,7 +7,7 @@ description: >-
   providers, set up agent routing, or run multiple LiveKit agents together with
   OpenRTC.
 license: MIT
-compatibility: Requires Python 3.10+ and uv (or pip). Requires the openrtc package.
+compatibility: Requires Python 3.11+ and uv (or pip). Requires the openrtc package.
 metadata:
   author: mahimailabs
   version: "1.0"

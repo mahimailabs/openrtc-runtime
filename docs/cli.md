@@ -1,8 +1,10 @@
 # CLI
 
 OpenRTC ships a console script named `openrtc` (Typer + Rich) for discovery-based
-workflows. The implementation lives in `openrtc.cli` / `openrtc.cli_app`; the
-programmatic entry is `typer.main.get_command(app).main(...)` (Click’s
+workflows. The Typer application and `main()` live in `openrtc.cli_app` (with
+helpers in `cli_livekit`, `cli_dashboard`, `cli_reporter`, `cli_types`, and
+`cli_params`). The lazy entrypoint and missing-extra hints are in `openrtc.cli`.
+The programmatic entry is `typer.main.get_command(app).main(...)` (Click’s
 `Command.main`), not the test-only `CliRunner`.
 
 ## Installation

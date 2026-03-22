@@ -14,10 +14,11 @@ from functools import partial
 from hashlib import sha1
 from pathlib import Path
 from types import ModuleType
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 
+from openrtc.provider_types import ProviderValue
 from openrtc.resources import (
     MetricsStreamEvent,
     PoolRuntimeSnapshot,
@@ -25,6 +26,14 @@ from openrtc.resources import (
 )
 
 logger = logging.getLogger("openrtc")
+
+_OPENAI_NOT_GIVEN_TYPE: type[Any] | None = None
+try:
+    from openai import NotGiven as _OpenAINotGiven
+except ImportError:  # pragma: no cover - optional when openai is absent
+    pass
+else:
+    _OPENAI_NOT_GIVEN_TYPE = _OpenAINotGiven
 
 _AgentType = TypeVar("_AgentType", bound=type[Agent])
 _AGENT_METADATA_ATTR = "__openrtc_agent_config__"
@@ -69,6 +78,19 @@ class _ProviderRef:
     kwargs: dict[str, Any]
 
 
+# ``(module, qualname)`` pairs for plugin classes that expose OpenAI-style
+# ``_opts`` and can be rehydrated via ``ProviderClass(**kwargs)`` in the child
+# after unpickling. Add entries here when new LiveKit plugins follow the same
+# pattern (Deepgram, Azure, …); unknown classes fall back to pickle or error.
+_PROVIDER_REF_KEYS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("livekit.plugins.openai.stt", "STT"),
+        ("livekit.plugins.openai.tts", "TTS"),
+        ("livekit.plugins.openai.responses.llm", "LLM"),
+    }
+)
+
+
 def _prewarm_worker(
     runtime_state: _PoolRuntimeState,
     proc: JobProcess,
@@ -90,7 +112,7 @@ async def _run_universal_session(
         raise RuntimeError("No agents are registered in the pool.")
     config = _resolve_agent_config(runtime_state.agents, ctx)
     session_kwargs = _build_session_kwargs(config.session_kwargs, ctx.proc)
-    session = AgentSession(
+    session: AgentSession = AgentSession(
         stt=config.stt,
         llm=config.llm,
         tts=config.tts,
@@ -99,7 +121,10 @@ async def _run_universal_session(
     )
     try:
         runtime_state.metrics.record_session_started(config.name)
-        await session.start(agent=config.agent_cls(), room=ctx.room)
+        await session.start(
+            agent=config.agent_cls(),  # type: ignore[call-arg]
+            room=ctx.room,
+        )
         await ctx.connect()
 
         if config.greeting is not None:
@@ -130,9 +155,9 @@ class AgentConfig:
 
     name: str
     agent_cls: type[Agent]
-    stt: Any = None
-    llm: Any = None
-    tts: Any = None
+    stt: ProviderValue | None = None
+    llm: ProviderValue | None = None
+    tts: ProviderValue | None = None
     greeting: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=dict)
     source_path: Path | None = None
@@ -185,18 +210,18 @@ class AgentDiscoveryConfig:
     """
 
     name: str | None = None
-    stt: Any = None
-    llm: Any = None
-    tts: Any = None
+    stt: ProviderValue | None = None
+    llm: ProviderValue | None = None
+    tts: ProviderValue | None = None
     greeting: str | None = None
 
 
 def agent_config(
     *,
     name: str | None = None,
-    stt: Any = None,
-    llm: Any = None,
-    tts: Any = None,
+    stt: ProviderValue | None = None,
+    llm: ProviderValue | None = None,
+    tts: ProviderValue | None = None,
     greeting: str | None = None,
 ) -> Callable[[_AgentType], _AgentType]:
     """Attach OpenRTC discovery metadata to a standard LiveKit ``Agent`` class.
@@ -238,9 +263,9 @@ class AgentPool:
     def __init__(
         self,
         *,
-        default_stt: Any = None,
-        default_llm: Any = None,
-        default_tts: Any = None,
+        default_stt: ProviderValue | None = None,
+        default_llm: ProviderValue | None = None,
+        default_tts: ProviderValue | None = None,
         default_greeting: str | None = None,
     ) -> None:
         """Create a pool with shared defaults, prewarm, and a universal entrypoint.
@@ -283,9 +308,9 @@ class AgentPool:
         name: str,
         agent_cls: type[Agent],
         *,
-        stt: Any = None,
-        llm: Any = None,
-        tts: Any = None,
+        stt: ProviderValue | None = None,
+        llm: ProviderValue | None = None,
+        tts: ProviderValue | None = None,
         greeting: str | None = None,
         session_kwargs: Mapping[str, Any] | None = None,
         source_path: Path | str | None = None,
@@ -473,7 +498,11 @@ class AgentPool:
         """Create and start a LiveKit ``AgentSession`` for the resolved agent."""
         await _run_universal_session(self._runtime_state, ctx)
 
-    def _resolve_provider(self, value: Any, default_value: Any) -> Any:
+    def _resolve_provider(
+        self,
+        value: ProviderValue | None,
+        default_value: ProviderValue | None,
+    ) -> ProviderValue | None:
         return default_value if value is None else value
 
     def _resolve_greeting(self, greeting: str | None) -> str | None:
@@ -498,7 +527,7 @@ class AgentPool:
     ) -> AgentDiscoveryConfig:
         metadata = getattr(agent_cls, _AGENT_METADATA_ATTR, None)
         if metadata is not None:
-            return metadata
+            return cast(AgentDiscoveryConfig, metadata)
 
         return AgentDiscoveryConfig()
 
@@ -570,31 +599,15 @@ def _deserialize_provider_value(value: Any) -> Any:
 
 
 def _try_build_provider_ref(value: Any) -> _ProviderRef | None:
-    module_name = value.__class__.__module__
-    qualname = value.__class__.__qualname__
-
-    if module_name == "livekit.plugins.openai.stt" and qualname == "STT":
-        return _ProviderRef(
-            module_name=module_name,
-            qualname=qualname,
-            kwargs=_extract_provider_kwargs(value),
-        )
-
-    if module_name == "livekit.plugins.openai.tts" and qualname == "TTS":
-        return _ProviderRef(
-            module_name=module_name,
-            qualname=qualname,
-            kwargs=_extract_provider_kwargs(value),
-        )
-
-    if module_name == "livekit.plugins.openai.responses.llm" and qualname == "LLM":
-        return _ProviderRef(
-            module_name=module_name,
-            qualname=qualname,
-            kwargs=_extract_provider_kwargs(value),
-        )
-
-    return None
+    cls = type(value)
+    key = (cls.__module__, cls.__qualname__)
+    if key not in _PROVIDER_REF_KEYS:
+        return None
+    return _ProviderRef(
+        module_name=key[0],
+        qualname=key[1],
+        kwargs=_extract_provider_kwargs(value),
+    )
 
 
 def _extract_provider_kwargs(value: Any) -> dict[str, Any]:
@@ -614,7 +627,14 @@ def _filter_provider_kwargs(options: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _is_not_given(value: Any) -> bool:
-    return repr(value) == "NOT_GIVEN"
+    """True if ``value`` is OpenAI's ``NotGiven`` (unset optional on plugin ``_opts``)."""
+    if _OPENAI_NOT_GIVEN_TYPE is not None and isinstance(value, _OPENAI_NOT_GIVEN_TYPE):
+        return True
+    cls = type(value)
+    if cls.__name__ != "NotGiven":
+        return False
+    module = getattr(cls, "__module__", "")
+    return module == "openai._types" or module.startswith("openai.")
 
 
 def _build_session_kwargs(

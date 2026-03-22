@@ -10,7 +10,8 @@ OpenRTC keeps the public API intentionally narrow.
 
 - unique `name`
 - `agent_cls` subclass
-- optional `stt`, `llm`, and `tts` providers
+- optional `stt`, `llm`, and `tts` values (`ProviderValue | None`: provider ID
+  strings or plugin instances)
 - optional `greeting` generated after `ctx.connect()`
 - optional `session_kwargs` forwarded to `AgentSession`
 - optional `source_path` when the module file is known (e.g. after discovery), for

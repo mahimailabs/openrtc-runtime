@@ -23,6 +23,9 @@ CLI with `pip install 'openrtc[cli]'` and the sidecar TUI with
 If you prefer, you can also install the package and dev dependencies with pip,
 but `uv` is the preferred workflow for contributors.
 
+**Python version:** OpenRTC requires **3.11+** (transitive `onnxruntime` from
+LiveKit plugins does not support 3.10).
+
 ## Common development commands
 
 ### Run tests
@@ -30,6 +33,14 @@ but `uv` is the preferred workflow for contributors.
 ```bash
 uv run pytest
 ```
+
+With `uv sync --group dev`, the real `livekit-agents` package is installed, so
+pytest uses the upstream SDK—not the fallback shim in `tests/conftest.py`. That
+shim only loads when `livekit.agents` is missing (minimal or broken installs). It
+is hand-maintained to match APIs OpenRTC uses; when you upgrade the
+`livekit-agents` pin in `pyproject.toml` or add new LiveKit imports in `src/`,
+re-run the full suite locally and update `conftest.py` if anything still relies
+on the stub.
 
 ### Run Ruff lint checks
 
@@ -42,6 +53,17 @@ uv run ruff check
 ```bash
 uv run ruff format
 ```
+
+### Type check (mypy)
+
+CI runs `mypy src/` on pull requests (see `.github/workflows/lint.yml`). Locally:
+
+```bash
+uv run mypy src/
+```
+
+The wheel and sdist ship `src/openrtc/py.typed` (empty PEP 561 marker) so tools
+like mypy and pyright treat `openrtc` as a typed dependency.
 
 ## Project architecture
 

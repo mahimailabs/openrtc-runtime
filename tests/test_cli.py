@@ -16,6 +16,7 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from openrtc.cli import app, main
+from openrtc.provider_types import ProviderValue
 from openrtc.resources import (
     MetricsStreamEvent,
     PoolRuntimeSnapshot,
@@ -36,9 +37,9 @@ def _normalize_cli_output_for_assert(text: str) -> str:
 class StubConfig:
     name: str
     agent_cls: type[Any]
-    stt: Any = None
-    llm: Any = None
-    tts: Any = None
+    stt: ProviderValue | None = None
+    llm: ProviderValue | None = None
+    tts: ProviderValue | None = None
     greeting: str | None = None
 
 
@@ -50,9 +51,9 @@ class StubPool:
     def __init__(
         self,
         *,
-        default_stt: Any = None,
-        default_llm: Any = None,
-        default_tts: Any = None,
+        default_stt: ProviderValue | None = None,
+        default_llm: ProviderValue | None = None,
+        default_tts: ProviderValue | None = None,
         default_greeting: str | None = None,
         discovered: list[StubConfig],
     ) -> None:
@@ -219,7 +220,7 @@ def test_run_commands_inject_livekit_mode_and_run_pool(
     stub_pool = StubPool(
         discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
     )
-    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli_livekit.AgentPool", lambda **kwargs: stub_pool)
     monkeypatch.setattr(sys, "argv", original_argv.copy())
 
     exit_code = main([command, *extra_args])
@@ -320,18 +321,18 @@ def test_dev_passes_reload_through_argv_strip(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    import openrtc.cli_app as cli_app_mod
+    import openrtc.cli_livekit as cli_livekit_mod
 
     agents = tmp_path / "agents"
     agents.mkdir()
     stub_pool = StubPool(discovered=[StubConfig(name="a", agent_cls=StubAgent)])
-    monkeypatch.setattr(cli_app_mod, "AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr(cli_livekit_mod, "AgentPool", lambda **kwargs: stub_pool)
 
     def _run_pool_stub(pool: StubPool, **kwargs: Any) -> None:
         pool.run()
 
-    monkeypatch.setattr(cli_app_mod, "_run_pool_with_reporting", _run_pool_stub)
-    real_strip = cli_app_mod._strip_openrtc_only_flags_for_livekit
+    monkeypatch.setattr(cli_livekit_mod, "_run_pool_with_reporting", _run_pool_stub)
+    real_strip = cli_livekit_mod._strip_openrtc_only_flags_for_livekit
     recorded: list[tuple[list[str], list[str]]] = []
 
     def recording_strip(tail: list[str]) -> list[str]:
@@ -340,7 +341,7 @@ def test_dev_passes_reload_through_argv_strip(
         return out
 
     monkeypatch.setattr(
-        cli_app_mod,
+        cli_livekit_mod,
         "_strip_openrtc_only_flags_for_livekit",
         recording_strip,
     )
@@ -359,11 +360,13 @@ def test_dev_passes_reload_through_argv_strip(
 def test_livekit_env_restored_after_delegate_returns(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import openrtc.cli_app as cli_app_mod
+    import openrtc.cli_livekit as cli_livekit_mod
 
     stub_pool = StubPool(discovered=[StubConfig(name="a", agent_cls=StubAgent)])
-    monkeypatch.setattr(cli_app_mod, "AgentPool", lambda **kwargs: stub_pool)
-    monkeypatch.setattr(cli_app_mod, "_run_pool_with_reporting", lambda *a, **k: None)
+    monkeypatch.setattr(cli_livekit_mod, "AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr(
+        cli_livekit_mod, "_run_pool_with_reporting", lambda *a, **k: None
+    )
     monkeypatch.setenv("LIVEKIT_URL", "ws://persist")
     exit_code = main(
         ["start", "--agents-dir", "./agents", "--url", "ws://temporary-override"],
@@ -527,7 +530,7 @@ def test_start_command_can_write_runtime_metrics_json(
     stub_pool = StubPool(
         discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
     )
-    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli_livekit.AgentPool", lambda **kwargs: stub_pool)
 
     metrics_path = tmp_path / "runtime.json"
     runner = CliRunner()
@@ -559,7 +562,7 @@ def test_start_command_metrics_jsonl_writes_snapshot_records(
     stub_pool = StubPool(
         discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
     )
-    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli_livekit.AgentPool", lambda **kwargs: stub_pool)
 
     runner = CliRunner()
     result = runner.invoke(

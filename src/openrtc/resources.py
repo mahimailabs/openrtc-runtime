@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, cast
 
 if TYPE_CHECKING:
     from openrtc.pool import AgentConfig
@@ -154,20 +154,36 @@ class RuntimeMetricsStore:
         }
 
     def __setstate__(self, state: Mapping[str, object]) -> None:
-        self.started_at = float(state["started_at"])
-        self.total_sessions_started = int(state["total_sessions_started"])
-        self.total_session_failures = int(state["total_session_failures"])
-        self.last_routed_agent = state["last_routed_agent"]  # type: ignore[assignment]
-        self.last_error = state["last_error"]  # type: ignore[assignment]
+        started = state["started_at"]
+        if not isinstance(started, (int, float)):
+            raise TypeError("pickle state 'started_at' must be int or float")
+        self.started_at = float(started)
+        tss = state["total_sessions_started"]
+        if not isinstance(tss, int):
+            raise TypeError("pickle state 'total_sessions_started' must be int")
+        self.total_sessions_started = tss
+        tsf = state["total_session_failures"]
+        if not isinstance(tsf, int):
+            raise TypeError("pickle state 'total_session_failures' must be int")
+        self.total_session_failures = tsf
+        self.last_routed_agent = cast(str | None, state["last_routed_agent"])
+        self.last_error = cast(str | None, state["last_error"])
+        raw_sba = state["sessions_by_agent"]
+        if not isinstance(raw_sba, Mapping):
+            raise TypeError("pickle state 'sessions_by_agent' must be a mapping")
         self.sessions_by_agent = {
-            str(key): int(value)
-            for key, value in dict(state["sessions_by_agent"]).items()
+            str(key): int(value) for key, value in dict(raw_sba).items()
         }
         raw_events = state.get("_stream_events", [])
-        self._stream_events = deque(raw_events)
-        self._metrics_stream_overflow_since_drain = int(
-            state.get("_metrics_stream_overflow_since_drain", 0)
-        )
+        if not isinstance(raw_events, list):
+            raise TypeError("pickle state '_stream_events' must be a list")
+        self._stream_events = deque(cast(list[MetricsStreamEvent], raw_events))
+        overflow = state.get("_metrics_stream_overflow_since_drain", 0)
+        if not isinstance(overflow, int):
+            raise TypeError(
+                "pickle state '_metrics_stream_overflow_since_drain' must be int"
+            )
+        self._metrics_stream_overflow_since_drain = overflow
         self._lock = Lock()
 
     def _append_stream_event_locked(self, event: MetricsStreamEvent) -> None:
