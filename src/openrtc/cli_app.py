@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import threading
 from pathlib import Path
@@ -27,9 +28,20 @@ from openrtc.resources import (
 
 logger = logging.getLogger("openrtc")
 
+PANEL_OPENRTC = "OpenRTC"
+PANEL_LIVEKIT = "Connection"
+
 app = typer.Typer(
     name="openrtc",
-    help="Discover and run multiple LiveKit agents in one worker.",
+    help=(
+        "Run multiple LiveKit voice agents from one shared worker. Subcommands mirror "
+        "the LiveKit Agents CLI ([code]dev[/code], [code]start[/code], [code]console[/code], "
+        "[code]connect[/code], [code]download-files[/code]) as in "
+        "[code]python agent.py <command>[/code]. "
+        "Add [code]--agents-dir[/code] so OpenRTC discovers and registers agents; use "
+        "[code]--url[/code] / [code]--api-key[/code] / [code]--api-secret[/code] or "
+        "the usual [code]LIVEKIT_*[/code] environment variables for the server."
+    ),
     pretty_exceptions_show_locals=False,
     rich_markup_mode="rich",
     no_args_is_help=True,
@@ -322,6 +334,100 @@ def _livekit_sys_argv(subcommand: str) -> None:
         sys.argv = [prog, subcommand]
 
 
+def _apply_optional_livekit_connection_env(
+    *,
+    url: str | None,
+    api_key: str | None,
+    api_secret: str | None,
+) -> None:
+    """Mirror LiveKit CLI env vars when the user passes connection flags on OpenRTC."""
+    if url is not None:
+        os.environ["LIVEKIT_URL"] = url
+    if api_key is not None:
+        os.environ["LIVEKIT_API_KEY"] = api_key
+    if api_secret is not None:
+        os.environ["LIVEKIT_API_SECRET"] = api_secret
+
+
+def _apply_optional_livekit_log_level(log_level: str | None) -> None:
+    if log_level is not None:
+        os.environ["LIVEKIT_LOG_LEVEL"] = log_level
+
+
+def _delegate_discovered_pool_to_livekit(
+    *,
+    agents_dir: Path,
+    subcommand: str,
+    default_stt: str | None,
+    default_llm: str | None,
+    default_tts: str | None,
+    default_greeting: str | None,
+    dashboard: bool,
+    dashboard_refresh: float,
+    metrics_json_file: Path | None,
+    url: str | None,
+    api_key: str | None,
+    api_secret: str | None,
+    log_level: str | None,
+) -> None:
+    """Discover agents, optionally set connection env, then run a LiveKit CLI subcommand."""
+    pool = AgentPool(
+        **_pool_kwargs(default_stt, default_llm, default_tts, default_greeting)
+    )
+    _discover_or_exit(agents_dir, pool)
+    _apply_optional_livekit_connection_env(
+        url=url, api_key=api_key, api_secret=api_secret
+    )
+    _apply_optional_livekit_log_level(log_level)
+    _livekit_sys_argv(subcommand)
+    _run_pool_with_reporting(
+        pool,
+        dashboard=dashboard,
+        dashboard_refresh=dashboard_refresh,
+        metrics_json_file=metrics_json_file,
+    )
+
+
+def _run_connect_handoff(
+    *,
+    agents_dir: Path,
+    default_stt: str | None,
+    default_llm: str | None,
+    default_tts: str | None,
+    default_greeting: str | None,
+    room: str,
+    participant_identity: str | None,
+    log_level: str | None,
+    url: str | None,
+    api_key: str | None,
+    api_secret: str | None,
+    dashboard: bool,
+    dashboard_refresh: float,
+    metrics_json_file: Path | None,
+) -> None:
+    """Hand off to LiveKit ``connect`` with explicit argv (Typer consumes flags first)."""
+    pool = AgentPool(
+        **_pool_kwargs(default_stt, default_llm, default_tts, default_greeting)
+    )
+    _discover_or_exit(agents_dir, pool)
+    _apply_optional_livekit_connection_env(
+        url=url, api_key=api_key, api_secret=api_secret
+    )
+    prog = sys.argv[0]
+    tail: list[str] = ["connect", "--room", room]
+    if participant_identity is not None:
+        tail.extend(["--participant-identity", participant_identity])
+    if log_level is not None:
+        tail.extend(["--log-level", log_level])
+    sys.argv = [prog, *tail]
+    _run_pool_with_reporting(
+        pool,
+        dashboard=dashboard,
+        dashboard_refresh=dashboard_refresh,
+        metrics_json_file=metrics_json_file,
+    )
+
+
 def _discover_or_exit(agents_dir: Path, pool: AgentPool) -> list[AgentConfig]:
     try:
         discovered = pool.discover(agents_dir)
@@ -364,6 +470,7 @@ AgentsDirArg = Annotated[
         exists=False,
         resolve_path=True,
         path_type=Path,
+        rich_help_panel=PANEL_OPENRTC,
     ),
 ]
 
@@ -375,6 +482,7 @@ DefaultSttArg = Annotated[
             "Default STT provider used when a discovered agent does not "
             "override STT via @agent_config(...)."
         ),
+        rich_help_panel=PANEL_OPENRTC,
     ),
 ]
 
@@ -386,6 +494,7 @@ DefaultLlmArg = Annotated[
             "Default LLM provider used when a discovered agent does not "
             "override LLM via @agent_config(...)."
         ),
+        rich_help_panel=PANEL_OPENRTC,
     ),
 ]
 
@@ -397,6 +506,7 @@ DefaultTtsArg = Annotated[
             "Default TTS provider used when a discovered agent does not "
             "override TTS via @agent_config(...)."
         ),
+        rich_help_panel=PANEL_OPENRTC,
     ),
 ]
 
@@ -408,6 +518,7 @@ DefaultGreetingArg = Annotated[
             "Default greeting used when a discovered agent does not "
             "override greeting via @agent_config(...)."
         ),
+        rich_help_panel=PANEL_OPENRTC,
     ),
 ]
 
@@ -416,6 +527,7 @@ DashboardArg = Annotated[
     typer.Option(
         "--dashboard",
         help="Show a live Rich dashboard with worker memory and active sessions.",
+        rich_help_panel=PANEL_OPENRTC,
     ),
 ]
 
@@ -425,6 +537,7 @@ DashboardRefreshArg = Annotated[
         "--dashboard-refresh",
         min=0.25,
         help="Refresh interval in seconds for the runtime dashboard and metrics file.",
+        rich_help_panel=PANEL_OPENRTC,
     ),
 ]
 
@@ -435,6 +548,66 @@ MetricsJsonFileArg = Annotated[
         help="Write live runtime metrics snapshots to this JSON file for automation.",
         resolve_path=True,
         path_type=Path,
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+LiveKitUrlArg = Annotated[
+    str | None,
+    typer.Option(
+        "--url",
+        help="WebSocket URL of the LiveKit server or Cloud project.",
+        envvar="LIVEKIT_URL",
+        rich_help_panel=PANEL_LIVEKIT,
+    ),
+]
+
+LiveKitApiKeyArg = Annotated[
+    str | None,
+    typer.Option(
+        "--api-key",
+        help="API key for the LiveKit server or Cloud project.",
+        envvar="LIVEKIT_API_KEY",
+        rich_help_panel=PANEL_LIVEKIT,
+    ),
+]
+
+LiveKitApiSecretArg = Annotated[
+    str | None,
+    typer.Option(
+        "--api-secret",
+        help="API secret for the LiveKit server or Cloud project.",
+        envvar="LIVEKIT_API_SECRET",
+        rich_help_panel=PANEL_LIVEKIT,
+    ),
+]
+
+ConnectRoomArg = Annotated[
+    str,
+    typer.Option(
+        "--room",
+        help="Room name to connect to (same as LiveKit Agents [code]connect[/code]).",
+        rich_help_panel=PANEL_LIVEKIT,
+    ),
+]
+
+ConnectParticipantArg = Annotated[
+    str | None,
+    typer.Option(
+        "--participant-identity",
+        help="Agent participant identity when connecting to the room.",
+        rich_help_panel=PANEL_LIVEKIT,
+    ),
+]
+
+LiveKitLogLevelArg = Annotated[
+    str | None,
+    typer.Option(
+        "--log-level",
+        help="Log level (e.g. DEBUG, INFO, WARN, ERROR).",
+        envvar="LIVEKIT_LOG_LEVEL",
+        case_sensitive=False,
+        rich_help_panel=PANEL_LIVEKIT,
     ),
 ]
 
@@ -630,21 +803,29 @@ def start_command(
     default_llm: DefaultLlmArg = None,
     default_tts: DefaultTtsArg = None,
     default_greeting: DefaultGreetingArg = None,
+    url: LiveKitUrlArg = None,
+    api_key: LiveKitApiKeyArg = None,
+    api_secret: LiveKitApiSecretArg = None,
+    log_level: LiveKitLogLevelArg = None,
     dashboard: DashboardArg = False,
     dashboard_refresh: DashboardRefreshArg = 1.0,
     metrics_json_file: MetricsJsonFileArg = None,
 ) -> None:
-    """Run the LiveKit worker (production-style entrypoint)."""
-    pool = AgentPool(
-        **_pool_kwargs(default_stt, default_llm, default_tts, default_greeting)
-    )
-    _discover_or_exit(agents_dir, pool)
-    _livekit_sys_argv("start")
-    _run_pool_with_reporting(
-        pool,
+    """Run the worker (same role as [code]python agent.py start[/code] with LiveKit)."""
+    _delegate_discovered_pool_to_livekit(
+        agents_dir=agents_dir,
+        subcommand="start",
+        default_stt=default_stt,
+        default_llm=default_llm,
+        default_tts=default_tts,
+        default_greeting=default_greeting,
         dashboard=dashboard,
         dashboard_refresh=dashboard_refresh,
         metrics_json_file=metrics_json_file,
+        url=url,
+        api_key=api_key,
+        api_secret=api_secret,
+        log_level=log_level,
     )
 
 
@@ -655,21 +836,128 @@ def dev_command(
     default_llm: DefaultLlmArg = None,
     default_tts: DefaultTtsArg = None,
     default_greeting: DefaultGreetingArg = None,
+    url: LiveKitUrlArg = None,
+    api_key: LiveKitApiKeyArg = None,
+    api_secret: LiveKitApiSecretArg = None,
+    log_level: LiveKitLogLevelArg = None,
     dashboard: DashboardArg = False,
     dashboard_refresh: DashboardRefreshArg = 1.0,
     metrics_json_file: MetricsJsonFileArg = None,
 ) -> None:
-    """Run the LiveKit worker in development mode."""
-    pool = AgentPool(
-        **_pool_kwargs(default_stt, default_llm, default_tts, default_greeting)
-    )
-    _discover_or_exit(agents_dir, pool)
-    _livekit_sys_argv("dev")
-    _run_pool_with_reporting(
-        pool,
+    """Development worker with reload (same role as [code]python agent.py dev[/code])."""
+    _delegate_discovered_pool_to_livekit(
+        agents_dir=agents_dir,
+        subcommand="dev",
+        default_stt=default_stt,
+        default_llm=default_llm,
+        default_tts=default_tts,
+        default_greeting=default_greeting,
         dashboard=dashboard,
         dashboard_refresh=dashboard_refresh,
         metrics_json_file=metrics_json_file,
+        url=url,
+        api_key=api_key,
+        api_secret=api_secret,
+        log_level=log_level,
+    )
+
+
+@app.command("console")
+def console_command(
+    agents_dir: AgentsDirArg,
+    default_stt: DefaultSttArg = None,
+    default_llm: DefaultLlmArg = None,
+    default_tts: DefaultTtsArg = None,
+    default_greeting: DefaultGreetingArg = None,
+    url: LiveKitUrlArg = None,
+    api_key: LiveKitApiKeyArg = None,
+    api_secret: LiveKitApiSecretArg = None,
+    log_level: LiveKitLogLevelArg = None,
+    dashboard: DashboardArg = False,
+    dashboard_refresh: DashboardRefreshArg = 1.0,
+    metrics_json_file: MetricsJsonFileArg = None,
+) -> None:
+    """Local console session (same role as [code]python agent.py console[/code])."""
+    _delegate_discovered_pool_to_livekit(
+        agents_dir=agents_dir,
+        subcommand="console",
+        default_stt=default_stt,
+        default_llm=default_llm,
+        default_tts=default_tts,
+        default_greeting=default_greeting,
+        dashboard=dashboard,
+        dashboard_refresh=dashboard_refresh,
+        metrics_json_file=metrics_json_file,
+        url=url,
+        api_key=api_key,
+        api_secret=api_secret,
+        log_level=log_level,
+    )
+
+
+@app.command("connect")
+def connect_command(
+    agents_dir: AgentsDirArg,
+    room: ConnectRoomArg,
+    default_stt: DefaultSttArg = None,
+    default_llm: DefaultLlmArg = None,
+    default_tts: DefaultTtsArg = None,
+    default_greeting: DefaultGreetingArg = None,
+    participant_identity: ConnectParticipantArg = None,
+    log_level: LiveKitLogLevelArg = None,
+    url: LiveKitUrlArg = None,
+    api_key: LiveKitApiKeyArg = None,
+    api_secret: LiveKitApiSecretArg = None,
+    dashboard: DashboardArg = False,
+    dashboard_refresh: DashboardRefreshArg = 1.0,
+    metrics_json_file: MetricsJsonFileArg = None,
+) -> None:
+    """Connect the worker to an existing room (LiveKit [code]connect[/code])."""
+    _run_connect_handoff(
+        agents_dir=agents_dir,
+        default_stt=default_stt,
+        default_llm=default_llm,
+        default_tts=default_tts,
+        default_greeting=default_greeting,
+        room=room,
+        participant_identity=participant_identity,
+        log_level=log_level,
+        url=url,
+        api_key=api_key,
+        api_secret=api_secret,
+        dashboard=dashboard,
+        dashboard_refresh=dashboard_refresh,
+        metrics_json_file=metrics_json_file,
+    )
+
+
+@app.command("download-files")
+def download_files_command(
+    agents_dir: AgentsDirArg,
+    default_stt: DefaultSttArg = None,
+    default_llm: DefaultLlmArg = None,
+    default_tts: DefaultTtsArg = None,
+    default_greeting: DefaultGreetingArg = None,
+    url: LiveKitUrlArg = None,
+    api_key: LiveKitApiKeyArg = None,
+    api_secret: LiveKitApiSecretArg = None,
+    log_level: LiveKitLogLevelArg = None,
+) -> None:
+    """Download plugin assets (LiveKit [code]download-files[/code])."""
+    _delegate_discovered_pool_to_livekit(
+        agents_dir=agents_dir,
+        subcommand="download-files",
+        default_stt=default_stt,
+        default_llm=default_llm,
+        default_tts=default_tts,
+        default_greeting=default_greeting,
+        dashboard=False,
+        dashboard_refresh=1.0,
+        metrics_json_file=None,
+        url=url,
+        api_key=api_key,
+        api_secret=api_secret,
+        log_level=log_level,
     )
 
 
@@ -799,7 +1087,8 @@ def main(argv: list[str] | None = None) -> int:
     still use CliRunner). Pass ``args`` without the program name when invoking
     programmatically; ``prog_name`` matches the ``openrtc`` console script.
 
-    ``start`` / ``dev`` mutate :data:`sys.argv` before ``pool.run()``; we restore
+    Worker subcommands (``start``, ``dev``, ``console``, ``connect``,
+    ``download-files``) mutate :data:`sys.argv` before ``pool.run()``; we restore
     the previous argv list after the command finishes so programmatic callers
     are not polluted.
     """

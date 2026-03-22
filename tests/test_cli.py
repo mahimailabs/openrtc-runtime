@@ -185,10 +185,20 @@ def test_cli_passes_pool_defaults_into_agent_pool(
     assert created_pools[0].default_greeting == "Hello from OpenRTC."
 
 
-@pytest.mark.parametrize("command", ["start", "dev"])
+@pytest.mark.parametrize(
+    ("command", "extra_args"),
+    [
+        ("start", ["--agents-dir", "./agents"]),
+        ("dev", ["--agents-dir", "./agents"]),
+        ("console", ["--agents-dir", "./agents"]),
+        ("download-files", ["--agents-dir", "./agents"]),
+        ("connect", ["--agents-dir", "./agents", "--room", "demo-room"]),
+    ],
+)
 def test_run_commands_inject_livekit_mode_and_run_pool(
     monkeypatch: pytest.MonkeyPatch,
     command: str,
+    extra_args: list[str],
     original_argv: list[str],
 ) -> None:
     stub_pool = StubPool(
@@ -197,7 +207,7 @@ def test_run_commands_inject_livekit_mode_and_run_pool(
     monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
     monkeypatch.setattr(sys, "argv", original_argv.copy())
 
-    exit_code = main([command, "--agents-dir", "./agents"])
+    exit_code = main([command, *extra_args])
 
     assert exit_code == 0
     assert stub_pool.run_called is True
