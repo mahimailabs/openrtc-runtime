@@ -14,7 +14,7 @@ from functools import partial
 from hashlib import sha1
 from pathlib import Path
 from types import ModuleType
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 
@@ -27,10 +27,13 @@ from openrtc.resources import (
 
 logger = logging.getLogger("openrtc")
 
+_OPENAI_NOT_GIVEN_TYPE: type[Any] | None = None
 try:
     from openai import NotGiven as _OpenAINotGiven
 except ImportError:  # pragma: no cover - optional when openai is absent
-    _OpenAINotGiven = None
+    pass
+else:
+    _OPENAI_NOT_GIVEN_TYPE = _OpenAINotGiven
 
 _AgentType = TypeVar("_AgentType", bound=type[Agent])
 _AGENT_METADATA_ATTR = "__openrtc_agent_config__"
@@ -109,7 +112,7 @@ async def _run_universal_session(
         raise RuntimeError("No agents are registered in the pool.")
     config = _resolve_agent_config(runtime_state.agents, ctx)
     session_kwargs = _build_session_kwargs(config.session_kwargs, ctx.proc)
-    session = AgentSession(
+    session: AgentSession = AgentSession(
         stt=config.stt,
         llm=config.llm,
         tts=config.tts,
@@ -118,7 +121,10 @@ async def _run_universal_session(
     )
     try:
         runtime_state.metrics.record_session_started(config.name)
-        await session.start(agent=config.agent_cls(), room=ctx.room)
+        await session.start(
+            agent=config.agent_cls(),  # type: ignore[call-arg]
+            room=ctx.room,
+        )
         await ctx.connect()
 
         if config.greeting is not None:
@@ -521,7 +527,7 @@ class AgentPool:
     ) -> AgentDiscoveryConfig:
         metadata = getattr(agent_cls, _AGENT_METADATA_ATTR, None)
         if metadata is not None:
-            return metadata
+            return cast(AgentDiscoveryConfig, metadata)
 
         return AgentDiscoveryConfig()
 
@@ -622,7 +628,7 @@ def _filter_provider_kwargs(options: Mapping[str, Any]) -> dict[str, Any]:
 
 def _is_not_given(value: Any) -> bool:
     """True if ``value`` is OpenAI's ``NotGiven`` (unset optional on plugin ``_opts``)."""
-    if _OpenAINotGiven is not None and isinstance(value, _OpenAINotGiven):
+    if _OPENAI_NOT_GIVEN_TYPE is not None and isinstance(value, _OPENAI_NOT_GIVEN_TYPE):
         return True
     cls = type(value)
     if cls.__name__ != "NotGiven":

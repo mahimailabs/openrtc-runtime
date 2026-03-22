@@ -24,7 +24,7 @@ console = Console()
 
 
 def _format_percent(saved_bytes: int | None, baseline_bytes: int | None) -> str:
-    if saved_bytes is None or baseline_bytes in (None, 0):
+    if saved_bytes is None or baseline_bytes is None or baseline_bytes == 0:
         return "—"
     return f"{(saved_bytes / baseline_bytes) * 100:.0f}%"
 

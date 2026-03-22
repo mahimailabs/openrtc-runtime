@@ -311,7 +311,7 @@ async def test_metrics_tui_action_quit_exits(tmp_path: Path) -> None:
     path.touch()
     app = MetricsTuiApp(path, from_start=True)
     async with app.run_test() as pilot:
-        app.action_quit()
+        await app.action_quit()
         await pilot.pause()
 
 

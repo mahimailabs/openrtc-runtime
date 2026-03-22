@@ -43,6 +43,14 @@ uv run ruff check
 uv run ruff format
 ```
 
+### Type check (mypy)
+
+CI runs `mypy src/` on pull requests (see `.github/workflows/lint.yml`). Locally:
+
+```bash
+uv run mypy src/
+```
+
 ## Project architecture
 
 Keep these responsibilities in mind when contributing:
