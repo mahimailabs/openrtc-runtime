@@ -6,8 +6,19 @@ export default defineConfig({
   base: '/openrtc-python/',
   cleanUrls: true,
   lastUpdated: true,
+  head: [
+    ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
+    [
+      'link',
+      {
+        rel: 'preconnect',
+        href: 'https://fonts.gstatic.com',
+        crossorigin: '',
+      },
+    ],
+  ],
   themeConfig: {
-    logo: '/logo.svg',
+    logo: '/logo.png',
     nav: [
       { text: 'Guide', link: '/getting-started' },
       { text: 'Concepts', link: '/concepts/architecture' },

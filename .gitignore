@@ -164,6 +164,9 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
+# Node (VitePress docs)
+node_modules/
+
 # mkdocs documentation
 /site
 

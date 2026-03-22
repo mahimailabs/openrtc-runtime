@@ -1,0 +1,171 @@
+/**
+ * OpenRTC docs theme — aligned with brand assets (cyan / deep blue, modern sans).
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,500..700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --ort-font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --ort-font-mono: 'JetBrains Mono', ui-monospace, 'Menlo', 'Monaco', 'Consolas',
+    monospace;
+
+  /* Light: cool neutrals + readable cyan accents */
+  --vp-c-brand-1: #006f94;
+  --vp-c-brand-2: #0088b8;
+  --vp-c-brand-3: #00a3d9;
+  --vp-c-brand-soft: rgba(0, 163, 217, 0.14);
+
+  --vp-c-bg: #f5fafc;
+  --vp-c-bg-alt: #e8f3f8;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-bg-soft: #e2eef5;
+
+  --vp-c-divider: #d4e4ed;
+  --vp-c-gutter: #cfe0ea;
+
+  --vp-font-family-base: var(--ort-font-sans);
+  --vp-font-family-mono: var(--ort-font-mono);
+
+  --vp-home-hero-image-background-image: radial-gradient(
+    circle at 30% 30%,
+    rgba(0, 196, 255, 0.35) 0%,
+    rgba(0, 120, 180, 0.12) 45%,
+    transparent 72%
+  );
+
+  --vp-nav-logo-height: 34px;
+}
+
+.dark {
+  /* Dark: deep navy canvas, electric cyan accents (banner / logo) */
+  --vp-c-brand-1: #5ae4ff;
+  --vp-c-brand-2: #24d4ff;
+  --vp-c-brand-3: #00b8e6;
+  --vp-c-brand-soft: rgba(0, 220, 255, 0.14);
+
+  --vp-c-bg: #070b12;
+  --vp-c-bg-alt: #0c121f;
+  --vp-c-bg-elv: #111a2c;
+  --vp-c-bg-soft: #152033;
+
+  --vp-c-border: #2a3a4f;
+  --vp-c-divider: #1c2838;
+  --vp-c-gutter: #0a0e16;
+
+  --vp-c-text-1: #e8f4f8;
+  --vp-c-text-2: #9db4c4;
+  --vp-c-text-3: #6b8294;
+
+  --vp-home-hero-image-background-image: radial-gradient(
+    circle at 28% 28%,
+    rgba(0, 220, 255, 0.45) 0%,
+    rgba(0, 100, 160, 0.2) 42%,
+    transparent 70%
+  );
+
+  --vp-code-block-bg: #0c121f;
+  --vp-code-bg: rgba(0, 220, 255, 0.08);
+}
+
+/* Home: subtle ambient glow behind hero */
+.VPHome {
+  background: radial-gradient(
+    ellipse 120% 70% at 50% -15%,
+    rgba(0, 180, 230, 0.09),
+    transparent 52%
+  );
+}
+
+.dark .VPHome {
+  background: radial-gradient(
+    ellipse 100% 55% at 50% 0%,
+    rgba(0, 200, 255, 0.14),
+    transparent 58%
+  );
+}
+
+/* Echo logo typography: italic, tight tracking on product name */
+.VPHero .heading .name {
+  font-style: italic;
+  letter-spacing: -0.03em;
+}
+
+/* Gradient fill on hero title (clip) */
+.VPHero .heading .name.clip {
+  background: linear-gradient(118deg, #00c6ff 0%, #0090c9 42%, #005a7a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+}
+
+.dark .VPHero .heading .name.clip {
+  background: linear-gradient(118deg, #8aebff 0%, #3bdcff 38%, #00a8d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+}
+
+/* Second line stays solid for readability */
+.VPHero .heading .text {
+  color: var(--vp-c-text-1);
+}
+
+/* Landscape banner: use more horizontal room on large screens */
+@media (min-width: 960px) {
+  .VPHome .VPHero.has-image .image-container {
+    width: 100%;
+    max-width: 440px;
+    min-height: 260px;
+    height: auto;
+  }
+
+  .VPHome .VPHero.has-image .image-src {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    margin: 0 auto;
+    display: block;
+    max-width: 100%;
+    max-height: min(280px, 40vh);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+
+  .VPHome .VPHero.has-image .image-bg {
+    width: 280px;
+    height: 280px;
+  }
+}
+
+/* Nav logo: crisp PNG scaling */
+.VPNavBarTitle img {
+  object-fit: contain;
+}
+
+/* Top bar: light separation without heavy chrome */
+.VPNav {
+  border-bottom: 1px solid var(--vp-c-divider);
+  background-color: color-mix(in srgb, var(--vp-c-bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+@supports not (backdrop-filter: blur(10px)) {
+  .VPNav {
+    background-color: var(--vp-c-bg);
+  }
+}
+
+/* Sidebar: slight depth */
+.VPSidebar {
+  background-color: var(--vp-c-bg-alt);
+}
+
+/* Doc links: clearer hover */
+.vp-doc a:hover {
+  text-decoration-thickness: 2px;
+}

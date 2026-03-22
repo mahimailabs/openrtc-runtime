@@ -1,29 +1,32 @@
-# OpenRTC
+---
+layout: home
+outline: false
 
-OpenRTC is a Python package for running multiple LiveKit voice agents in a
-single worker process with shared prewarmed runtime dependencies.
+hero:
+  name: OpenRTC
+  text: Shared worker voice agents
+  tagline: Register multiple LiveKit agents in one process, route by metadata, and prewarm models once.
+  image:
+    src: /banner.png
+    alt: OpenRTC banner
+  actions:
+    - theme: brand
+      text: Get started
+      link: /getting-started
+    - theme: alt
+      text: CLI reference
+      link: /cli
 
-## Why OpenRTC?
-
-- **Multi-agent routing** from a single worker process.
-- **Shared prewarm** for VAD and turn detection models.
-- **Explicit registration** through a small programmatic API.
-- **LiveKit-native runtime** built on `livekit-agents`.
-
-## What you can do today
-
-The current package is intentionally small and focused:
-
-- register one or more LiveKit `Agent` subclasses with `AgentPool`
-- select an agent using room or job metadata
-- share runtime dependencies across sessions in one worker process
-- start a LiveKit worker using the registered pool
-- use the optional CLI (`pip install 'openrtc[cli]'`) for discovery, worker
-  subcommands aligned with LiveKit (`dev`, `start`, `console`, `connect`,
-  `download-files`), stable `--json` / `--plain` output, and local `--resources`
-  footprint hints
-- tail live metrics in a separate terminal with `openrtc tui --watch` after
-  enabling `--metrics-jsonl` on the worker (`pip install 'openrtc[cli,tui]'`)
+features:
+  - title: Multi-agent routing
+    details: Dispatch the right Agent implementation from a single worker using room or job metadata.
+  - title: Shared prewarm
+    details: Load VAD, turn detection, and other heavy dependencies once for every session in the pool.
+  - title: LiveKit-native runtime
+    details: Built on livekit-agents with familiar dev, start, console, and connect-style workflows.
+  - title: CLI and observability
+    details: Optional openrtc CLI with JSON output, resource hints, JSONL metrics, and a Textual sidecar TUI.
+---
 
 ## Read the docs
 
