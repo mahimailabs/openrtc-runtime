@@ -75,6 +75,19 @@ class _ProviderRef:
     kwargs: dict[str, Any]
 
 
+# ``(module, qualname)`` pairs for plugin classes that expose OpenAI-style
+# ``_opts`` and can be rehydrated via ``ProviderClass(**kwargs)`` in the child
+# after unpickling. Add entries here when new LiveKit plugins follow the same
+# pattern (Deepgram, Azure, …); unknown classes fall back to pickle or error.
+_PROVIDER_REF_KEYS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("livekit.plugins.openai.stt", "STT"),
+        ("livekit.plugins.openai.tts", "TTS"),
+        ("livekit.plugins.openai.responses.llm", "LLM"),
+    }
+)
+
+
 def _prewarm_worker(
     runtime_state: _PoolRuntimeState,
     proc: JobProcess,
@@ -580,31 +593,15 @@ def _deserialize_provider_value(value: Any) -> Any:
 
 
 def _try_build_provider_ref(value: Any) -> _ProviderRef | None:
-    module_name = value.__class__.__module__
-    qualname = value.__class__.__qualname__
-
-    if module_name == "livekit.plugins.openai.stt" and qualname == "STT":
-        return _ProviderRef(
-            module_name=module_name,
-            qualname=qualname,
-            kwargs=_extract_provider_kwargs(value),
-        )
-
-    if module_name == "livekit.plugins.openai.tts" and qualname == "TTS":
-        return _ProviderRef(
-            module_name=module_name,
-            qualname=qualname,
-            kwargs=_extract_provider_kwargs(value),
-        )
-
-    if module_name == "livekit.plugins.openai.responses.llm" and qualname == "LLM":
-        return _ProviderRef(
-            module_name=module_name,
-            qualname=qualname,
-            kwargs=_extract_provider_kwargs(value),
-        )
-
-    return None
+    cls = type(value)
+    key = (cls.__module__, cls.__qualname__)
+    if key not in _PROVIDER_REF_KEYS:
+        return None
+    return _ProviderRef(
+        module_name=key[0],
+        qualname=key[1],
+        kwargs=_extract_provider_kwargs(value),
+    )
 
 
 def _extract_provider_kwargs(value: Any) -> dict[str, Any]:
