@@ -1,28 +1,20 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented here.
+Entries are added automatically when a new GitHub release is published.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
 ## [Unreleased]
 
-### Added
-- `DeprecationWarning` is now emitted when deprecated top-level `session_kwargs`
-  keys (e.g. `allow_interruptions`, `min_endpointing_delay`) are passed.
-  Migrate to the `turn_handling` dict — see `AgentPool.add()` docstring.
-- GitHub issue templates for bug reports and feature requests.
-- `Makefile` with shortcuts for common developer commands (`make test`,
-  `make lint`, `make format`, `make typecheck`).
-- `.env.example` documenting all supported environment variables.
-
-### Changed
-- CI test and lint workflows migrated from bare `pip` to `uv` with lockfile
-  caching, matching the `uv sync --group dev` workflow in `CONTRIBUTING.md`.
+Changes that have landed on `main` but have not yet been tagged for release.
 
 ---
+
+<!-- releases -->
 
 ## [0.0.15] - 2026-03-22
 
@@ -36,6 +28,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   arguments.
 - CLI: positional agents dir and metrics JSONL path on `start`/`dev`/`console`.
 - CLI: `openrtc tui` defaults `--watch` to `./openrtc-metrics.jsonl`.
+- `DeprecationWarning` emitted when deprecated `session_kwargs` top-level keys
+  (e.g. `allow_interruptions`, `min_endpointing_delay`) are used instead of the
+  `turn_handling` dict.
+- GitHub issue templates for bug reports and feature requests.
+- `Makefile` with shortcuts for common developer commands (`make test`,
+  `make lint`, `make format`, `make typecheck`).
+- `.env.example` documenting all supported environment variables.
+
+### Changed
+- CI test and lint workflows migrated from bare `pip` to `uv` with lockfile
+  caching, matching the `uv sync --group dev` workflow in `CONTRIBUTING.md`.
 
 ---
 
@@ -129,14 +132,3 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Greeting support via `session.generate_reply()`.
 - `openrtc[cli]` optional extra for `rich`/`typer` CLI.
 - PEP 561 `py.typed` marker shipped in the wheel.
-
-[Unreleased]: https://github.com/mahimairaja/openrtc-python/compare/v0.0.15...HEAD
-[0.0.15]: https://github.com/mahimairaja/openrtc-python/compare/v0.0.14...v0.0.15
-[0.0.14]: https://github.com/mahimairaja/openrtc-python/compare/v0.0.13...v0.0.14
-[0.0.13]: https://github.com/mahimairaja/openrtc-python/compare/v0.0.12...v0.0.13
-[0.0.12]: https://github.com/mahimairaja/openrtc-python/compare/v0.0.11...v0.0.12
-[0.0.11]: https://github.com/mahimairaja/openrtc-python/compare/v0.0.9...v0.0.11
-[0.0.9]: https://github.com/mahimairaja/openrtc-python/compare/v0.0.8...v0.0.9
-[0.0.8]: https://github.com/mahimairaja/openrtc-python/compare/v0.0.5...v0.0.8
-[0.0.5]: https://github.com/mahimairaja/openrtc-python/compare/v0.0.2...v0.0.5
-[0.0.2]: https://github.com/mahimairaja/openrtc-python/releases/tag/v0.0.2
