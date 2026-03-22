@@ -16,9 +16,10 @@ jobs:
       contents: write
 
     steps:
-    - name: Checkout code
+    - name: Checkout main
       uses: actions/checkout@v4
       with:
+        ref: main
         fetch-depth: 0
         # Use a PAT so the changelog commit can trigger deploy-docs.yml.
         # Falls back to GITHUB_TOKEN if the secret is absent (docs won't
@@ -46,9 +47,11 @@ jobs:
         RELEASE_DATE: ${{ github.event.release.published_at }}
       run: |
         python3 - <<'PYEOF'
-        import os, re
+        import os
 
-        tag  = os.environ["RELEASE_TAG"]
+        raw_tag = os.environ["RELEASE_TAG"]
+        # Strip leading 'v' to keep headings like "## [0.0.16]" consistent
+        tag  = raw_tag.lstrip("v")
         body = os.environ["RELEASE_BODY"].strip()
         # published_at is ISO-8601; keep only the date part
         date = os.environ["RELEASE_DATE"][:10]
@@ -63,17 +66,23 @@ jobs:
         if marker not in content:
             raise SystemExit(f"Marker '{marker}' not found in {path}")
 
-        # Insert the new release section right after the marker line
-        content = content.replace(
-            marker + "\n",
-            marker + "\n\n" + new_section,
-            1,
-        )
+        # Skip if this release was already recorded (idempotent re-runs)
+        if f"## [{tag}]" in content:
+            print(f"Section for {tag} already present in {path}; skipping.")
+        else:
+            # Insert the new release section right after the marker line.
+            # Match "marker\n\n" so the replacement keeps exactly two newlines
+            # between the marker and the new (and subsequent) sections.
+            content = content.replace(
+                marker + "\n\n",
+                marker + "\n\n" + new_section,
+                1,
+            )
 
-        with open(path, "w") as f:
-            f.write(content)
+            with open(path, "w") as f:
+                f.write(content)
 
-        print(f"Prepended {tag} ({date}) to {path}")
+            print(f"Prepended {tag} ({date}) to {path}")
         PYEOF
 
     - name: Commit and push changelog

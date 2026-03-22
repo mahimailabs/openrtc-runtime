@@ -2,7 +2,7 @@
 # All commands delegate to `uv run` so they pick up the locked dev environment.
 # Run `uv sync --group dev` once to set up the environment, then use these targets.
 
-.PHONY: help install test lint format typecheck dev clean
+.PHONY: help install test test-fast lint format format-check typecheck dev clean
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \

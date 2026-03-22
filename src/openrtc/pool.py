@@ -709,7 +709,7 @@ def _extract_deprecated_turn_options(session_kwargs: dict[str, Any]) -> dict[str
             "session_kwargs={'turn_handling': {'endpointing': {...}, 'interruption': {...}}}. "
             "See the AgentPool.add() docstring for the supported turn_handling structure.",
             DeprecationWarning,
-            stacklevel=4,
+            stacklevel=3,
         )
     return deprecated_options
 
