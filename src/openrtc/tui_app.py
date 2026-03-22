@@ -12,6 +12,18 @@ from textual.widgets import Footer, Header, Static
 from openrtc.metrics_stream import KIND_EVENT, KIND_SNAPSHOT, parse_metrics_jsonl_line
 
 
+def validate_metrics_watch_path(path: Path) -> None:
+    """Ensure *path* can be used as the metrics JSONL file (not a directory)."""
+    resolved = path.resolve()
+    if resolved.exists() and resolved.is_dir():
+        raise ValueError(
+            "'--watch' must be a JSONL file path (the same path you pass to "
+            "'--metrics-jsonl' on the OpenRTC worker). This value is a directory "
+            "— for example, use a file such as ./metrics.jsonl, not your agents "
+            f"folder. Got: {resolved}"
+        )
+
+
 class MetricsTuiApp(App[None]):
     """Tail ``--metrics-jsonl`` and show live pool metrics."""
 
@@ -21,6 +33,7 @@ class MetricsTuiApp(App[None]):
     def __init__(self, watch_path: Path, *, from_start: bool = False) -> None:
         super().__init__()
         self._path = watch_path.resolve()
+        validate_metrics_watch_path(self._path)
         self._from_start = from_start
         self._fh: TextIO | None = None
         self._buf = ""

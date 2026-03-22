@@ -129,7 +129,10 @@ TuiWatchPathArg = Annotated[
     Path,
     typer.Option(
         "--watch",
-        help="JSONL file written by the worker's --metrics-jsonl.",
+        help=(
+            "JSONL file the worker writes with --metrics-jsonl (a file path such as "
+            "./metrics.jsonl, not your --agents-dir)."
+        ),
         resolve_path=True,
         path_type=Path,
         rich_help_panel=PANEL_OPENRTC,

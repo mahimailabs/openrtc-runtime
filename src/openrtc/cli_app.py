@@ -285,7 +285,11 @@ def tui_command(
             "(the cli extra is required for the openrtc command)."
         )
         raise typer.Exit(code=1) from exc
-    run_metrics_tui(watch, from_start=from_start)
+    try:
+        run_metrics_tui(watch, from_start=from_start)
+    except ValueError as exc:
+        logger.error("%s", exc)
+        raise typer.Exit(code=1) from None
 
 
 def main(argv: list[str] | None = None) -> int:

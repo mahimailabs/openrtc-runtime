@@ -612,3 +612,23 @@ def test_tui_command_exits_when_textual_is_not_importable(
     assert result.exit_code == 1
     assert "Textual" in caplog.text
     assert "openrtc[tui]" in caplog.text
+
+
+def test_tui_command_rejects_watch_path_that_is_directory(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``--watch`` must be the metrics JSONL file, not a folder such as ``agents``."""
+    pytest.importorskip("textual")
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    runner = CliRunner()
+    with caplog.at_level(logging.ERROR, logger="openrtc"):
+        result = runner.invoke(
+            app,
+            ["tui", "--watch", str(agents_dir)],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 1
+    combined = caplog.text + (result.output or "")
+    assert "directory" in combined.lower()

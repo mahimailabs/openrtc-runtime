@@ -14,6 +14,15 @@ from openrtc.resources import PoolRuntimeSnapshot
 pytest.importorskip("textual")
 
 
+def test_validate_metrics_watch_path_rejects_existing_directory(tmp_path: Path) -> None:
+    from openrtc.tui_app import validate_metrics_watch_path
+
+    d = tmp_path / "agents"
+    d.mkdir()
+    with pytest.raises(ValueError, match="directory"):
+        validate_metrics_watch_path(d)
+
+
 @pytest.mark.asyncio
 async def test_metrics_tui_displays_event_line(tmp_path) -> None:
     from openrtc.metrics_stream import event_envelope
