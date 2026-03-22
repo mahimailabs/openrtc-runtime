@@ -422,3 +422,99 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
     )
     assert FakeSession.instances[0].kwargs["turn_handling"]["turn_detection"] == "vad"
     assert turn_factory_calls == 0
+
+
+def test_runtime_snapshot_reports_active_sessions_and_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = AgentPool()
+    pool.add("test", DemoAgent)
+
+    class FakeJobContext:
+        def __init__(self) -> None:
+            self.job = SimpleNamespace(metadata={"agent": "test"})
+            self.room = SimpleNamespace(metadata=None, name="test-room")
+            self.proc = SimpleNamespace(
+                userdata={"vad": "vad", "turn_detection_factory": lambda: "vad"},
+                inference_executor=None,
+            )
+
+        async def connect(self) -> None:
+            return None
+
+    release_session = asyncio.Event()
+
+    class FakeSession:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        async def start(self, *, agent: Agent, room: object) -> None:
+            await release_session.wait()
+
+        async def generate_reply(self, *, instructions: str) -> None:
+            return None
+
+    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    ctx = FakeJobContext()
+
+    async def run_session() -> None:
+        await pool._handle_session(ctx)
+
+    async def exercise() -> None:
+        task = asyncio.create_task(run_session())
+        await asyncio.sleep(0)
+        snapshot = pool.runtime_snapshot()
+        assert snapshot.active_sessions == 1
+        assert snapshot.total_sessions_started == 1
+        assert snapshot.sessions_by_agent == {"test": 1}
+
+        release_session.set()
+        await task
+
+    asyncio.run(exercise())
+
+    final_snapshot = pool.runtime_snapshot()
+    assert final_snapshot.active_sessions == 0
+    assert final_snapshot.total_sessions_started == 1
+    assert final_snapshot.total_session_failures == 0
+
+
+def test_runtime_snapshot_records_session_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = AgentPool()
+    pool.add("test", DemoAgent)
+
+    class FakeJobContext:
+        def __init__(self) -> None:
+            self.job = SimpleNamespace(metadata={"agent": "test"})
+            self.room = SimpleNamespace(metadata=None, name="test-room")
+            self.proc = SimpleNamespace(
+                userdata={"vad": "vad", "turn_detection_factory": lambda: "vad"},
+                inference_executor=None,
+            )
+
+        async def connect(self) -> None:
+            return None
+
+    class FakeSession:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        async def start(self, *, agent: Agent, room: object) -> None:
+            raise RuntimeError("boom")
+
+        async def generate_reply(self, *, instructions: str) -> None:
+            return None
+
+    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        asyncio.run(pool._handle_session(FakeJobContext()))
+
+    snapshot = pool.runtime_snapshot()
+    assert snapshot.active_sessions == 0
+    assert snapshot.total_sessions_started == 1
+    assert snapshot.total_session_failures == 1
+    assert snapshot.last_routed_agent == "test"
+    assert snapshot.last_error == "RuntimeError: boom"

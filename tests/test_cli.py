@@ -9,9 +9,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from rich.console import Console
 from typer.testing import CliRunner
 
 from openrtc.cli import app, main
+from openrtc.resources import (
+    PoolRuntimeSnapshot,
+    ProcessResidentSetInfo,
+    SavingsEstimate,
+)
 
 
 @dataclass
@@ -45,6 +51,7 @@ class StubPool:
         self._discovered = discovered
         self.discover_calls: list[Path] = []
         self.run_called = False
+        self.runtime_snapshot_calls = 0
 
     def discover(self, agents_dir: Path) -> list[StubConfig]:
         self.discover_calls.append(agents_dir)
@@ -52,6 +59,38 @@ class StubPool:
 
     def run(self) -> None:
         self.run_called = True
+
+    def runtime_snapshot(self) -> PoolRuntimeSnapshot:
+        self.runtime_snapshot_calls += 1
+        return PoolRuntimeSnapshot(
+            timestamp=1.0,
+            uptime_seconds=2.5,
+            registered_agents=len(self._discovered),
+            active_sessions=1,
+            total_sessions_started=3,
+            total_session_failures=0,
+            last_routed_agent=self._discovered[0].name if self._discovered else None,
+            last_error=None,
+            sessions_by_agent=(
+                {self._discovered[0].name: 1} if self._discovered else {}
+            ),
+            resident_set=ProcessResidentSetInfo(
+                bytes_value=256 * 1024 * 1024,
+                metric="linux_vm_rss",
+                description="Current resident set from VmRSS.",
+            ),
+            savings_estimate=SavingsEstimate(
+                agent_count=len(self._discovered),
+                shared_worker_bytes=256 * 1024 * 1024,
+                estimated_separate_workers_bytes=(
+                    256 * 1024 * 1024 * max(len(self._discovered), 1)
+                ),
+                estimated_saved_bytes=(
+                    256 * 1024 * 1024 * max(len(self._discovered) - 1, 0)
+                ),
+                assumptions=("assumption",),
+            ),
+        )
 
 
 @pytest.fixture
@@ -260,6 +299,7 @@ def test_list_json_output_is_valid_json(tmp_path: Path) -> None:
         "darwin_ru_max_rss",
         "unavailable",
     )
+    assert "savings_estimate" in data["resource_summary"]
 
 
 def test_list_plain_matches_line_oriented_format(
@@ -297,3 +337,70 @@ def test_list_plain_and_json_conflict() -> None:
     )
 
     assert result.exit_code != 0
+
+
+def test_build_runtime_dashboard_renders_key_metrics() -> None:
+    from openrtc.cli_app import build_runtime_dashboard
+
+    snapshot = PoolRuntimeSnapshot(
+        timestamp=1.0,
+        uptime_seconds=5.0,
+        registered_agents=2,
+        active_sessions=1,
+        total_sessions_started=4,
+        total_session_failures=1,
+        last_routed_agent="restaurant",
+        last_error="RuntimeError: boom",
+        sessions_by_agent={"restaurant": 1},
+        resident_set=ProcessResidentSetInfo(
+            bytes_value=512 * 1024 * 1024,
+            metric="linux_vm_rss",
+            description="Current resident set from VmRSS.",
+        ),
+        savings_estimate=SavingsEstimate(
+            agent_count=2,
+            shared_worker_bytes=512 * 1024 * 1024,
+            estimated_separate_workers_bytes=1024 * 1024 * 1024,
+            estimated_saved_bytes=512 * 1024 * 1024,
+            assumptions=("Estimated separate-worker memory multiplies the baseline.",),
+        ),
+    )
+
+    console = Console(record=True, width=120)
+    console.print(build_runtime_dashboard(snapshot))
+    rendered = console.export_text()
+
+    assert "OpenRTC runtime dashboard" in rendered
+    assert "Worker RSS" in rendered
+    assert "Estimated saved" in rendered
+    assert "restaurant" in rendered
+
+
+def test_start_command_can_write_runtime_metrics_json(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    stub_pool = StubPool(
+        discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
+    )
+    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
+
+    metrics_path = tmp_path / "runtime.json"
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "start",
+            "--agents-dir",
+            "./agents",
+            "--metrics-json-file",
+            str(metrics_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert stub_pool.run_called is True
+    data = json.loads(metrics_path.read_text(encoding="utf-8"))
+    assert data["active_sessions"] == 1
+    assert data["registered_agents"] == 1
+    assert data["sessions_by_agent"]["restaurant"] == 1

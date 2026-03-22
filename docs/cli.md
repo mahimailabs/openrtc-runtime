@@ -52,12 +52,23 @@ Discovers agent modules and starts the LiveKit worker in production mode.
 openrtc start --agents-dir ./agents
 ```
 
+Optional runtime visibility:
+
+- **`--dashboard`** — Show a live Rich dashboard with worker RSS, active
+  sessions, failures, and an estimated “separate workers vs shared worker”
+  savings comparison.
+- **`--dashboard-refresh 1.0`** — Control how often the dashboard refreshes.
+- **`--metrics-json-file ./openrtc-runtime.json`** — Write a live JSON snapshot
+  for automation and host-side tooling.
+
 ### `openrtc dev`
 
 Discovers agent modules and starts the LiveKit worker in development mode.
 
 ```bash
 openrtc dev --agents-dir ./agents
+openrtc dev --agents-dir ./examples/agents --dashboard
+openrtc dev --agents-dir ./examples/agents --dashboard --metrics-json-file ./runtime.json
 ```
 
 ## Shared default options
@@ -94,6 +105,10 @@ With **`--resources`**, `list` adds:
 - **Summary** — total source bytes and a **best-effort** process memory metric
   from `openrtc.resources` (Linux: current VmRSS; macOS: peak `ru_maxrss`, not
   live RSS—see `resident_set.description` in `--json` output).
+- **Savings estimate** — a transparent estimate of the memory saved by one
+  shared worker versus one worker per registered agent. The estimate is based on
+  the current shared-worker baseline and is meant as an explanatory comparison,
+  not an orchestrator-level billing metric.
 
 Use this for **rough** local comparisons (single worker vs many images). For
 production, rely on host or container metrics.
@@ -109,3 +124,37 @@ openrtc list --agents-dir ./examples/agents --resources --json
 - `list` returns a non-zero exit code when no discoverable agents are found.
 - `start` and `dev` both discover agents before handing off to the underlying
   LiveKit worker runtime.
+- The live dashboard and `--metrics-json-file` use runtime snapshots from the
+  running shared worker, unlike `list --resources`, which reports only on the
+  short-lived CLI discovery process.
+
+## Prove the shared-worker value locally
+
+One practical workflow is:
+
+1. Discover your agents:
+
+   ```bash
+   openrtc list --agents-dir ./examples/agents --resources
+   ```
+
+2. Start one shared worker with the dashboard enabled:
+
+   ```bash
+   openrtc dev \
+     --agents-dir ./examples/agents \
+     --dashboard \
+     --metrics-json-file ./runtime.json
+   ```
+
+3. Watch the dashboard for:
+   - **Worker RSS** — current shared-worker memory
+   - **Active sessions** — how much load the single worker is handling
+   - **Estimated saved** — the gap between one shared worker and the “one worker
+     per agent” baseline
+   - **Per-agent sessions** — which agents are actively consuming capacity
+
+4. Use `runtime.json` for automation, shell scripts, or container-side scraping.
+
+For production capacity planning, compare these OpenRTC runtime snapshots with
+host or container telemetry from your deployment platform.
