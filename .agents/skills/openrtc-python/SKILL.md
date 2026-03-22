@@ -112,18 +112,21 @@ with `_`. Fix and re-run `openrtc list` until all agents appear.
 
 ```bash
 # Development mode (auto-reload) — set LIVEKIT_* env vars first
-openrtc dev --agents-dir ./agents
+openrtc dev ./agents
 
 # Production mode
-openrtc start --agents-dir ./agents
+openrtc start ./agents
 
 # Same LiveKit subcommands as python agent.py: console, connect, download-files
-# openrtc console --agents-dir ./agents
-# openrtc connect --agents-dir ./agents --room my-room
+# openrtc console ./agents
+# openrtc connect ./agents --room my-room
+# openrtc list ./agents
+# openrtc download-files ./agents
 
 # Optional: JSON Lines metrics + sidecar TUI (pip install 'openrtc[cli,tui]')
 # openrtc dev ./agents ./openrtc-metrics.jsonl
 # openrtc tui
+# openrtc tui ./other-metrics.jsonl
 
 # Or run the entrypoint directly
 python main.py dev
