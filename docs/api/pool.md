@@ -204,6 +204,23 @@ Starts the LiveKit worker application.
 
 - `RuntimeError` if called before any agents are registered
 
+## `runtime_snapshot()`
+
+```python
+snapshot = pool.runtime_snapshot()
+```
+
+Returns a typed runtime snapshot for the current shared worker. The snapshot is
+used by the CLI dashboard and `--metrics-json-file` output and includes:
+
+- resident memory metadata
+- registered and active session counts
+- per-agent active session counts
+- total sessions started
+- session failure count
+- last routed agent
+- a best-effort shared-worker savings estimate
+
 ## Routing behavior
 
 `AgentPool` resolves the active agent in this order:

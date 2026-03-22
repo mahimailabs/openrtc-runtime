@@ -303,16 +303,31 @@ Stable output for scripts and CI:
 
 ```bash
 openrtc start --agents-dir ./agents
+openrtc start --agents-dir ./agents --dashboard
 ```
 
 ### Run in development mode
 
 ```bash
 openrtc dev --agents-dir ./agents
+openrtc dev --agents-dir ./examples/agents --dashboard --metrics-json-file ./runtime.json
 ```
 
 Both `start` and `dev` discover agents first and then hand off to the underlying
 LiveKit worker runtime.
+
+The optional runtime dashboard shows:
+
+- current worker RSS
+- active sessions and total handled sessions
+- per-agent load
+- the last routed agent and latest failure
+- an estimated memory-savings comparison between one shared worker and one
+  worker per registered agent
+
+For automation, `--metrics-json-file` writes the same runtime snapshot as JSON
+while the worker is running. See [docs/cli.md](docs/cli.md) for a step-by-step
+"prove the value" workflow.
 
 ## Public API at a glance
 
@@ -331,6 +346,7 @@ On `AgentPool`, the primary public methods and properties are:
 - `get(name)`
 - `remove(name)`
 - `run()`
+- `runtime_snapshot()`
 - `server`
 
 ## Project structure

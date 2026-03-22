@@ -3,17 +3,23 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import threading
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
+from rich.progress_bar import ProgressBar
 from rich.table import Table
+from rich.text import Text
 
 from openrtc.pool import AgentConfig, AgentPool
 from openrtc.resources import (
+    PoolRuntimeSnapshot,
     agent_disk_footprints,
+    estimate_shared_worker_savings,
     file_size_bytes,
     format_byte_size,
     get_process_resident_set_info,
@@ -30,6 +36,205 @@ app = typer.Typer(
 )
 
 console = Console()
+
+
+class RuntimeReporter:
+    """Background reporter that renders a Rich dashboard and/or JSON snapshots."""
+
+    def __init__(
+        self,
+        pool: AgentPool,
+        *,
+        dashboard: bool,
+        refresh_seconds: float,
+        json_output_path: Path | None,
+    ) -> None:
+        self._pool = pool
+        self._dashboard = dashboard
+        self._refresh_seconds = max(refresh_seconds, 0.25)
+        self._json_output_path = json_output_path
+        self._stop_event = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        """Start the background reporter when at least one output is enabled."""
+        if not self._dashboard and self._json_output_path is None:
+            return
+        self._thread = threading.Thread(
+            target=self._run,
+            name="openrtc-runtime-reporter",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        """Stop the background reporter and flush one final snapshot."""
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=max(self._refresh_seconds * 2, 1.0))
+        self._write_json_snapshot()
+
+    def _run(self) -> None:
+        if self._dashboard:
+            with Live(
+                self._build_dashboard_renderable(),
+                console=console,
+                refresh_per_second=max(int(round(1 / self._refresh_seconds)), 1),
+                transient=True,
+            ) as live:
+                while not self._stop_event.wait(self._refresh_seconds):
+                    live.update(self._build_dashboard_renderable())
+                    self._write_json_snapshot()
+                live.update(self._build_dashboard_renderable())
+            return
+
+        while not self._stop_event.wait(self._refresh_seconds):
+            self._write_json_snapshot()
+
+    def _build_dashboard_renderable(self) -> Panel:
+        snapshot = self._pool.runtime_snapshot()
+        return build_runtime_dashboard(snapshot)
+
+    def _write_json_snapshot(self) -> None:
+        if self._json_output_path is None:
+            return
+        payload = self._pool.runtime_snapshot().to_dict()
+        self._json_output_path.parent.mkdir(parents=True, exist_ok=True)
+        self._json_output_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+
+
+def _format_percent(saved_bytes: int | None, baseline_bytes: int | None) -> str:
+    if saved_bytes is None or baseline_bytes in (None, 0):
+        return "—"
+    return f"{(saved_bytes / baseline_bytes) * 100:.0f}%"
+
+
+def _memory_style(num_bytes: int | None) -> str:
+    if num_bytes is None:
+        return "white"
+    mib = num_bytes / (1024 * 1024)
+    if mib < 512:
+        return "green"
+    if mib < 1024:
+        return "yellow"
+    return "red"
+
+
+def _build_sessions_table(snapshot: PoolRuntimeSnapshot) -> Table:
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Agent", style="cyan")
+    table.add_column("Active sessions", justify="right")
+
+    if snapshot.sessions_by_agent:
+        for agent_name, count in sorted(
+            snapshot.sessions_by_agent.items(),
+            key=lambda item: (-item[1], item[0]),
+        ):
+            table.add_row(agent_name, str(count))
+    else:
+        table.add_row("—", "0")
+    return table
+
+
+def build_runtime_dashboard(snapshot: PoolRuntimeSnapshot) -> Panel:
+    """Build a Rich dashboard from a runtime snapshot."""
+    metrics = Table.grid(expand=True)
+    metrics.add_column(ratio=2)
+    metrics.add_column(ratio=1)
+
+    rss_bytes = snapshot.resident_set.bytes_value
+    savings = snapshot.savings_estimate
+    progress_total = max(snapshot.registered_agents, 1)
+    left = Table.grid(padding=(0, 1))
+    left.add_column(style="bold cyan")
+    left.add_column()
+    left.add_row(
+        "Worker RSS",
+        Text(
+            format_byte_size(rss_bytes or 0)
+            if rss_bytes is not None
+            else "Unavailable",
+            style=_memory_style(rss_bytes),
+        ),
+    )
+    left.add_row("Metric", snapshot.resident_set.metric)
+    left.add_row("Uptime", f"{snapshot.uptime_seconds:.1f}s")
+    left.add_row("Registered", str(snapshot.registered_agents))
+    left.add_row("Active", str(snapshot.active_sessions))
+    left.add_row("Total handled", str(snapshot.total_sessions_started))
+    left.add_row("Failures", str(snapshot.total_session_failures))
+    left.add_row("Last route", snapshot.last_routed_agent or "—")
+
+    right = Table.grid(padding=(0, 1))
+    right.add_column(style="bold magenta")
+    right.add_column()
+    right.add_row(
+        "Shared worker",
+        format_byte_size(savings.shared_worker_bytes or 0)
+        if savings.shared_worker_bytes is not None
+        else "Unavailable",
+    )
+    right.add_row(
+        "10x style estimate"
+        if snapshot.registered_agents == 10
+        else "Separate workers",
+        format_byte_size(savings.estimated_separate_workers_bytes or 0)
+        if savings.estimated_separate_workers_bytes is not None
+        else "Unavailable",
+    )
+    right.add_row(
+        "Estimated saved",
+        format_byte_size(savings.estimated_saved_bytes or 0)
+        if savings.estimated_saved_bytes is not None
+        else "Unavailable",
+    )
+    right.add_row(
+        "Saved vs separate",
+        _format_percent(
+            savings.estimated_saved_bytes,
+            savings.estimated_separate_workers_bytes,
+        ),
+    )
+
+    metrics.add_row(left, right)
+
+    progress = Table.grid(expand=True)
+    progress.add_column(ratio=3)
+    progress.add_column(ratio=2)
+    progress.add_row(
+        ProgressBar(
+            total=progress_total,
+            completed=min(snapshot.active_sessions, progress_total),
+            complete_style="green",
+            finished_style="green",
+            pulse_style="cyan",
+        ),
+        _build_sessions_table(snapshot),
+    )
+
+    footer = Text(
+        f"Memory metric: {snapshot.resident_set.description}",
+        style="dim",
+    )
+    if snapshot.last_error:
+        footer.append(f"\nLast error: {snapshot.last_error}", style="bold red")
+
+    body = Table.grid(expand=True)
+    body.add_row(metrics)
+    body.add_row("")
+    body.add_row(progress)
+    body.add_row("")
+    body.add_row(footer)
+
+    return Panel(
+        body,
+        title="[bold blue]OpenRTC runtime dashboard[/bold blue]",
+        subtitle="shared worker visibility",
+        border_style="bright_blue",
+    )
 
 
 def _pool_kwargs(
@@ -145,6 +350,33 @@ DefaultGreetingArg = Annotated[
             "Default greeting used when a discovered agent does not "
             "override greeting via @agent_config(...)."
         ),
+    ),
+]
+
+DashboardArg = Annotated[
+    bool,
+    typer.Option(
+        "--dashboard",
+        help="Show a live Rich dashboard with worker memory and active sessions.",
+    ),
+]
+
+DashboardRefreshArg = Annotated[
+    float,
+    typer.Option(
+        "--dashboard-refresh",
+        min=0.25,
+        help="Refresh interval in seconds for the runtime dashboard and metrics file.",
+    ),
+]
+
+MetricsJsonFileArg = Annotated[
+    Path | None,
+    typer.Option(
+        "--metrics-json-file",
+        help="Write live runtime metrics snapshots to this JSON file for automation.",
+        resolve_path=True,
+        path_type=Path,
     ),
 ]
 
@@ -307,6 +539,10 @@ def _build_list_json_payload(
         footprints = agent_disk_footprints(discovered)
         total_source = sum(f.size_bytes for f in footprints)
         rss_info = get_process_resident_set_info()
+        savings = estimate_shared_worker_savings(
+            agent_count=len(discovered),
+            shared_worker_bytes=rss_info.bytes_value,
+        )
         payload["resource_summary"] = {
             "agent_count": len(discovered),
             "total_source_bytes": total_source,
@@ -315,6 +551,15 @@ def _build_list_json_payload(
                 "bytes": rss_info.bytes_value,
                 "metric": rss_info.metric,
                 "description": rss_info.description,
+            },
+            "savings_estimate": {
+                "agent_count": savings.agent_count,
+                "shared_worker_bytes": savings.shared_worker_bytes,
+                "estimated_separate_workers_bytes": (
+                    savings.estimated_separate_workers_bytes
+                ),
+                "estimated_saved_bytes": savings.estimated_saved_bytes,
+                "assumptions": list(savings.assumptions),
             },
         }
     return payload
@@ -327,6 +572,9 @@ def start_command(
     default_llm: DefaultLlmArg = None,
     default_tts: DefaultTtsArg = None,
     default_greeting: DefaultGreetingArg = None,
+    dashboard: DashboardArg = False,
+    dashboard_refresh: DashboardRefreshArg = 1.0,
+    metrics_json_file: MetricsJsonFileArg = None,
 ) -> None:
     """Run the LiveKit worker (production-style entrypoint)."""
     pool = AgentPool(
@@ -334,7 +582,12 @@ def start_command(
     )
     _discover_or_exit(agents_dir, pool)
     _livekit_sys_argv("start")
-    pool.run()
+    _run_pool_with_reporting(
+        pool,
+        dashboard=dashboard,
+        dashboard_refresh=dashboard_refresh,
+        metrics_json_file=metrics_json_file,
+    )
 
 
 @app.command("dev")
@@ -344,6 +597,9 @@ def dev_command(
     default_llm: DefaultLlmArg = None,
     default_tts: DefaultTtsArg = None,
     default_greeting: DefaultGreetingArg = None,
+    dashboard: DashboardArg = False,
+    dashboard_refresh: DashboardRefreshArg = 1.0,
+    metrics_json_file: MetricsJsonFileArg = None,
 ) -> None:
     """Run the LiveKit worker in development mode."""
     pool = AgentPool(
@@ -351,13 +607,42 @@ def dev_command(
     )
     _discover_or_exit(agents_dir, pool)
     _livekit_sys_argv("dev")
-    pool.run()
+    _run_pool_with_reporting(
+        pool,
+        dashboard=dashboard,
+        dashboard_refresh=dashboard_refresh,
+        metrics_json_file=metrics_json_file,
+    )
+
+
+def _run_pool_with_reporting(
+    pool: AgentPool,
+    *,
+    dashboard: bool,
+    dashboard_refresh: float,
+    metrics_json_file: Path | None,
+) -> None:
+    reporter = RuntimeReporter(
+        pool,
+        dashboard=dashboard,
+        refresh_seconds=dashboard_refresh,
+        json_output_path=metrics_json_file,
+    )
+    reporter.start()
+    try:
+        pool.run()
+    finally:
+        reporter.stop()
 
 
 def _print_resource_summary_rich(discovered: list[AgentConfig]) -> None:
     footprints = agent_disk_footprints(discovered)
     total_source = sum(f.size_bytes for f in footprints)
     rss_info = get_process_resident_set_info()
+    savings = estimate_shared_worker_savings(
+        agent_count=len(discovered),
+        shared_worker_bytes=rss_info.bytes_value,
+    )
 
     lines: list[str] = [
         (
@@ -378,6 +663,12 @@ def _print_resource_summary_rich(discovered: list[AgentConfig]) -> None:
     else:
         lines.append(
             f"Resident memory metric unavailable on this platform ({rss_info.metric})."
+        )
+
+    if savings.estimated_saved_bytes is not None:
+        lines.append(
+            "Estimated shared-worker savings versus one worker per agent: "
+            f"{format_byte_size(savings.estimated_saved_bytes)}"
         )
 
     lines.append("")
@@ -403,6 +694,10 @@ def _print_resource_summary_plain(discovered: list[AgentConfig]) -> None:
     footprints = agent_disk_footprints(discovered)
     total_source = sum(f.size_bytes for f in footprints)
     rss_info = get_process_resident_set_info()
+    savings = estimate_shared_worker_savings(
+        agent_count=len(discovered),
+        shared_worker_bytes=rss_info.bytes_value,
+    )
 
     print("Resource summary (local estimates for this `openrtc list` process):")
     print(
@@ -423,6 +718,11 @@ def _print_resource_summary_plain(discovered: list[AgentConfig]) -> None:
         print(
             f"  Resident memory metric unavailable ({rss_info.metric}): "
             f"{rss_info.description}"
+        )
+    if savings.estimated_saved_bytes is not None:
+        print(
+            "  Estimated shared-worker savings versus one worker per agent: "
+            f"{format_byte_size(savings.estimated_saved_bytes)}"
         )
     print()
     print(

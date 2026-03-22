@@ -18,6 +18,8 @@ from typing import Any, TypeVar
 
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 
+from openrtc.resources import PoolRuntimeSnapshot, RuntimeMetricsStore
+
 logger = logging.getLogger("openrtc")
 
 _AgentType = TypeVar("_AgentType", bound=type[Agent])
@@ -42,6 +44,7 @@ class _PoolRuntimeState:
     """Serializable runtime state shared with worker callbacks."""
 
     agents: dict[str, AgentConfig]
+    metrics: RuntimeMetricsStore = field(default_factory=RuntimeMetricsStore)
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,13 +93,19 @@ async def _run_universal_session(
         vad=ctx.proc.userdata["vad"],
         **session_kwargs,
     )
+    try:
+        runtime_state.metrics.record_session_started(config.name)
+        await session.start(agent=config.agent_cls(), room=ctx.room)
+        await ctx.connect()
 
-    await session.start(agent=config.agent_cls(), room=ctx.room)
-    await ctx.connect()
-
-    if config.greeting is not None:
-        logger.debug("Generating greeting for agent '%s'.", config.name)
-        await session.generate_reply(instructions=config.greeting)
+        if config.greeting is not None:
+            logger.debug("Generating greeting for agent '%s'.", config.name)
+            await session.generate_reply(instructions=config.greeting)
+    except Exception as exc:
+        runtime_state.metrics.record_session_failure(config.name, exc)
+        raise
+    finally:
+        runtime_state.metrics.record_session_finished(config.name)
 
 
 @dataclass(slots=True)
@@ -256,6 +265,10 @@ class AgentPool:
     def server(self) -> AgentServer:
         """Return the underlying LiveKit ``AgentServer`` instance."""
         return self._server
+
+    def runtime_snapshot(self) -> PoolRuntimeSnapshot:
+        """Return a live snapshot of worker metrics for dashboards and automation."""
+        return self._runtime_state.metrics.snapshot(registered_agents=len(self._agents))
 
     def add(
         self,

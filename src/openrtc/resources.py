@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Sequence
-from dataclasses import dataclass
+import time
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
+from threading import Lock
+from typing import TYPE_CHECKING
 
-from openrtc.pool import AgentConfig
+if TYPE_CHECKING:
+    from openrtc.pool import AgentConfig
 
 logger = logging.getLogger("openrtc")
 
@@ -36,6 +40,150 @@ class ProcessResidentSetInfo:
 
     description: str
     """What :attr:`bytes_value` represents on this OS (read this before comparing runs)."""
+
+
+@dataclass(frozen=True, slots=True)
+class SavingsEstimate:
+    """Best-effort estimate of memory savings from one shared worker."""
+
+    agent_count: int
+    shared_worker_bytes: int | None
+    estimated_separate_workers_bytes: int | None
+    estimated_saved_bytes: int | None
+    assumptions: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PoolRuntimeSnapshot:
+    """Typed runtime view of the current shared worker state."""
+
+    timestamp: float
+    uptime_seconds: float
+    registered_agents: int
+    active_sessions: int
+    total_sessions_started: int
+    total_session_failures: int
+    last_routed_agent: str | None
+    last_error: str | None
+    sessions_by_agent: dict[str, int]
+    resident_set: ProcessResidentSetInfo
+    savings_estimate: SavingsEstimate
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-serializable snapshot payload."""
+        return {
+            "timestamp": self.timestamp,
+            "uptime_seconds": self.uptime_seconds,
+            "registered_agents": self.registered_agents,
+            "active_sessions": self.active_sessions,
+            "total_sessions_started": self.total_sessions_started,
+            "total_session_failures": self.total_session_failures,
+            "last_routed_agent": self.last_routed_agent,
+            "last_error": self.last_error,
+            "sessions_by_agent": dict(self.sessions_by_agent),
+            "resident_set": {
+                "bytes": self.resident_set.bytes_value,
+                "metric": self.resident_set.metric,
+                "description": self.resident_set.description,
+            },
+            "savings_estimate": {
+                "agent_count": self.savings_estimate.agent_count,
+                "shared_worker_bytes": self.savings_estimate.shared_worker_bytes,
+                "estimated_separate_workers_bytes": (
+                    self.savings_estimate.estimated_separate_workers_bytes
+                ),
+                "estimated_saved_bytes": self.savings_estimate.estimated_saved_bytes,
+                "assumptions": list(self.savings_estimate.assumptions),
+            },
+        }
+
+
+@dataclass(slots=True)
+class RuntimeMetricsStore:
+    """Thread-safe counters for a running shared worker."""
+
+    started_at: float = field(default_factory=time.monotonic)
+    total_sessions_started: int = 0
+    total_session_failures: int = 0
+    last_routed_agent: str | None = None
+    last_error: str | None = None
+    sessions_by_agent: dict[str, int] = field(default_factory=dict)
+    _lock: Lock = field(default_factory=Lock, init=False, repr=False, compare=False)
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "started_at": self.started_at,
+            "total_sessions_started": self.total_sessions_started,
+            "total_session_failures": self.total_session_failures,
+            "last_routed_agent": self.last_routed_agent,
+            "last_error": self.last_error,
+            "sessions_by_agent": dict(self.sessions_by_agent),
+        }
+
+    def __setstate__(self, state: Mapping[str, object]) -> None:
+        self.started_at = float(state["started_at"])
+        self.total_sessions_started = int(state["total_sessions_started"])
+        self.total_session_failures = int(state["total_session_failures"])
+        self.last_routed_agent = state["last_routed_agent"]  # type: ignore[assignment]
+        self.last_error = state["last_error"]  # type: ignore[assignment]
+        self.sessions_by_agent = {
+            str(key): int(value)
+            for key, value in dict(state["sessions_by_agent"]).items()
+        }
+        self._lock = Lock()
+
+    def record_session_started(self, agent_name: str) -> None:
+        """Increment active counters for one routed session."""
+        with self._lock:
+            self.total_sessions_started += 1
+            self.last_routed_agent = agent_name
+            self.sessions_by_agent[agent_name] = (
+                self.sessions_by_agent.get(agent_name, 0) + 1
+            )
+
+    def record_session_finished(self, agent_name: str) -> None:
+        """Decrement active counters once a session exits."""
+        with self._lock:
+            current = self.sessions_by_agent.get(agent_name, 0)
+            next_value = current - 1
+            if next_value > 0:
+                self.sessions_by_agent[agent_name] = next_value
+            else:
+                self.sessions_by_agent.pop(agent_name, None)
+
+    def record_session_failure(self, agent_name: str, exc: BaseException) -> None:
+        """Track a failed session attempt with the most recent error."""
+        with self._lock:
+            self.last_routed_agent = agent_name
+            self.total_session_failures += 1
+            self.last_error = f"{exc.__class__.__name__}: {exc}"
+
+    def snapshot(self, *, registered_agents: int) -> PoolRuntimeSnapshot:
+        """Return a typed snapshot for dashboards and automation."""
+        with self._lock:
+            sessions_by_agent = dict(self.sessions_by_agent)
+            total_sessions_started = self.total_sessions_started
+            total_session_failures = self.total_session_failures
+            last_routed_agent = self.last_routed_agent
+            last_error = self.last_error
+
+        rss_info = get_process_resident_set_info()
+        return PoolRuntimeSnapshot(
+            timestamp=time.time(),
+            uptime_seconds=max(time.monotonic() - self.started_at, 0.0),
+            registered_agents=registered_agents,
+            active_sessions=sum(sessions_by_agent.values()),
+            total_sessions_started=total_sessions_started,
+            total_session_failures=total_session_failures,
+            last_routed_agent=last_routed_agent,
+            last_error=last_error,
+            sessions_by_agent=sessions_by_agent,
+            resident_set=rss_info,
+            savings_estimate=estimate_shared_worker_savings(
+                agent_count=registered_agents,
+                shared_worker_bytes=rss_info.bytes_value,
+            ),
+        )
 
 
 def format_byte_size(num_bytes: int) -> str:
@@ -138,6 +286,43 @@ def process_resident_set_bytes() -> int | None:
     and :attr:`~ProcessResidentSetInfo.description`.
     """
     return get_process_resident_set_info().bytes_value
+
+
+def estimate_shared_worker_savings(
+    *,
+    agent_count: int,
+    shared_worker_bytes: int | None,
+) -> SavingsEstimate:
+    """Estimate the value of one shared worker versus one worker per agent.
+
+    The estimate intentionally uses only the current shared worker memory as a
+    baseline. It assumes separate workers would each pay approximately the same
+    base worker cost before per-call overhead.
+    """
+    assumptions = (
+        "Estimated separate-worker memory multiplies the current shared-worker "
+        "baseline by the number of registered agents.",
+        "This is a best-effort comparison, not a container-orchestrator metric.",
+        "Actual memory depends on active sessions, providers, and model loading.",
+    )
+    if agent_count <= 0 or shared_worker_bytes is None:
+        return SavingsEstimate(
+            agent_count=agent_count,
+            shared_worker_bytes=shared_worker_bytes,
+            estimated_separate_workers_bytes=None,
+            estimated_saved_bytes=None,
+            assumptions=assumptions,
+        )
+
+    separate_workers = shared_worker_bytes * agent_count
+    saved_bytes = max(separate_workers - shared_worker_bytes, 0)
+    return SavingsEstimate(
+        agent_count=agent_count,
+        shared_worker_bytes=shared_worker_bytes,
+        estimated_separate_workers_bytes=separate_workers,
+        estimated_saved_bytes=saved_bytes,
+        assumptions=assumptions,
+    )
 
 
 def _linux_rss_bytes() -> int | None:
