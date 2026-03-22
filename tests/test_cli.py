@@ -4,6 +4,7 @@ import builtins
 import importlib
 import json
 import logging
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,14 @@ from openrtc.resources import (
     ProcessResidentSetInfo,
     SavingsEstimate,
 )
+
+# Rich/Click may inject ANSI and soft-wrap error text; normalize before substring checks.
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def _normalize_cli_output_for_assert(text: str) -> str:
+    plain = _ANSI_ESCAPE_RE.sub("", text)
+    return plain.replace("\n", "").replace("\r", "")
 
 
 @dataclass
@@ -244,14 +253,11 @@ def test_download_files_has_minimal_options_no_provider_defaults(
             "--default-stt",
             "deepgram/x",
         ],
-        # Rich wraps error text to COLUMNS from the environment; CI often sets a
-        # narrow width, which splits the flag across ANSI segments so the literal
-        # substring "default-stt" disappears.
-        env={"COLUMNS": "160", "LINES": "50"},
     )
     assert result.exit_code == 2
     out = (result.stdout or "") + (result.stderr or "")
-    assert "default-stt" in out
+    normalized = _normalize_cli_output_for_assert(out)
+    assert re.search(r"default[-_]stt", normalized), normalized[:800]
 
 
 def test_list_exits_cleanly_when_agents_dir_does_not_exist(
