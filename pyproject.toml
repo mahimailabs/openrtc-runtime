@@ -23,6 +23,10 @@ license = "MIT"
 requires-python = ">=3.10,<3.14"
 dependencies = [
     "livekit-agents[openai,silero,turn-detector]~=1.4",
+    # onnxruntime 1.24+ only publishes wheels for CPython 3.11+; LiveKit's
+    # turn-detector/silero stack still pulls it transitively. Pin the last
+    # 1.23.x line on Python 3.10 so `uv sync` / `uv add` can resolve wheels.
+    "onnxruntime>=1.23.2,<1.24; python_full_version < '3.11'",
 ]
 
 [project.optional-dependencies]

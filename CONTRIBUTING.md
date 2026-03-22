@@ -23,6 +23,11 @@ CLI with `pip install 'openrtc[cli]'` and the sidecar TUI with
 If you prefer, you can also install the package and dev dependencies with pip,
 but `uv` is the preferred workflow for contributors.
 
+**Python 3.10:** newer `onnxruntime` releases (pulled in by LiveKit’s Silero /
+turn-detector plugins) only ship wheels for CPython 3.11+. OpenRTC declares a
+conditional dependency so 3.10 environments resolve `onnxruntime` 1.23.x instead.
+If you still see resolver errors, use `uv sync --python 3.11` or newer.
+
 ## Common development commands
 
 ### Run tests
