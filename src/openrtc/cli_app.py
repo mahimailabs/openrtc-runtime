@@ -24,7 +24,7 @@ from openrtc.cli_livekit import (
     _run_connect_handoff,
     _run_pool_with_reporting,
     _strip_openrtc_only_flags_for_livekit,
-    inject_worker_positional_paths,
+    inject_cli_positional_paths,
 )
 from openrtc.cli_params import SharedLiveKitWorkerOptions, agent_provider_kwargs
 from openrtc.cli_reporter import RuntimeReporter
@@ -70,8 +70,11 @@ app = typer.Typer(
         "Run multiple LiveKit voice agents from one shared worker. Commands match "
         "LiveKit Agents ([code]dev[/code], [code]start[/code], [code]console[/code], "
         "[code]connect[/code], [code]download-files[/code]) plus [code]list[/code] and "
-        "[code]tui[/code]. Worker commands need an agents directory via "
-        "[code]--agents-dir[/code] or the first positional argument; "
+        "[code]tui[/code]. Most commands accept the agents directory as the first "
+        "positional argument instead of [code]--agents-dir[/code]; "
+        "[code]start[/code]/[code]dev[/code]/[code]console[/code] also accept a "
+        "second path for [code]--metrics-jsonl[/code], and [code]tui[/code] can "
+        "take a metrics file path as the first positional instead of [code]--watch[/code]; "
         "credentials use [code]LIVEKIT_*[/code] env vars by default (CLI flags optional)."
     ),
     epilog=_QUICKSTART_EPILOG,
@@ -321,13 +324,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if argv is not None:
             cli.main(
-                args=inject_worker_positional_paths(list(argv)),
+                args=inject_cli_positional_paths(list(argv)),
                 prog_name="openrtc",
                 standalone_mode=True,
             )
         else:
-            if len(sys.argv) >= 2 and sys.argv[1] in {"start", "dev", "console"}:
-                tail = inject_worker_positional_paths(list(sys.argv[1:]))
+            if len(sys.argv) >= 2:
+                tail = inject_cli_positional_paths(list(sys.argv[1:]))
                 sys.argv = [sys.argv[0], *tail]
             cli.main(args=None, prog_name="openrtc", standalone_mode=True)
     except SystemExit as exc:

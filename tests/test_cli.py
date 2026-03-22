@@ -275,10 +275,10 @@ def test_list_exits_cleanly_when_agents_dir_does_not_exist(
     assert "does not exist" in caplog.text
 
 
-def test_inject_worker_positional_paths_rewrites_agents_and_metrics() -> None:
-    from openrtc.cli_livekit import inject_worker_positional_paths
+def test_inject_cli_positional_paths_rewrites_shortcuts() -> None:
+    from openrtc.cli_livekit import inject_cli_positional_paths
 
-    assert inject_worker_positional_paths(
+    assert inject_cli_positional_paths(
         ["dev", "./agents", "./openrtc-metrics.jsonl", "--reload"],
     ) == [
         "dev",
@@ -288,12 +288,32 @@ def test_inject_worker_positional_paths_rewrites_agents_and_metrics() -> None:
         "./openrtc-metrics.jsonl",
         "--reload",
     ]
-    assert inject_worker_positional_paths(
+    assert inject_cli_positional_paths(
         ["dev", "./agents", "--reload"],
     ) == ["dev", "--agents-dir", "./agents", "--reload"]
-    assert inject_worker_positional_paths(
+    assert inject_cli_positional_paths(
         ["dev", "--agents-dir", "./agents", "--reload"],
     ) == ["dev", "--agents-dir", "./agents", "--reload"]
+    assert inject_cli_positional_paths(
+        ["list", "./agents", "--json"],
+    ) == ["list", "--agents-dir", "./agents", "--json"]
+    assert inject_cli_positional_paths(
+        ["connect", "./agents", "--room", "demo"],
+    ) == ["connect", "--agents-dir", "./agents", "--room", "demo"]
+    assert inject_cli_positional_paths(
+        ["download-files", "./agents"],
+    ) == ["download-files", "--agents-dir", "./agents"]
+    assert inject_cli_positional_paths(
+        ["tui", "./m.jsonl", "--from-start"],
+    ) == ["tui", "--watch", "./m.jsonl", "--from-start"]
+    assert inject_cli_positional_paths(["tui"]) == ["tui"]
+    from openrtc.cli_livekit import inject_worker_positional_paths
+
+    assert inject_worker_positional_paths(
+        ["list", "./agents"]
+    ) == inject_cli_positional_paths(
+        ["list", "./agents"],
+    )
 
 
 def test_dev_positional_agents_rewrites_before_typer(

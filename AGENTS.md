@@ -409,7 +409,7 @@ All commands are documented in `CONTRIBUTING.md`. Quick reference:
 - **Lint:** `uv run ruff check .`
 - **Format check:** `uv run ruff format --check .`
 - **Type check:** `uv run mypy src/` (must pass clean; also runs in `.github/workflows/lint.yml`)
-- **CLI demo:** `uv run openrtc list --agents-dir ./examples/agents --default-stt "deepgram/nova-3:multi" --default-llm "openai/gpt-4.1-mini" --default-tts "cartesia/sonic-3"`
+- **CLI demo:** `uv run openrtc list ./examples/agents --default-stt "deepgram/nova-3:multi" --default-llm "openai/gpt-4.1-mini" --default-tts "cartesia/sonic-3"` (same as `--agents-dir ./examples/agents`)
 
 ### Non-obvious notes
 

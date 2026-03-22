@@ -78,6 +78,12 @@ flag.
 
 ## Commands
 
+Across **list**, **connect**, **download-files**, **start** / **dev** / **console**,
+and **tui**, you can often pass paths **positionally** instead of `--agents-dir`,
+`--metrics-jsonl`, or `--watch` (see each command below). The first non-flag
+token after the subcommand is rewritten before parsing; use `--agents-dir` /
+`--watch` when you need a different argument order.
+
 ### `openrtc list`
 
 Discovers agent modules and prints each agent’s resolved settings.
@@ -93,9 +99,9 @@ Discovers agent modules and prints each agent’s resolved settings.
   `--help`).
 
 ```bash
-openrtc list --agents-dir ./agents
+openrtc list ./agents
 openrtc list --agents-dir ./agents --plain
-openrtc list --agents-dir ./agents --json
+openrtc list ./agents --json
 ```
 
 ### `openrtc start`
@@ -103,7 +109,7 @@ openrtc list --agents-dir ./agents --json
 Production-style worker (same role as `python agent.py start`).
 
 ```bash
-openrtc start --agents-dir ./agents
+openrtc start ./agents
 ```
 
 ### `openrtc dev`
@@ -111,7 +117,7 @@ openrtc start --agents-dir ./agents
 Development worker with reload (same role as `python agent.py dev`).
 
 ```bash
-openrtc dev --agents-dir ./agents
+openrtc dev ./agents
 ```
 
 ### `openrtc console`
@@ -119,7 +125,7 @@ openrtc dev --agents-dir ./agents
 Local console session (same role as `python agent.py console`).
 
 ```bash
-openrtc console --agents-dir ./agents
+openrtc console ./agents
 ```
 
 ### `openrtc connect`
@@ -128,7 +134,7 @@ Connect the worker to an existing room (LiveKit `connect`). Requires
 `--room`.
 
 ```bash
-openrtc connect --agents-dir ./agents --room my-room
+openrtc connect ./agents --room my-room
 ```
 
 ### `openrtc download-files`
@@ -138,7 +144,7 @@ directory (for a valid worker entrypoint) plus connection settings—**no**
 `--default-stt` / `--default-llm` / `--default-tts` / `--default-greeting`.
 
 ```bash
-openrtc download-files --agents-dir ./agents
+openrtc download-files ./agents
 ```
 
 ### `openrtc tui`
@@ -147,8 +153,8 @@ Sidecar Textual UI that tails a **JSON Lines** metrics file written by the
 worker (`--metrics-jsonl`). Requires `openrtc[tui]`.
 
 With no flags, the TUI tails **`./openrtc-metrics.jsonl`** in the current working
-directory. Pass **`--watch PATH`** to use another file (it must match
-`--metrics-jsonl` on the worker).
+directory. Pass **`--watch PATH`** or a **positional path** to use another file
+(it must match `--metrics-jsonl` on the worker).
 
 ```bash
 # Terminal 1
@@ -156,6 +162,9 @@ openrtc dev ./agents ./openrtc-metrics.jsonl
 
 # Terminal 2 (same default file as above)
 openrtc tui
+
+# Or pass the file positionally:
+# openrtc tui ./openrtc-metrics.jsonl
 
 # Equivalent explicit form:
 # openrtc tui --watch ./openrtc-metrics.jsonl

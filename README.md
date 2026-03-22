@@ -226,13 +226,13 @@ If you pass strings such as `openai/gpt-4.1-mini`, OpenRTC leaves them as-is and
 
 ## CLI and TUI
 
-Install `openrtc[cli]` to get `openrtc` on your PATH. Subcommands follow the LiveKit Agents CLI shape (`dev`, `start`, `console`, `connect`, `download-files`), plus `list` and `tui`.
+Install `openrtc[cli]` to get `openrtc` on your PATH. Subcommands follow the LiveKit Agents CLI shape (`dev`, `start`, `console`, `connect`, `download-files`), plus `list` and `tui`. For most commands you can pass the agents directory (or, for `tui`, the metrics JSONL file) as the first path argument instead of `--agents-dir` / `--watch`.
 
 **List what discovery would register** (defaults are string passthroughs for `livekit-agents`, not constructed provider objects):
 
 ```bash
 openrtc list \
-  --agents-dir ./agents \
+  ./agents \
   --default-stt openai/gpt-4o-mini-transcribe \
   --default-llm openai/gpt-4.1-mini \
   --default-tts openai/gpt-4o-mini-tts
@@ -241,7 +241,7 @@ openrtc list \
 **Run a production worker** (after exporting `LIVEKIT_*`):
 
 ```bash
-openrtc start --agents-dir ./agents
+openrtc start ./agents
 ```
 
 **Run a development worker**:

@@ -78,14 +78,18 @@ def _strip_openrtc_only_flags_for_livekit(argv_tail: list[str]) -> list[str]:
     return out
 
 
-def inject_worker_positional_paths(argv: list[str]) -> list[str]:
-    """Rewrite ``dev|start|console ./agents [./metrics.jsonl]`` into flagged form.
-
-    LiveKit pass-through tokens (e.g. ``--reload``) must not be parsed as paths.
-    This runs **before** Typer so unknown options stay in ``ctx.args`` unchanged.
-    """
-    if not argv or argv[0] not in {"start", "dev", "console"}:
+def _inject_agents_dir_positional(argv: list[str]) -> list[str]:
+    """``<cmd> ./agents ...`` → ``<cmd> --agents-dir ./agents ...`` when flag absent."""
+    rest = argv[1:]
+    if not rest or rest[0].startswith("-"):
         return argv
+    if any(t == "--agents-dir" or t.startswith("--agents-dir=") for t in rest):
+        return argv
+    return [argv[0], "--agents-dir", rest[0], *rest[1:]]
+
+
+def _inject_worker_start_dev_console(argv: list[str]) -> list[str]:
+    """``dev|start|console ./agents [./metrics.jsonl]`` into ``--agents-dir`` / ``--metrics-jsonl``."""
     rest = argv[1:]
     if not rest or rest[0].startswith("-"):
         return argv
@@ -102,6 +106,39 @@ def inject_worker_positional_paths(argv: list[str]) -> list[str]:
         pos += 1
     out.extend(rest[pos:])
     return out
+
+
+def _inject_tui_watch_positional(argv: list[str]) -> list[str]:
+    """``tui ./metrics.jsonl`` → ``tui --watch ./metrics.jsonl`` when ``--watch`` absent."""
+    rest = argv[1:]
+    if not rest or rest[0].startswith("-"):
+        return argv
+    if any(t == "--watch" or t.startswith("--watch=") for t in rest):
+        return argv
+    return [argv[0], "--watch", rest[0], *rest[1:]]
+
+
+def inject_cli_positional_paths(argv: list[str]) -> list[str]:
+    """Rewrite common positional shortcuts into explicit flags before Typer parses.
+
+    Pass-through tokens (e.g. ``--reload`` for LiveKit) must never be treated as
+    paths; only a leading non-flag token after the subcommand is rewritten.
+    """
+    if not argv:
+        return argv
+    sub = argv[0]
+    if sub in {"start", "dev", "console"}:
+        return _inject_worker_start_dev_console(argv)
+    if sub in {"list", "connect", "download-files"}:
+        return _inject_agents_dir_positional(argv)
+    if sub == "tui":
+        return _inject_tui_watch_positional(argv)
+    return argv
+
+
+def inject_worker_positional_paths(argv: list[str]) -> list[str]:
+    """Backward-compatible alias for :func:`inject_cli_positional_paths`."""
+    return inject_cli_positional_paths(argv)
 
 
 def _livekit_sys_argv(subcommand: str) -> None:

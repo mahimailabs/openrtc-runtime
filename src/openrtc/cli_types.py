@@ -139,7 +139,8 @@ TuiWatchPathArg = Annotated[
         help=(
             "JSONL file the worker writes with --metrics-jsonl (not your "
             f"--agents-dir). Defaults to ./{DEFAULT_METRICS_JSONL_FILENAME}; pass "
-            "the same path to --metrics-jsonl on the worker."
+            "the same path to --metrics-jsonl on the worker, or pass PATH as the "
+            "first positional argument instead of --watch."
         ),
         resolve_path=True,
         path_type=Path,
