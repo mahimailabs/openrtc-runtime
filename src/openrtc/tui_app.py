@@ -17,10 +17,10 @@ def validate_metrics_watch_path(path: Path) -> None:
     resolved = path.resolve()
     if resolved.exists() and resolved.is_dir():
         raise ValueError(
-            "'--watch' must be a JSONL file path (the same path you pass to "
-            "'--metrics-jsonl' on the OpenRTC worker). This value is a directory "
-            "— for example, use a file such as ./metrics.jsonl, not your agents "
-            f"folder. Got: {resolved}"
+            "The metrics watch path must be a JSONL file path (the same path you "
+            "pass to '--metrics-jsonl' on the OpenRTC worker). This value is a "
+            "directory — for example, use a file such as ./metrics.jsonl, not your "
+            f"agents folder. Got: {resolved}"
         )
 
 

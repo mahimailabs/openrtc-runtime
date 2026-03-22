@@ -334,8 +334,12 @@ def main(argv: list[str] | None = None) -> int:
     previous_argv = sys.argv
     try:
         if argv is not None:
+            injected_args = inject_cli_positional_paths(list(argv))
+            # Mirror a real CLI invocation so LiveKit handoff logic that
+            # inspects sys.argv sees the injected arguments (e.g. --reload).
+            sys.argv = [previous_argv[0], *injected_args]
             cli.main(
-                args=inject_cli_positional_paths(list(argv)),
+                args=injected_args,
                 prog_name="openrtc",
                 standalone_mode=True,
             )
