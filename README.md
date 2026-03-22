@@ -6,9 +6,12 @@
 
 <br />
 
-<div align="center">
-  <strong>A Python framework for running multiple LiveKit voice agents in a single worker process with shared prewarmed models.</strong>
-</div>
+# openrtc-python
+
+Run N LiveKit voice agents in one worker. Pay the model-load cost once.
+
+*PyPI package name: [`openrtc`](https://pypi.org/project/openrtc/).*
+
 <br />
 
 <div align="center">
@@ -17,125 +20,72 @@
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
   <a href="https://pypi.org/project/openrtc/"><img src="https://img.shields.io/pypi/v/openrtc.svg" alt="PyPI version"></a>
   <a href="https://codecov.io/gh/mahimairaja/openrtc-python"><img src="https://codecov.io/gh/mahimairaja/openrtc-python/graph/badge.svg?token=W7VQ5FGSA9" alt="codecov"></a>
+  <a href="https://github.com/mahimairaja/openrtc-python/actions/workflows/test.yml"><img src="https://github.com/mahimairaja/openrtc-python/actions/workflows/test.yml/badge.svg" alt="CI"></a>
 </div>
-
-<br />
-
-OpenRTC is designed for the common case where you want to run several different
-voice agents on a small VPS without paying the memory cost of one full
-LiveKit worker per agent.
 
 <br />
 
 <details>
   <summary><b>Table of Contents</b></summary>
   <ol>
-    <li><a href="#why-openrtc-exists">Why OpenRTC exists</a></li>
-    <li><a href="#what-openrtc-wraps">What OpenRTC wraps</a></li>
-    <li><a href="#memory-comparison">Memory comparison</a></li>
+    <li><a href="#the-problem">The problem</a></li>
+    <li><a href="#what-openrtc-does">What openrtc does</a></li>
     <li><a href="#installation">Installation</a></li>
-    <li><a href="#quick-start-register-agents-directly-with-add">Quick start: register agents directly</a></li>
-    <li><a href="#quick-start-discover-agent-files-with-agent_config">Quick start: discover agent files</a></li>
-    <li><a href="#routing-behavior">Routing behavior</a></li>
+    <li><a href="#quick-start-explicit-registration-with-add">Quick start: explicit registration with add()</a></li>
+    <li><a href="#quick-start-one-python-file-per-agent-with-discover">Quick start: one Python file per agent with discover()</a></li>
+    <li><a href="#memory-before-and-after">Memory: before and after</a></li>
+    <li><a href="#routing">Routing</a></li>
     <li><a href="#greetings-and-session-options">Greetings and session options</a></li>
-    <li><a href="#provider-model-strings">Provider model strings</a></li>
-    <li><a href="#cli-usage">CLI usage</a></li>
+    <li><a href="#provider-configuration">Provider configuration</a></li>
+    <li><a href="#cli-and-tui">CLI and TUI</a></li>
     <li><a href="#public-api-at-a-glance">Public API at a glance</a></li>
     <li><a href="#project-structure">Project structure</a></li>
     <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
   </ol>
 </details>
 
 <br />
 
-## Why OpenRTC exists
+## The problem
 
-A standard `livekit-agents` worker process loads shared runtime assets such as
-Python, Silero VAD, and turn-detection models. If you run ten agents as ten
-separate workers, you pay that base memory cost ten times.
+You already ship three voice agents with `livekit-agents`. Each agent is its own worker on the same VPS. Every worker process loads the same shared stack: Python runtime, Silero VAD, and the turn-detection model. You are not loading three different models. You are loading the same stack three times because the process boundary forces it. On a 1–2 GB instance, that shows up as duplicate resident set for every idle worker. You pay RAM for copies you do not need.
 
-OpenRTC keeps your agent classes completely standard and only centralizes the
-worker boilerplate:
+## What openrtc does
 
-- shared prewarm for VAD and turn detection
-- metadata-based dispatch to the correct agent
-- per-agent `AgentSession` construction inside one worker
-
-Your agent code still subclasses `livekit.agents.Agent` directly. If you stop
-using OpenRTC later, your agent classes still work as normal LiveKit agents.
-
-## What OpenRTC wraps
-
-OpenRTC intentionally wraps only the worker orchestration layer:
-
-1. `AgentServer()` setup and prewarm
-2. a universal `@server.rtc_session()` entrypoint
-3. per-call `AgentSession()` creation with the right providers
-
-OpenRTC does **not** replace:
-
-- `livekit.agents.Agent`
-- `@function_tool`
-- `RunContext`
-- `on_enter`, `on_exit`, `llm_node`, `stt_node`, `tts_node`
-- standard LiveKit deployment patterns
-
-## Memory comparison
-
-| Deployment model | Shared runtime loads | Approximate memory shape |
-| --- | --- | --- |
-| 10 separate LiveKit workers | 10x | ~500 MB × 10 |
-| 1 OpenRTC pool with 10 agents | 1x shared + per-call session cost | ~500 MB shared + active-call overhead |
-
-The exact numbers depend on your providers, concurrency, and environment, but
-OpenRTC is built to reduce duplicate worker overhead.
+`openrtc` gives you one `AgentPool` in one worker: prewarm runs once, each incoming call still gets its own `AgentSession`, and you register multiple `Agent` subclasses on the pool so dispatch can pick one per session from metadata or fallbacks. This package does not replace your agent code. It does not sit between you and `livekit.agents.Agent`, `@function_tool`, `RunContext`, `on_enter`, `on_exit`, `llm_node`, `stt_node`, or `tts_node`. You keep your subclasses and tools as they are. You change how many workers you run, not how you write an agent.
 
 ## Installation
-
-Install OpenRTC from PyPI:
 
 ```bash
 pip install openrtc
 ```
 
-The base package pulls in `livekit-agents[openai,silero,turn-detector]`, so the
-runtime plugins required by shared prewarm are installed without extra flags.
-
-Install the Typer/Rich CLI (`openrtc list`, `openrtc start`, `openrtc dev`, …)
-with:
+The base install pulls in `livekit-agents[openai,silero,turn-detector]` so shared prewarm has the plugins it expects.
 
 ```bash
 pip install 'openrtc[cli]'
 ```
 
-Install the optional **Textual sidecar TUI** (`openrtc tui --watch`) with:
+Optional Textual sidecar for live metrics:
 
 ```bash
 pip install 'openrtc[cli,tui]'
 ```
 
-If you are developing locally, the repository uses `uv` for environment and
-command management.
-
-### Required environment variables
-
-OpenRTC uses the same environment variables as a standard LiveKit worker:
+Set the same variables you use for any LiveKit worker:
 
 ```bash
-LIVEKIT_URL=ws://localhost:7880
-LIVEKIT_API_KEY=devkey
-LIVEKIT_API_SECRET=secret
+export LIVEKIT_URL=ws://localhost:7880
+export LIVEKIT_API_KEY=devkey
+export LIVEKIT_API_SECRET=secret
 ```
 
-For provider-native OpenAI plugin objects, set:
+For OpenAI-backed plugins, set `OPENAI_API_KEY` as you already do.
 
-```bash
-OPENAI_API_KEY=...
-```
+## Quick start: explicit registration with `add()`
 
-## Quick start: register agents directly with `add()`
-
-Use `AgentPool.add(...)` when you want the most explicit setup.
+Use this when you want every agent registered in one place with explicit names and providers.
 
 ```python
 from livekit.agents import Agent
@@ -172,15 +122,11 @@ pool.add(
 pool.run()
 ```
 
-## Quick start: discover agent files with `@agent_config(...)`
+## Quick start: one Python file per agent with `discover()`
 
-Use discovery when you want one agent module per file. OpenRTC will import each
-module, find a local `Agent` subclass, and optionally read overrides from the
-`@agent_config(...)` decorator.
+Use this when you prefer one module per agent and optional `@agent_config(...)` on each class.
 
-Discovered agents are safe to run under `livekit dev`, including spawn-based
-worker runtimes such as macOS. For direct `add()` registration, define agent
-classes at module scope so worker processes can reload them.
+Create a directory (for example `agents/`) and add one `.py` file per agent. Then:
 
 ```python
 from pathlib import Path
@@ -197,7 +143,7 @@ pool.discover(Path("./agents"))
 pool.run()
 ```
 
-Example agent file:
+Example file `agents/restaurant.py`:
 
 ```python
 from livekit.agents import Agent
@@ -210,20 +156,24 @@ class RestaurantAgent(Agent):
         super().__init__(instructions="You help callers make restaurant bookings.")
 ```
 
-### Discovery defaults
+If a module has no `@agent_config`, the agent name defaults to the filename stem. STT, LLM, TTS, and greeting fall back to the pool defaults.
 
-A discovered module does not need to provide any OpenRTC metadata. If the agent
-class has no `@agent_config(...)` decorator:
+Discovered agents work with `livekit dev` and spawn-based workers on macOS. For `add()`, define agent classes at module scope so worker reload can import them.
 
-- the agent name defaults to the Python filename stem
-- STT/LLM/TTS/greeting fall back to `AgentPool(...)` defaults
+## Memory: before and after
 
-That keeps discovery straightforward while still allowing per-agent overrides
-when needed.
+Assume an illustrative **~400 MB** idle baseline per worker for the shared stack (VAD, turn detector, and similar). Your measured RSS will differ by provider, model, and OS.
 
-## Routing behavior
+| | Before openrtc | After openrtc |
+| --- | --- | --- |
+| Three workers, same stack | about **3 × 400 MB ≈ 1.2 GB** idle baseline (three loads) | — |
+| One worker, three registered agents | — | about **one × 400 MB** idle baseline (one load) plus per-session overhead |
 
-For each incoming room, `AgentPool` resolves the agent in this order:
+Exact numbers depend on your providers, concurrency, and call patterns. The win is not loading that stack once per agent worker.
+
+## Routing
+
+One process hosts several agent classes, so each session must resolve to a single registered name. `AgentPool` resolves the agent in this order:
 
 1. `ctx.job.metadata["agent"]`
 2. `ctx.job.metadata["demo"]`
@@ -232,16 +182,11 @@ For each incoming room, `AgentPool` resolves the agent in this order:
 5. room name prefix match, such as `restaurant-call-123`
 6. the first registered agent
 
-This lets one worker process host several agents while staying compatible with
-standard LiveKit job and room metadata.
-
-If metadata references an unknown registered name, OpenRTC raises a `ValueError`
-instead of silently falling back.
+If metadata names an agent that is not registered, you get a `ValueError` instead of a silent fallback.
 
 ## Greetings and session options
 
-OpenRTC can play a greeting after `ctx.connect()` and pass extra options into
-`AgentSession(...)`.
+You can pass a greeting and extra `AgentSession` options per registration.
 
 ```python
 pool.add(
@@ -254,55 +199,25 @@ pool.add(
 )
 ```
 
-Direct keyword arguments take precedence over the same keys inside
-`session_kwargs`.
+Direct keyword arguments win over the same keys inside `session_kwargs`.
 
-By default, OpenRTC builds explicit `turn_handling` for each session using the
-multilingual turn detector with VAD-based interruption. That keeps the shared
-turn detector available without implicitly enabling LiveKit adaptive
-interruption. To opt into adaptive interruption explicitly, pass
-`session_kwargs={"turn_handling": {"interruption": {"mode": "adaptive"}}}`.
+By default, OpenRTC sets explicit `turn_handling` with the multilingual turn detector and VAD-based interruption. To opt into adaptive interruption, pass `session_kwargs={"turn_handling": {"interruption": {"mode": "adaptive"}}}`.
 
 ## Provider configuration
 
-OpenRTC now passes `stt`, `llm`, and `tts` through to `livekit-agents`
-unchanged.
-
-For self-hosted and provider-native setups, pass instantiated provider objects:
+Pass instantiated provider objects through to `livekit-agents` unchanged, for example:
 
 - `openai.STT(model="gpt-4o-mini-transcribe")`
 - `openai.responses.LLM(model="gpt-4.1-mini")`
 - `openai.TTS(model="gpt-4o-mini-tts")`
 
-If you pass raw strings such as `openai/gpt-4.1-mini`, OpenRTC leaves them
-unchanged and `livekit-agents` will interpret them according to the current
-LiveKit runtime, which may mean inference-backed behavior on compatible cloud
-deployments.
+If you pass strings such as `openai/gpt-4.1-mini`, OpenRTC leaves them as-is and the LiveKit runtime interprets them for your deployment.
 
-## CLI usage
+## CLI and TUI
 
-OpenRTC includes a CLI for discovery-based workflows. Subcommands mirror the
-LiveKit Agents CLI (`dev`, `start`, `console`, `connect`, `download-files`, as
-in `python agent.py <command>`), plus `list` and `tui`.
+Install `openrtc[cli]` to get `openrtc` on your PATH. Subcommands follow the LiveKit Agents CLI shape (`dev`, `start`, `console`, `connect`, `download-files`), plus `list` and `tui`.
 
-**Typical path:** set `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET`,
-then run the worker with only `--agents-dir` (plus any `--default-*` strings
-your agents need).
-
-```bash
-export LIVEKIT_URL=ws://localhost:7880
-export LIVEKIT_API_KEY=devkey
-export LIVEKIT_API_SECRET=secret
-
-openrtc dev --agents-dir ./agents
-# or
-openrtc start --agents-dir ./agents
-```
-
-Defaults are conservative (no dashboard, 1s refresh where applicable). Tuning
-flags are grouped under **Advanced** in each command’s `--help`.
-
-### List discovered agents
+**List what discovery would register** (defaults are string passthroughs for `livekit-agents`, not constructed provider objects):
 
 ```bash
 openrtc list \
@@ -312,58 +227,34 @@ openrtc list \
   --default-tts openai/gpt-4o-mini-tts
 ```
 
-These CLI defaults are raw passthrough strings for `livekit-agents`, not
-provider-object construction.
-
-Stable output for scripts and CI:
-
-- `--plain` — line-oriented text without ANSI or table borders (similar to the
-  legacy `print` format). Use `--resources` for source-size and RSS lines.
-- `--json` — machine-readable JSON with a `schema_version` field; combine with
-  `--resources` for `resource_summary` (footprint + resident-set metadata).
-  The `resident_set` object includes a `description`: on **Linux** it reflects
-  current **VmRSS**; on **macOS** it is **peak** `ru_maxrss` (bytes), not
-  instantaneous live RSS—compare runs only on the same OS.
-
-### Run workers (production and development)
+**Run a production worker** (after exporting `LIVEKIT_*`):
 
 ```bash
 openrtc start --agents-dir ./agents
+```
+
+**Run a development worker**:
+
+```bash
 openrtc dev --agents-dir ./agents
 ```
 
-Optional runtime visibility:
+Optional visibility: `--dashboard` prints a Rich summary in the terminal. `--metrics-json-file ./runtime.json` overwrites a JSON snapshot on each tick. Use that for scripts, dashboards, or CI. For JSON Lines plus a separate terminal UI, use `--metrics-jsonl ./metrics.jsonl` with `openrtc tui --watch ./metrics.jsonl` after `pip install 'openrtc[cli,tui]'`.
 
-- **`--dashboard`** — Rich summary (worker RSS, sessions, routing, savings
-  estimate). Off by default.
-- **`--metrics-json-file ./runtime.json`** — Overwrites a JSON file each tick with
-  the latest snapshot (automation / CI). See **Advanced** in `--help`.
-- **`--metrics-jsonl ./openrtc-metrics.jsonl`** — Append **JSON Lines** (truncates
-  when the worker starts): versioned `snapshot` rows plus optional `event`
-  rows for session lifecycle. Use with a second terminal:
+Stable machine output: `openrtc list --json` and `--plain`. Combine `--resources` when you want footprint hints. OpenRTC-only flags are stripped before the handoff to LiveKit’s CLI parser.
 
-  ```bash
-  pip install 'openrtc[cli,tui]'
-  openrtc tui --watch ./openrtc-metrics.jsonl
-  ```
-
-Other worker subcommands match LiveKit: `openrtc console`, `openrtc connect
---room …`, and `openrtc download-files` (minimal options: agents dir + connection
-only). See [docs/cli.md](docs/cli.md) for full detail.
-
-Worker commands discover agents first, then delegate to the LiveKit CLI;
-OpenRTC-only flags are not forwarded to LiveKit’s parser.
+Full flag lists live in [docs/cli.md](docs/cli.md).
 
 ## Public API at a glance
 
-OpenRTC currently exposes:
+Everything openrtc exposes publicly is listed here. Anything else is internal and not treated as stable.
 
 - `AgentPool`
 - `AgentConfig`
 - `AgentDiscoveryConfig`
 - `agent_config(...)`
 
-On `AgentPool`, the primary public methods and properties are:
+On `AgentPool`:
 
 - `add(...)`
 - `discover(...)`
@@ -372,8 +263,7 @@ On `AgentPool`, the primary public methods and properties are:
 - `remove(name)`
 - `run()`
 - `runtime_snapshot()`
-- `drain_metrics_stream_events()` — drain queued session lifecycle events for JSONL
-  export (used by the CLI; rarely needed in application code)
+- `drain_metrics_stream_events()` — for JSONL export paths (mainly CLI; rare in app code)
 - `server`
 
 ## Project structure
@@ -388,16 +278,14 @@ src/openrtc/
 └── pool.py
 ```
 
-- `pool.py` contains the core `AgentPool` implementation and discovery helpers
-- `cli.py` / `cli_app.py` provide the Typer/Rich CLI (`openrtc[cli]`)
-- `metrics_stream.py` defines the JSONL metrics stream format
-- `tui_app.py` implements the optional Textual sidecar (`openrtc[tui]`)
-- `__init__.py` exposes the public package API
+- `pool.py` — `AgentPool`, discovery, routing
+- `cli.py` / `cli_app.py` — Typer/Rich CLI (`openrtc[cli]`)
+- `metrics_stream.py` — JSONL metrics schema
+- `tui_app.py` — optional Textual sidecar (`openrtc[tui]`)
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md)
-before opening a pull request.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
