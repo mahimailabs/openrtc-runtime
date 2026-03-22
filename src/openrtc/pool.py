@@ -85,7 +85,6 @@ async def _run_universal_session(
     if not runtime_state.agents:
         raise RuntimeError("No agents are registered in the pool.")
     config = _resolve_agent_config(runtime_state.agents, ctx)
-    runtime_state.metrics.record_session_started(config.name)
     session_kwargs = _build_session_kwargs(config.session_kwargs, ctx.proc)
     session = AgentSession(
         stt=config.stt,
@@ -95,6 +94,7 @@ async def _run_universal_session(
         **session_kwargs,
     )
     try:
+        runtime_state.metrics.record_session_started(config.name)
         await session.start(agent=config.agent_cls(), room=ctx.room)
         await ctx.connect()
 

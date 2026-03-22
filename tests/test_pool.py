@@ -518,3 +518,73 @@ def test_runtime_snapshot_records_session_failures(
     assert snapshot.total_session_failures == 1
     assert snapshot.last_routed_agent == "test"
     assert snapshot.last_error == "RuntimeError: boom"
+
+
+def test_runtime_snapshot_does_not_leak_active_sessions_when_session_build_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = AgentPool()
+    pool.add("test", DemoAgent)
+
+    class FakeJobContext:
+        def __init__(self) -> None:
+            self.job = SimpleNamespace(metadata={"agent": "test"})
+            self.room = SimpleNamespace(metadata=None, name="test-room")
+            self.proc = SimpleNamespace(
+                userdata={"vad": "vad", "turn_detection_factory": lambda: "vad"},
+                inference_executor=None,
+            )
+
+        async def connect(self) -> None:
+            return None
+
+    def raise_build_error(
+        configured_kwargs: dict[str, object],
+        proc: object,
+    ) -> dict[str, object]:
+        raise RuntimeError("session kwargs boom")
+
+    monkeypatch.setattr("openrtc.pool._build_session_kwargs", raise_build_error)
+
+    with pytest.raises(RuntimeError, match="session kwargs boom"):
+        asyncio.run(pool._handle_session(FakeJobContext()))
+
+    snapshot = pool.runtime_snapshot()
+    assert snapshot.active_sessions == 0
+    assert snapshot.total_sessions_started == 0
+    assert snapshot.total_session_failures == 0
+    assert snapshot.sessions_by_agent == {}
+
+
+def test_runtime_snapshot_does_not_leak_active_sessions_when_session_constructor_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = AgentPool()
+    pool.add("test", DemoAgent)
+
+    class FakeJobContext:
+        def __init__(self) -> None:
+            self.job = SimpleNamespace(metadata={"agent": "test"})
+            self.room = SimpleNamespace(metadata=None, name="test-room")
+            self.proc = SimpleNamespace(
+                userdata={"vad": "vad", "turn_detection_factory": lambda: "vad"},
+                inference_executor=None,
+            )
+
+        async def connect(self) -> None:
+            return None
+
+    class BrokenSession:
+        def __init__(self, **kwargs: object) -> None:
+            raise RuntimeError("session constructor boom")
+
+    monkeypatch.setattr("openrtc.pool.AgentSession", BrokenSession)
+
+    with pytest.raises(RuntimeError, match="session constructor boom"):
+        asyncio.run(pool._handle_session(FakeJobContext()))
+
+    snapshot = pool.runtime_snapshot()
+    assert snapshot.active_sessions == 0
+    assert snapshot.total_sessions_started == 0
+    assert snapshot.total_session_failures == 0
+    assert snapshot.sessions_by_agent == {}
