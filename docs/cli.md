@@ -142,12 +142,19 @@ openrtc download-files --agents-dir ./agents
 Sidecar Textual UI that tails a **JSON Lines** metrics file written by the
 worker (`--metrics-jsonl`). Requires `openrtc[tui]`.
 
+With no flags, the TUI tails **`./openrtc-metrics.jsonl`** in the current working
+directory. Pass **`--watch PATH`** to use another file (it must match
+`--metrics-jsonl` on the worker).
+
 ```bash
 # Terminal 1
 openrtc dev --agents-dir ./agents --metrics-jsonl ./openrtc-metrics.jsonl
 
-# Terminal 2
-openrtc tui --watch ./openrtc-metrics.jsonl
+# Terminal 2 (same default file as above)
+openrtc tui
+
+# Equivalent explicit form:
+# openrtc tui --watch ./openrtc-metrics.jsonl
 ```
 
 Use **`--from-start`** (under **Advanced**) to read the file from the beginning
@@ -164,7 +171,7 @@ instead of tailing from EOF.
   (`snapshot` or `event`), `seq`, `wall_time_unix`, `payload`. Snapshots match
   `PoolRuntimeSnapshot.to_dict()`; events carry session lifecycle hints
   (`session_started`, `session_finished`, `session_failed`). Intended for
-  `openrtc tui --watch` and other tail consumers.
+  `openrtc tui` and other tail consumers.
 - **`--dashboard-refresh`** — Interval in seconds for dashboard, metrics file,
   and JSONL when `--metrics-jsonl-interval` is not set (**Advanced**).
 - **`--metrics-jsonl-interval`** — Override JSONL cadence only (**Advanced**).
@@ -244,7 +251,8 @@ openrtc list --agents-dir ./examples/agents --resources --json
      --metrics-jsonl ./openrtc-metrics.jsonl
    ```
 
-3. Watch the dashboard (or `openrtc tui --watch ./openrtc-metrics.jsonl`) for
+3. Watch the dashboard (or run `openrtc tui` in another terminal for the same
+   default JSONL file) for
    worker RSS, active sessions, routing, and errors.
 
 4. Use `runtime.json` or the JSONL stream for automation or scraping.

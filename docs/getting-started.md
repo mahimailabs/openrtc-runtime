@@ -32,7 +32,7 @@ Install the **Typer/Rich CLI** (`openrtc list`, `openrtc start`, `openrtc dev`,
 pip install 'openrtc[cli]'
 ```
 
-Install the optional **Textual sidecar** for `openrtc tui --watch` with:
+Install the optional **Textual sidecar** for `openrtc tui` with:
 
 ```bash
 pip install 'openrtc[cli,tui]'
