@@ -1,11 +1,16 @@
+"""Tests for JSONL metrics stream, sink, and RuntimeReporter export."""
+
 from __future__ import annotations
 
 import json
 import time
 from pathlib import Path
 
+import pytest
+
 from openrtc.cli_app import RuntimeReporter
 from openrtc.metrics_stream import (
+    KIND_EVENT,
     KIND_SNAPSHOT,
     METRICS_STREAM_SCHEMA_VERSION,
     JsonlMetricsSink,
@@ -72,6 +77,28 @@ def test_parse_metrics_jsonl_line() -> None:
     assert parse_metrics_jsonl_line("") is None
     assert parse_metrics_jsonl_line("not-json") is None
     assert parse_metrics_jsonl_line('{"schema_version": 999}') is None
+
+
+def test_parse_metrics_jsonl_line_rejects_unknown_kind() -> None:
+    bad = json.dumps(
+        {
+            "schema_version": METRICS_STREAM_SCHEMA_VERSION,
+            "kind": "future-kind",
+            "seq": 1,
+            "wall_time_unix": 0.0,
+            "payload": {},
+        }
+    )
+    assert parse_metrics_jsonl_line(bad) is None
+
+
+def test_jsonl_metrics_sink_requires_open_before_write(tmp_path: Path) -> None:
+    sink = JsonlMetricsSink(tmp_path / "unopened.jsonl")
+    snap = _minimal_snapshot()
+    with pytest.raises(RuntimeError, match="open"):
+        sink.write_snapshot(snap)
+    with pytest.raises(RuntimeError, match="open"):
+        sink.write_event({"event": "x"})
 
 
 def test_parse_metrics_jsonl_line_accepts_event() -> None:
@@ -156,6 +183,49 @@ def test_jsonl_sink_new_open_truncates_previous_file(tmp_path: Path) -> None:
     lines = path.read_text(encoding="utf-8").strip().split("\n")
     assert len(lines) == 1
     assert json.loads(lines[0])["seq"] == 1
+
+
+def test_runtime_reporter_emits_snapshot_then_drained_events_in_order(
+    tmp_path: Path,
+) -> None:
+    """Each tick writes one snapshot line, then any events from the pool (order)."""
+
+    class _PoolWithOneEvent:
+        def __init__(self) -> None:
+            self._sent = False
+
+        def runtime_snapshot(self) -> PoolRuntimeSnapshot:
+            return _minimal_snapshot()
+
+        def drain_metrics_stream_events(self) -> list[dict[str, object]]:
+            if self._sent:
+                return []
+            self._sent = True
+            return [{"event": "session_started", "agent": "demo"}]
+
+    path = tmp_path / "ordered.jsonl"
+    pool = _PoolWithOneEvent()
+    reporter = RuntimeReporter(
+        pool,
+        dashboard=False,
+        refresh_seconds=0.25,
+        json_output_path=None,
+        metrics_jsonl_path=path,
+        metrics_jsonl_interval=0.25,
+    )
+    reporter.start()
+    time.sleep(0.6)
+    reporter.stop()
+
+    lines = [ln for ln in path.read_text(encoding="utf-8").split("\n") if ln.strip()]
+    assert len(lines) >= 1
+    first = json.loads(lines[0])
+    assert first["kind"] == KIND_SNAPSHOT
+    assert first["seq"] >= 1
+    if len(lines) >= 2:
+        second = json.loads(lines[1])
+        assert second["kind"] == KIND_EVENT
+        assert second["payload"]["event"] == "session_started"
 
 
 def test_runtime_reporter_emits_jsonl_periodically(tmp_path: Path) -> None:

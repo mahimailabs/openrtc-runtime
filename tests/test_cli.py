@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import importlib
 import json
 import logging
@@ -456,3 +457,64 @@ def test_start_command_can_write_runtime_metrics_json(
     assert data["active_sessions"] == 1
     assert data["registered_agents"] == 1
     assert data["sessions_by_agent"]["restaurant"] == 1
+
+
+def test_start_command_metrics_jsonl_writes_snapshot_records(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """``--metrics-jsonl`` produces JSON Lines the sidecar TUI can tail."""
+    jsonl = tmp_path / "sidecar.jsonl"
+    stub_pool = StubPool(
+        discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
+    )
+    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "start",
+            "--agents-dir",
+            "./agents",
+            "--metrics-jsonl",
+            str(jsonl),
+            "--metrics-jsonl-interval",
+            "0.3",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert stub_pool.run_called is True
+    lines = [ln for ln in jsonl.read_text(encoding="utf-8").split("\n") if ln.strip()]
+    assert len(lines) >= 1
+    first = json.loads(lines[0])
+    assert first["schema_version"] == 1
+    assert first["kind"] == "snapshot"
+    assert "payload" in first
+    assert first["payload"]["registered_agents"] == 1
+
+
+def test_tui_command_exits_when_textual_is_not_importable(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``openrtc tui`` fails fast with a clear message if the TUI extra is absent."""
+    real_import = builtins.__import__
+
+    def guard(name: str, *args: object, **kwargs: object) -> object:
+        if name == "openrtc.tui_app":
+            raise ImportError("simulated missing textual")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guard)
+    runner = CliRunner()
+    with caplog.at_level(logging.ERROR, logger="openrtc"):
+        result = runner.invoke(
+            app,
+            ["tui", "--watch", "./metrics.jsonl"],
+            catch_exceptions=False,
+        )
+    assert result.exit_code == 1
+    assert "Textual" in caplog.text
+    assert "openrtc[tui]" in caplog.text
