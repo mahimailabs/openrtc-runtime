@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, TypeAlias
+from typing import TypeAlias
 
 # Values accepted for STT, LLM, and TTS configuration:
 # - Provider ID strings (e.g. ``"openai/gpt-4o-mini-transcribe"``) used by LiveKit
 #   routing and the OpenRTC CLI defaults.
 # - Concrete LiveKit plugin instances (e.g. ``livekit.plugins.openai.STT(...)``).
-# ``Any`` covers third-party plugin classes without enumerating them here; use
-# strings when you want the type checker to stay precise.
-ProviderValue: TypeAlias = str | Any
+# ``object`` allows any third-party plugin class without enumerating them here;
+# use strings when you want the type checker to stay precise.
+ProviderValue: TypeAlias = str | object

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Pytest configuration and shared fixtures.
 
 LiveKit SDK shim (below): if ``livekit.agents`` cannot be imported, we register a
@@ -18,6 +16,8 @@ on the installed SDK but not on these stubs; code paths that only run under the
 shim could diverge. Prefer running ``uv run pytest`` after ``uv sync`` before
 release; use the shim mainly for documented minimal environments.
 """
+
+from __future__ import annotations
 
 import importlib
 import sys
