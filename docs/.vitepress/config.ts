@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'OpenRTC',
   description: 'Run multiple LiveKit voice agents in a single shared worker process.',
-  base: '/openrtc-python/',
+  base: '/',
   cleanUrls: true,
   lastUpdated: true,
   head: [
