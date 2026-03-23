@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose an improvement or new capability for OpenRTC
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement! Please describe the problem you're solving and the solution you have in mind.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: |
+        What problem are you trying to solve? Describe the use case that is not well-served today.
+      placeholder: "I'm trying to do X, but OpenRTC currently doesn't support it because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: |
+        Describe the feature or change you'd like. Include example code if helpful.
+      placeholder: |
+        Add a `pool.add_async()` method that accepts an async factory so providers
+        can be lazily initialised on first call.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        Are there workarounds you've already tried? Why aren't they sufficient?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: breaking
+    attributes:
+      label: Does this require a breaking API change?
+      options:
+        - "No — purely additive"
+        - "Yes — existing callers would need to update"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Links, prior art, related issues, or any other context.
+    validations:
+      required: false

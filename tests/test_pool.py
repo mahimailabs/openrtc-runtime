@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import pickle
 import sys
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -615,3 +616,79 @@ def test_is_not_given_ignores_unrelated_class_named_notgiven() -> None:
         pass
 
     assert _is_not_given(NotGiven()) is False
+
+
+def test_deprecated_session_kwargs_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = AgentPool()
+
+    class FakeSession:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        async def start(self, *, agent: object, room: object) -> None:
+            return None
+
+    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    pool.add(
+        "test",
+        DemoAgent,
+        session_kwargs={
+            "min_endpointing_delay": 0.3,
+            "allow_interruptions": False,
+        },
+    )
+    ctx = SimpleNamespace(
+        job=SimpleNamespace(metadata={"agent": "test"}),
+        room=SimpleNamespace(metadata=None, name="test-room"),
+        proc=SimpleNamespace(
+            userdata={"vad": "vad", "turn_detection_factory": lambda: "td"},
+            inference_executor=None,
+        ),
+    )
+
+    async def do_connect(self: object) -> None:
+        return None
+
+    ctx.connect = do_connect.__get__(ctx, type(ctx))  # type: ignore[attr-defined]
+
+    with pytest.warns(DeprecationWarning, match="turn_handling"):
+        asyncio.run(pool._handle_session(ctx))
+
+
+def test_no_warning_for_modern_session_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = AgentPool()
+
+    class FakeSession:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        async def start(self, *, agent: object, room: object) -> None:
+            return None
+
+    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    pool.add(
+        "test",
+        DemoAgent,
+        session_kwargs={"preemptive_generation": True, "max_tool_steps": 3},
+    )
+    ctx = SimpleNamespace(
+        job=SimpleNamespace(metadata={"agent": "test"}),
+        room=SimpleNamespace(metadata=None, name="test-room"),
+        proc=SimpleNamespace(
+            userdata={"vad": "vad", "turn_detection_factory": lambda: "td"},
+            inference_executor=None,
+        ),
+    )
+
+    async def do_connect(self: object) -> None:
+        return None
+
+    ctx.connect = do_connect.__get__(ctx, type(ctx))  # type: ignore[attr-defined]
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        asyncio.run(pool._handle_session(ctx))

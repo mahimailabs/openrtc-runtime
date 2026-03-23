@@ -1,0 +1,83 @@
+name: Bug report
+description: Report a reproducible bug in OpenRTC
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as much detail as possible so we can reproduce and fix it quickly.
+
+  - type: input
+    id: version
+    attributes:
+      label: OpenRTC version
+      description: Output of `python -c "import openrtc; print(openrtc.__version__)"`
+      placeholder: "e.g. 0.0.15"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Output of `python --version`
+      placeholder: "e.g. 3.12.2"
+    validations:
+      required: true
+
+  - type: input
+    id: livekit-agents-version
+    attributes:
+      label: livekit-agents version
+      description: Output of `python -c "import livekit.agents; print(livekit.agents.__version__)"`
+      placeholder: "e.g. 1.4.3"
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to reproduce the issue.
+      placeholder: |
+        1. Create a pool with `AgentPool(...)`
+        2. Call `pool.add(...)`
+        3. Start with `pool.run()`
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What actually happened? Include the full traceback if applicable.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: |
+        Any other context, environment details, or screenshots that may help.
+        For example: OS, deployment environment (Docker, bare metal, cloud), provider plugins in use.
+    validations:
+      required: false

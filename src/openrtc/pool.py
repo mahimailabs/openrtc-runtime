@@ -8,6 +8,7 @@ import logging
 import os
 import pickle
 import sys
+import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import partial
@@ -700,6 +701,16 @@ def _extract_deprecated_turn_options(session_kwargs: dict[str, Any]) -> dict[str
     for key in _DEPRECATED_TURN_HANDLING_KEYS:
         if key in session_kwargs:
             deprecated_options[key] = session_kwargs.pop(key)
+    if deprecated_options:
+        found = ", ".join(f"'{k}'" for k in deprecated_options)
+        warnings.warn(
+            f"Passing {found} as top-level session_kwargs keys is deprecated and will "
+            "be removed in a future release. Use the turn_handling dict instead: "
+            "session_kwargs={'turn_handling': {'endpointing': {...}, 'interruption': {...}}}. "
+            "See the AgentPool.add() docstring for the supported turn_handling structure.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
     return deprecated_options
 
 

@@ -99,7 +99,7 @@ def pool() -> AgentPool:
     pool.add(
         "dental",
         DentalAgent,
-        session_kwargs={"allow_interruptions": False, "max_tool_steps": 5},
+        session_kwargs={"max_tool_steps": 5},
     )
     return pool
 
@@ -229,8 +229,8 @@ def test_handle_session_supports_direct_session_kwargs(
     pool.add(
         "dental",
         DentalAgent,
-        session_kwargs={"allow_interruptions": False},
-        allow_interruptions=True,
+        session_kwargs={"preemptive_generation": False},
+        preemptive_generation=True,
         max_tool_steps=6,
     )
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
@@ -239,6 +239,7 @@ def test_handle_session_supports_direct_session_kwargs(
 
     session = FakeSession.instances[0]
     assert session.kwargs["max_tool_steps"] == 6
+    assert session.kwargs["preemptive_generation"] is True
     assert session.kwargs["turn_handling"]["interruption"]["mode"] == "vad"
 
 
