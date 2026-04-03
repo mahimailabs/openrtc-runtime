@@ -16,6 +16,16 @@ Changes that have landed on `main` but have not yet been tagged for release.
 
 <!-- releases -->
 
+## [0.0.17] - 2026-04-03
+
+## What's Changed
+* feat: enable generic serialization for all LiveKit plugins  by @mahimairaja in https://github.com/mahimairaja/openrtc-python/pull/28
+
+
+**Full Changelog**: https://github.com/mahimairaja/openrtc-python/compare/v0.0.16...v0.0.17
+
+---
+
 ## [0.0.16] - 2026-03-23
 
 ## What's Changed
