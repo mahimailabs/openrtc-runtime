@@ -269,6 +269,23 @@ def test_agent_config_is_pickleable_with_openai_provider_objects(
     assert restored.tts.__class__.__module__ == "livekit.plugins.openai.tts"
 
 
+def test_generic_livekit_plugin_with_opts_is_accepted() -> None:
+    """Non-OpenAI livekit plugins with ``_opts`` should serialize via the generic path."""
+
+    class FakeOpts:
+        model = "nova-3"
+
+    # Create a class whose module looks like a livekit plugin
+    FakeSTT = type("STT", (), {"__module__": "livekit.plugins.deepgram.stt"})
+    instance = FakeSTT()
+    instance._opts = FakeOpts()  # type: ignore[attr-defined]
+
+    pool = AgentPool()
+    # Should not raise — the generic _opts path handles it
+    config = pool.add("test", DemoAgent, stt=instance)
+    assert config.stt is not None
+
+
 def test_list_agents_returns_registration_order() -> None:
     pool = AgentPool()
     pool.add("restaurant", DemoAgent)

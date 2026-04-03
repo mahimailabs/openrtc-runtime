@@ -79,10 +79,10 @@ class _ProviderRef:
     kwargs: dict[str, Any]
 
 
-# ``(module, qualname)`` pairs for plugin classes that expose OpenAI-style
-# ``_opts`` and can be rehydrated via ``ProviderClass(**kwargs)`` in the child
-# after unpickling. Add entries here when new LiveKit plugins follow the same
-# pattern (Deepgram, Azure, …); unknown classes fall back to pickle or error.
+# ``(module, qualname)`` pairs for plugin classes known to expose ``_opts``
+# and rehydrate via ``ProviderClass(**kwargs)``.  The generic path in
+# ``_try_build_provider_ref`` now handles any ``livekit.plugins.*`` class with
+# ``_opts``, so this set is a fast-path / documentation of tested providers.
 _PROVIDER_REF_KEYS: frozenset[tuple[str, str]] = frozenset(
     {
         ("livekit.plugins.openai.stt", "STT"),
@@ -602,13 +602,21 @@ def _deserialize_provider_value(value: Any) -> Any:
 def _try_build_provider_ref(value: Any) -> _ProviderRef | None:
     cls = type(value)
     key = (cls.__module__, cls.__qualname__)
-    if key not in _PROVIDER_REF_KEYS:
-        return None
-    return _ProviderRef(
-        module_name=key[0],
-        qualname=key[1],
-        kwargs=_extract_provider_kwargs(value),
-    )
+    # Fast path: known providers
+    if key in _PROVIDER_REF_KEYS:
+        return _ProviderRef(
+            module_name=key[0],
+            qualname=key[1],
+            kwargs=_extract_provider_kwargs(value),
+        )
+    # Generic path: any livekit plugin with _opts
+    if cls.__module__.startswith("livekit.plugins.") and hasattr(value, "_opts"):
+        return _ProviderRef(
+            module_name=cls.__module__,
+            qualname=cls.__qualname__,
+            kwargs=_extract_provider_kwargs(value),
+        )
+    return None
 
 
 def _extract_provider_kwargs(value: Any) -> dict[str, Any]:
