@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 10:30 UTC — verify: openrtc dev / list / tui CLI still work
+Files: none changed (verification-only iteration).
+Tests: not re-run (covered last iteration). Smoke commands:
+  - `uv run openrtc --help`: top-level help renders; lists list,
+    start, dev, console, connect, download-files, tui.
+  - `uv run openrtc dev --help`: command resolves; OpenRTC option
+    panel renders (--agents-dir, --default-stt, etc.).
+  - `uv run openrtc tui --help`: command resolves; --watch option
+    documented with default openrtc-metrics.jsonl.
+  - `uv run openrtc list ./examples/agents
+       --default-stt openai/gpt-4o-mini-transcribe
+       --default-llm openai/gpt-4.1-mini
+       --default-tts openai/gpt-4o-mini-tts`: end-to-end success;
+    Rich table prints both example agents (dental, restaurant) with
+    their string providers.
+Notes: This is the same smoke check `make dev` runs. The `openrtc`
+console-script entrypoint resolves through the new `openrtc.cli`
+package and the renamed `openrtc.cli.commands` module (was
+`cli_app.py`); discovery still loads agents from
+`examples/agents/`.
+
 ## 2026-05-03 10:18 UTC — verify: public surface still resolves after Phase 0
 Files: none changed (verification-only iteration).
 Tests: ran an explicit round-trip script (not committed) plus the

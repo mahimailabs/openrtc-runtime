@@ -94,7 +94,7 @@ Tasks:
 - [x] Create `tui/` package. Move `tui_app.py` to `tui/app.py`.
 - [x] Verify `from openrtc import AgentPool, AgentConfig,
   AgentDiscoveryConfig, agent_config, ProviderValue` still works.
-- [ ] Verify `openrtc dev`, `openrtc list`, `openrtc tui` still work.
+- [x] Verify `openrtc dev`, `openrtc list`, `openrtc tui` still work.
 - [ ] Verify all 124 tests still pass.
 
 ---
