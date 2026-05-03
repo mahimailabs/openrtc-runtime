@@ -251,6 +251,10 @@ Tasks:
 ## Discovered work
 
 (Add new tasks here as they come up. Keep this section ordered by
-priority.)dead-code-cleanup
+priority.)
 
-- [ ] _none yet_
+- [x] Document `--isolation` and `--max-concurrent-sessions` in
+  `docs/cli.md`. (Found while auditing §8.9 for completeness:
+  the flags shipped in `cli/commands.py`, the README, and the
+  test suite, but the standalone CLI doc page didn't mention
+  them. v0.1 release-blocker for §8.9.)
