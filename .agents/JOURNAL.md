@@ -142,6 +142,25 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 15:35 UTC — bench: record density results (Phase 1 §7 gate met)
+Files: docs/benchmarks/density-v0.1.md (new, ~70 LOC: methodology,
+       caveats, six-row results table, verdict).
+Tests: not run (docs only). ruff/mypy unaffected.
+Results captured (macOS Darwin 24.3.0, Python 3.13.5, uv 0.8.15,
+arm64; back-to-back runs):
+  50  sessions: peak 366.5/366.8/366.9 MB, 1.04-1.08 s, 0 failures
+  100 sessions: peak 616.9 MB, 1.10 s, 0 failures
+  200 sessions: peak 1072.7 MB, 1.19 s, 0 failures
+  500 sessions: peak 1370.4 MB, 1.30 s, 0 failures
+Notes: §7 gate (>= 50 sessions @ <= 4 GB peak RSS, 0 errors) is
+met with ~10x headroom under stub workload. Per-session
+allocation amortizes downward at scale (GC compaction kicks in
+around 200 sessions). Walltime stays 1.0-1.3 s across the
+50-500 range, confirming launch_job doesn't have a quadratic
+cost. The realistic ~60 MB/session validation against real
+WebRTC + LLM allocations is deferred to the §8.4 integration
+test in Phase 2.
+
 ## 2026-05-03 15:18 UTC — bench(density): 50 concurrent sessions in one worker
 Files: tests/benchmarks/__init__.py (new, empty),
        tests/benchmarks/density.py (new, ~210 LOC: argparse +

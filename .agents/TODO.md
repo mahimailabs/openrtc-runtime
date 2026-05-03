@@ -156,7 +156,7 @@ Tasks:
   registers, accepts one simulated job, runs it to completion.
 - [x] Density benchmark script `tests/benchmarks/density.py`: spawn
   50 simulated jobs concurrently in one worker; record peak RSS.
-- [ ] Run density benchmark. Record results in
+- [x] Run density benchmark. Record results in
   `docs/benchmarks/density-v0.1.md`.
 
 **Phase 1 success gate:** density benchmark shows ≥ 50 concurrent
