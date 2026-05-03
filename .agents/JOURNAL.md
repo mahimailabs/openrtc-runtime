@@ -142,6 +142,19 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 00:30 UTC — test(discovery): close core/discovery.py coverage gap (98% -> 100%)
+Files: tests/test_discovery.py (+1 test, ~20 LOC).
+Tests: 348/348 pass + 2 skipped. Coverage: discovery.py 100%
+(was 98%); total 99.51% (was 99.46%). ruff: clean. mypy: clean.
+Notes: New test monkey-patches
+`importlib.util.spec_from_file_location` to return None and
+asserts `_load_module_from_path` raises a clear RuntimeError.
+This was the last reachable defensive line in the discovery
+module: the production trigger is a malformed file path that
+survives Path.resolve() but cannot have an import spec built
+from it (very rare in practice, but the message guides the
+operator straight at the path).
+
 ## 2026-05-04 00:15 UTC — test(init): close cli/__init__.py (54%) and openrtc/__init__.py (80%) gaps
 Files: tests/test_cli.py (+4 tests, ~70 LOC).
 Tests: 347/347 pass + 2 skipped. Coverage: cli/__init__.py

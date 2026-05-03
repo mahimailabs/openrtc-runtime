@@ -298,6 +298,13 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `core/discovery.py` coverage gap (98% -> 100%):
+  1 test in tests/test_discovery.py exercising the
+  `_load_module_from_path` defensive raise when
+  `importlib.util.spec_from_file_location` returns None
+  (monkey-patched). Covers the last "spec is None or
+  spec.loader is None" guard before the spec is used to
+  build the module object.
 - [x] Close `cli/__init__.py` (54% -> 100%) and `openrtc/__init__.py`
   (80% -> 100%) coverage gaps. 4 tests in tests/test_cli.py:
   the package-level `__getattr__("app")` raises ImportError

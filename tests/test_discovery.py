@@ -198,3 +198,23 @@ def test_discover_records_source_path_next_to_agent_module(tmp_path: Path) -> No
     discovered = pool.discover(tmp_path)
     assert len(discovered) == 1
     assert discovered[0].source_path == (tmp_path / "zoo.py").resolve()
+
+
+def test_load_module_from_path_raises_when_spec_cannot_be_built(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A None-spec from spec_from_file_location surfaces as a clear RuntimeError."""
+    import importlib.util
+
+    from openrtc.core import discovery as discovery_module
+
+    target = tmp_path / "agent.py"
+    target.write_text("# minimal\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        importlib.util, "spec_from_file_location", lambda _name, _path: None
+    )
+
+    with pytest.raises(RuntimeError, match="Could not create import spec"):
+        discovery_module._load_module_from_path("openrtc_test_no_spec", target)
