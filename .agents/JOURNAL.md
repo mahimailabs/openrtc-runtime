@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 07:00 UTC — chore(pre-commit): add `codespell` hook
+Files: .pre-commit-config.yaml (+1 hook block).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+codespell: clean against the full repo after the
+ignore-words-list tweak.
+Notes: `codespell` catches simple word-level typos in source,
+comments, docs, and journal entries. Pinned at v2.4.2 to match
+the latest stable upstream release. Skip configuration:
+- `--skip=*.lock,package-lock.json,assets,htmlcov,dist,build,
+  .mypy_cache,.ruff_cache` excludes auto-generated lockfiles
+  (the npm `package-lock.json` had 3 false-positives on
+  the canonical `devlop` package name) and binary asset
+  directories.
+- `--ignore-words-list=ist` whitelists IST (Indian Standard
+  Time abbreviation used in cron comments and journal entries
+  for the maintainer's local timezone).
+No CI workflow added: pre-commit.ci bot is configured at the
+bottom of the same config file and will run codespell
+automatically on every PR alongside the existing ruff hooks.
+
 ## 2026-05-04 06:45 UTC — ci(audit): add `pip-audit --strict` workflow (per-PR + weekly)
 Files: .github/workflows/audit.yml (new, 47 LOC).
 Tests: 374/374 pass + 2 skipped (no-op for tests).

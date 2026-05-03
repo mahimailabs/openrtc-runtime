@@ -250,6 +250,16 @@ Tasks:
 
 ## Discovered work
 
+- [x] Add `codespell` pre-commit hook to catch spelling
+  typos in source, docs, and journal entries. Pinned at
+  v2.4.2. Skip-list excludes auto-generated lockfiles
+  (`*.lock`, `package-lock.json`), binary asset
+  directories (`assets`, `htmlcov`, `dist`, `build`,
+  `.mypy_cache`, `.ruff_cache`); `--ignore-words-list=ist`
+  whitelists "IST" (Indian Standard Time, used in cron
+  schedules + journal). Hook runs on every pre-commit
+  pass; doesn't need a CI counterpart since pre-commit.ci
+  bot also picks it up automatically.
 - [x] Add `.github/workflows/audit.yml` to run `pip-audit
   --strict` on every PR + weekly. Catches CVEs in production
   + dev deps. Two triggers cover the two failure modes:
