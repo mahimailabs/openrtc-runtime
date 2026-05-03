@@ -1,0 +1,47 @@
+# Build sanity check: catches packaging regressions (broken pyproject.toml,
+# missing files, malformed metadata) before they reach the publish workflow.
+# `publish.yml` already runs `uv build` on release events; this runs on every
+# PR so a packaging mistake is caught at code-review time, not at tag time.
+#
+# Security note: the only `${{ ... }}` interpolation is `github.run_id`
+# (numeric, not user-controllable). No untrusted event payload is shelled out
+# anywhere in this workflow — the script-injection class does not apply.
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # hatch-vcs needs the tag history
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version: "3.11"
+
+      - name: Build wheel + sdist
+        run: uv build
+
+      - name: Validate package metadata
+        run: |
+          uv tool install twine
+          uv tool run twine check dist/*
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openrtc-dist-${{ github.run_id }}
+          path: dist/
+          retention-days: 7

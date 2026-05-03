@@ -250,6 +250,17 @@ Tasks:
 
 ## Discovered work
 
+- [x] Add `.github/workflows/build.yml` build-sanity CI step.
+  Runs `uv build` (wheel + sdist) and `twine check dist/*`
+  on every PR + push to main. Uploads the artifacts so a
+  reviewer can sanity-check the wheel contents without having
+  to build locally. publish.yml already builds at release time;
+  the new workflow catches packaging regressions (broken
+  pyproject.toml, missing files, malformed metadata) at
+  code-review time, before they can fail the publish workflow
+  with a half-tagged release. Verified locally: `uv build`
+  produces a 0.1.0.dev wheel + sdist (hatch-vcs-derived
+  version), `twine check` passes both.
 - [x] Document the developer-experience improvements landed
   across this loop in the v0.1.0 changelog block under a new
   "Developer experience" subsection. Lists the coverage

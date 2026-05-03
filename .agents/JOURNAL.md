@@ -142,6 +142,32 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 06:15 UTC — ci(build): add per-PR build-sanity workflow
+Files: .github/workflows/build.yml (new, 47 LOC).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Local check: `uv build` produces
+`openrtc-0.1.0.dev245+g9692c0de9.tar.gz` and a matching
+`-py3-none-any.whl` (hatch-vcs-derived); `twine check dist/*`
+PASSED for both artifacts.
+Notes: publish.yml already runs `uv build` on release events,
+but that catches packaging regressions at the worst possible
+time — after the tag has been pushed. The new build.yml runs
+on every PR and push to main, so a broken pyproject.toml /
+missing file / malformed metadata fails review long before
+release. Workflow steps:
+1. checkout (fetch-depth=0 so hatch-vcs sees the tag history);
+2. uv setup;
+3. `uv build`;
+4. `twine check dist/*` (validates the metadata that PyPI's
+   warehouse will check on upload — catches missing
+   description, bad classifiers, non-renderable README);
+5. upload dist/ as a 7-day artifact for reviewer inspection.
+The only `${{ ... }}` in the workflow is `github.run_id`
+(numeric, not user-controllable), so the script-injection
+class of vulnerability doesn't apply — noted inline at the
+top of the file.
+
 ## 2026-05-04 06:00 UTC — docs(changelog): record dev-experience improvements under v0.1.0
 Files: docs/changelog.md (+30 LOC: new "Developer experience"
 subsection inside the v0.1.0 [Unreleased] block).
