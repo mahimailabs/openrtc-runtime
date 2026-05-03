@@ -142,6 +142,23 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 04:15 UTC — chore(pre-commit): add local mypy `--strict` hook for src/
+Files: .pre-commit-config.yaml (+1 local hook block).
+Tests: 374/374 pass + 2 skipped. Coverage: 100.00%. ruff:
+clean. mypy --strict: clean. The new hook also fires green:
+`mypy --strict (src)......................................................Passed`.
+Notes: The hook is `language: system` so it reuses the active
+`uv` environment instead of pre-commit installing its own mypy
+copy (avoids double-install + version-skew between local and
+CI). `pass_filenames: false` because per-file mypy can't
+resolve cross-module types — strict mode needs the full src/
+tree to type-check correctly. The `files:` glob is restricted
+to source code or pyproject.toml so commits that only touch
+tests/, docs/, or workflow YAMLs don't pay the ~3s mypy
+cost. Now contributors get the same hard typecheck gate
+locally that CI applies to every PR; before this, type
+errors only surfaced after pushing.
+
 ## 2026-05-04 04:00 UTC — chore(lint): enable ruff `BLE`+`A` rulesets
 Files: pyproject.toml (`select` += `BLE`, `A`);
 src/openrtc/execution/coroutine.py (added the same noqa

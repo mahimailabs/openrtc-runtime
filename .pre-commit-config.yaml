@@ -20,6 +20,17 @@ repos:
         args:
         - --fix
     -   id: ruff-format
+-   repo: local
+    hooks:
+    -   id: mypy
+        name: mypy --strict (src)
+        entry: uv run mypy src/
+        language: system
+        # Run once per commit, not once per matching file: mypy --strict
+        # needs the full source tree to resolve cross-module types.
+        pass_filenames: false
+        types_or: [python, toml]
+        files: ^(src/.*\.py|pyproject\.toml)$
 
 ci:
     autofix_commit_msg: 🎨 [pre-commit.ci] Auto format from pre-commit.com hooks

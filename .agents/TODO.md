@@ -250,7 +250,17 @@ Tasks:
 
 ## Discovered work
 
-- [x] Enable ruff's `BLE` (blind-except) and `A` (builtin shadow)
+- [x] Add a local pre-commit hook that runs `mypy --strict src/`
+  before every commit. The CI matrix already runs typecheck on
+  every PR, but contributors didn't get the same feedback
+  locally — now `git commit` blocks on type errors the same way
+  it blocks on ruff/format errors. The hook uses
+  `language: system` so it picks up the current `uv run mypy`
+  environment, and `pass_filenames: false` because mypy needs
+  the full source tree (per-file mypy can't resolve cross-module
+  types). Trigger restricted via `files:` to source/.toml
+  changes so commits that only touch tests or docs don't pay
+  the typecheck cost.
   rulesets. 3 issues, all already-intentional, fixed with
   inline noqa + explanation:
   - `execution/coroutine.py:203` — `aclose`'s defensive
