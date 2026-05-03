@@ -42,6 +42,21 @@ is hand-maintained to match APIs OpenRTC uses; when you upgrade the
 re-run the full suite locally and update `conftest.py` if anything still relies
 on the stub.
 
+### Run integration tests against a local LiveKit server
+
+Tests under `tests/integration/` (marked `@pytest.mark.integration`) talk to a
+real LiveKit dev server. Bring one up with the bundled compose file:
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+uv run pytest -m integration
+docker compose -f docker-compose.test.yml down
+```
+
+The `livekit_dev_server` fixture in `tests/integration/conftest.py` skips the
+test cleanly when no server is reachable, so `pytest -m integration` is safe to
+run in CI environments that do not start the harness.
+
 ### Run Ruff lint checks
 
 ```bash

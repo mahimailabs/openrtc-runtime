@@ -142,6 +142,32 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 17:05 UTC — chore: integration test harness (LiveKit dev server)
+Files: docker-compose.test.yml (new, ~25 LOC: livekit/livekit-server:v1.7
+       in --dev mode, signaling on 7880, TCP fallback on 7881, UDP
+       media on 7882, healthcheck against /),
+       tests/integration/__init__.py (new, empty),
+       tests/integration/conftest.py (new, ~75 LOC: LiveKitDevServer
+       dataclass + livekit_dev_server pytest fixture that probes
+       LIVEKIT_URL and skips cleanly if the server isn't reachable),
+       tests/integration/test_dev_server_fixture.py (new, 1 test:
+       sanity-checks the fixture round-trip; skips by default in CI
+       without the harness),
+       pyproject.toml (clarified the `integration` marker
+       description so it points at docker-compose.test.yml),
+       CONTRIBUTING.md (new "Run integration tests against a local
+       LiveKit server" section with the `docker compose -f
+       docker-compose.test.yml up -d` workflow).
+Tests: 220 pass + 1 skipped (the new fixture sanity test;
+   skips without docker compose up). ruff: clean. mypy: clean.
+Verified `uv run pytest -m integration` runs the marker subset
+and skips cleanly when no LiveKit server is reachable.
+Notes: Pinned the LiveKit dev server image to v1.7 so an upstream
+major bump can't silently break the harness; the canary CI job
+will watch the latest tag separately. The actual integration
+tests (5 concurrent real calls, etc.) come in the next TODO
+items; this iteration only sets up the infrastructure.
+
 ## 2026-05-03 16:50 UTC — feat(cli): --isolation + --max-concurrent-sessions
 Files: src/openrtc/cli/types.py: new IsolationArg (Choice
        coroutine|process, case-insensitive) and

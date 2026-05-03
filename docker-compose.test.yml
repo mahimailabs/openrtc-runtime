@@ -1,0 +1,33 @@
+# Integration test harness: a local LiveKit dev server.
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml up -d
+#   uv run pytest -m integration
+#   docker compose -f docker-compose.test.yml down
+#
+# The `--dev` flag pre-configures the server with the credentials our
+# pytest integration fixture (tests/integration/conftest.py) expects:
+#
+#   LIVEKIT_URL=ws://localhost:7880
+#   LIVEKIT_API_KEY=devkey
+#   LIVEKIT_API_SECRET=secret  (32+ chars; the dev defaults satisfy this)
+#
+# Pinned to a 1.x line so an upstream major bump does not break the test
+# harness without us seeing it (the canary CI job watches the latest tag).
+
+services:
+  livekit:
+    image: livekit/livekit-server:v1.7
+    container_name: openrtc-livekit-test
+    command: ["--dev", "--bind", "0.0.0.0"]
+    ports:
+      - "7880:7880"     # WebSocket signaling (LIVEKIT_URL)
+      - "7881:7881"     # TCP media fallback
+      - "7882:7882/udp" # UDP media (single-port; range fallback below)
+    healthcheck:
+      # /healthz is exposed in dev mode; a fast TCP probe is enough for our use.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7880/"]
+      interval: 2s
+      timeout: 1s
+      retries: 30
+      start_period: 5s

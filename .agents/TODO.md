@@ -183,7 +183,7 @@ Tasks:
   `coroutine`). Add `--max-concurrent-sessions` (default 50).
   Wire through `cli/params.py`. (Note: `cli_app.py` is now
   `cli/commands.py` after the Phase 0 reorg; flags landed there.)
-- [ ] Set up containerized LiveKit dev server for integration tests
+- [x] Set up containerized LiveKit dev server for integration tests
   in CI (`docker-compose.test.yml`).
 - [ ] Write integration test: 5 concurrent real calls in one
   coroutine worker, all complete with real STT/LLM/TTS.

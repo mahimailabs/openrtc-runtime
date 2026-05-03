@@ -89,7 +89,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 markers = [
-    "integration: slower tests (e.g. isolated venv + pip install)",
+    "integration: slower tests; some require a LiveKit dev server (see docker-compose.test.yml)",
 ]
 
 [dependency-groups]
