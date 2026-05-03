@@ -141,3 +141,22 @@ already in config.py. This kept the import graph acyclic
 Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
+
+## 2026-05-03 08:25 UTC — refactor: extract core/turn_handling.py from pool.py
+Files: src/openrtc/core/turn_handling.py (new, 161 LOC:
+       _DEPRECATED_TURN_HANDLING_KEYS, _build_session_kwargs,
+       _default_turn_handling, _default_turn_detection,
+       _supports_multilingual_turn_detection,
+       _extract_deprecated_turn_options,
+       _deprecated_turn_options_to_turn_handling,
+       _merge_turn_handling),
+       src/openrtc/core/pool.py (~140 LOC removed; added import
+       from .turn_handling; dropped now-unused `os` and `warnings`
+       imports).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: No tests needed updating. The existing patch site
+`monkeypatch.setattr("openrtc.core.pool._build_session_kwargs", ...)`
+in tests/test_pool.py:569 still works because pool.py imports the
+symbol at module level — the patch replaces pool.py's local binding,
+which is what `_run_universal_session` looks up at call time.
+Public API unchanged.

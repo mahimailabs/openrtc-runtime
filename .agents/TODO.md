@@ -74,7 +74,7 @@ Tasks:
 - [x] Extract `core/serialization.py` from `pool.py`: `_ProviderRef`,
   `_PROVIDER_REF_KEYS`, `_try_build_provider_ref`,
   `__getstate__/__setstate__` helpers (currently `pool.py:573-646`).
-- [ ] Extract `core/turn_handling.py` from `pool.py`: deprecated
+- [x] Extract `core/turn_handling.py` from `pool.py`: deprecated
   kwargs translation logic (currently `pool.py:42-53, 649-778`).
 - [ ] Create `observability/` package. Rename `resources.py` →
   `observability/metrics.py`, `metrics_stream.py` →
