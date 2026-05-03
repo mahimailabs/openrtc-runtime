@@ -113,7 +113,7 @@ Tasks:
   `docs/design/job-executor-protocol.md`.
 - [x] Read `livekit/agents/ipc/proc_pool.py`. Document the
   `ProcPool` surface that `AgentServer` calls.
-- [ ] Read `livekit/agents/worker.py`. Document where
+- [x] Read `livekit/agents/worker.py`. Document where
   `AgentServer` instantiates and uses `_proc_pool`.
 - [ ] Add `isolation: Literal["coroutine", "process"]` parameter to
   `AgentPool.__init__`, default `"coroutine"`. Thread through but

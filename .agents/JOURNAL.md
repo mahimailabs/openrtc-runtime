@@ -142,6 +142,30 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 11:42 UTC — docs: capture AgentServer integration points
+Files: docs/design/agent-server-integration.md (new, ~150 LOC).
+Tests: not run (docs-only).
+Notes: Read worker.py (1435 LOC) and grepped every _proc_pool.X
+access. Captured:
+  - the construction site (line 587, inside run() under self._lock);
+    importantly _proc_pool is NOT set in __init__, so a subclass
+    cannot swap it before run() executes,
+  - the 12 unique call sites (3 event listeners, start, 2
+    set_target_idle_processes calls, processes property, drain
+    loop, 3 launch_job sites including simulate_job and the live
+    dispatch path, aclose, get_by_job_id),
+  - the lifecycle ordering inside run(), drain(timeout), and
+    aclose(),
+  - how _update_job_status maps our JobStatus enum to the WS
+    UpdateJobStatus message,
+  - three swap strategies (module-level class substitution,
+    AgentServer subclass with run() override, hybrid). Picked
+    strategy A for the first prototype: monkey-patch
+    livekit.agents.ipc.proc_pool.ProcPool to our CoroutinePool
+    before AgentServer.run() executes. Smallest diff, matches the
+    "contained to one file" goal in design §6.4.
+Closes the 3-doc reading group; implementation work starts next.
+
 ## 2026-05-03 11:25 UTC — docs: capture ProcPool surface AgentServer uses
 Files: docs/design/proc-pool-surface.md (new, ~120 LOC).
 Tests: not run (docs-only).
