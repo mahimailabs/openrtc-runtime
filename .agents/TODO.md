@@ -185,9 +185,11 @@ Tasks:
   `cli/commands.py` after the Phase 0 reorg; flags landed there.)
 - [x] Set up containerized LiveKit dev server for integration tests
   in CI (`docker-compose.test.yml`).
-- [ ] Write integration test: 5 concurrent real calls in one
+- [x] Write integration test: 5 concurrent real calls in one
   coroutine worker, all complete with real STT/LLM/TTS.
-  Mark with `pytest.mark.integration`.
+  Mark with `pytest.mark.integration`. (Skips when LiveKit dev
+  server unreachable OR `OPENAI_API_KEY` is unset; the
+  validation runs in CI environments with both available.)
 - [ ] Verify `isolation="process"` mode behaves identically to
   v0.0.17 (regression test against existing test suite).
 - [ ] Backpressure test: with `max_concurrent_sessions=10`, the

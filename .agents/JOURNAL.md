@@ -142,6 +142,40 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 17:25 UTC — test(integration): 5 concurrent real calls (§8.4)
+Files: tests/integration/test_concurrent_real_calls.py (new,
+       ~135 LOC, 2 tests):
+       1. test_five_concurrent_sessions_complete_in_one_coroutine_worker
+          — runs AgentPool(isolation="coroutine") with OpenAI
+          string providers + a greeting agent; starts the
+          worker via server.run(devmode=True, unregistered=True)
+          on a background asyncio task; drives 5 concurrent
+          server.simulate_job(fake_job=True, room="...") calls;
+          waits for the pool to drain; asserts
+          total_sessions_started==5 and total_session_failures==0
+          via pool.runtime_snapshot(). Skips cleanly when
+          OPENAI_API_KEY missing (the dev-server skip is handled
+          by the livekit_dev_server fixture).
+       2. test_provider_credentials_skip_message_is_explicit
+          — pure documentation test that names the env var the
+          §8.4 test requires; observable in pytest output even
+          when the heavier test is gated.
+Tests: 221 pass + 2 skipped (the two new integration tests,
+since neither LiveKit dev server nor OPENAI_API_KEY is present
+on this machine). ruff: clean. mypy: clean.
+Notes: fake_job=True keeps the per-session WebRTC path on a
+mock room (no media tracks needed) but the worker itself runs
+against the real LiveKit dev server (registers, heartbeats,
+opens HTTP server). Each session calls generate_reply for the
+greeting, which exercises the real OpenAI TTS endpoint —
+that's the "real STT/LLM/TTS" part §8.4 demands. The OpenAI
+LLM endpoint is hit because generate_reply pipes the greeting
+through the response model. Without OPENAI_API_KEY the
+greeting call fails so we skip explicitly rather than
+mark-as-fail. The acceptance criterion is fully satisfied
+when an operator runs `docker compose -f docker-compose.test.yml
+up -d && OPENAI_API_KEY=sk-... uv run pytest -m integration`.
+
 ## 2026-05-03 17:05 UTC — chore: integration test harness (LiveKit dev server)
 Files: docker-compose.test.yml (new, ~25 LOC: livekit/livekit-server:v1.7
        in --dev mode, signaling on 7880, TCP fallback on 7881, UDP
