@@ -142,6 +142,26 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 10:42 UTC — verify: full test suite + coverage gate (Phase 0 complete)
+Files: none changed (verification-only iteration).
+Tests: `uv run pytest --cov=openrtc --cov-report=term-missing
+--cov-fail-under=80` -> 130/130 pass, total coverage 90.31% (CI
+gate 80%).
+Notes: Closes Phase 0. Per-module coverage highlights:
+  - core/: pool 92%, config 97%, discovery 98%, serialization 98%,
+    routing 75%, turn_handling 88%
+  - cli/: entry 100%, params 100%, types 100%, commands 93%,
+    livekit 86%, reporter 86%, dashboard 82%, __init__ 54% (the
+    dunder __getattr__ + missing-extra branch is intentionally
+    untested; needs an environment without typer/rich)
+  - observability/: snapshot 100%, stream 100%, metrics 84%
+  - tui/app 100%
+  - openrtc/__init__ 80% (the PackageNotFoundError fallback runs
+    only outside an installed environment)
+Phase 0 reorganization is finished: 11 file moves/extractions,
+3 verification gates all green. Phase 1 (coroutine pool prototype)
+starts next.
+
 ## 2026-05-03 10:30 UTC — verify: openrtc dev / list / tui CLI still work
 Files: none changed (verification-only iteration).
 Tests: not re-run (covered last iteration). Smoke commands:

@@ -95,7 +95,9 @@ Tasks:
 - [x] Verify `from openrtc import AgentPool, AgentConfig,
   AgentDiscoveryConfig, agent_config, ProviderValue` still works.
 - [x] Verify `openrtc dev`, `openrtc list`, `openrtc tui` still work.
-- [ ] Verify all 124 tests still pass.
+- [x] Verify all 124 tests still pass. (Suite has grown to 130
+  since the original count; full CI coverage gate also satisfied
+  at 90.31%, well above the 80% floor.)
 
 ---
 
