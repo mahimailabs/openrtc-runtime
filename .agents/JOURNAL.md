@@ -142,6 +142,25 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 15:50 UTC — test(isolation): per-job error isolation (Phase 2 task 1)
+Files: tests/test_coroutine_isolation.py (new, ~140 LOC, 2 tests):
+       1) 5 concurrent sessions, the 3rd raises RuntimeError; the
+          other 4 must complete entrypoint AND report SUCCESS;
+          the failing one reports FAILED.
+       2) Long-runner is in flight when a 4th launch fails and a
+          5th launch follows it; long-runner stays RUNNING and
+          finishes; the failing job does NOT run completion code;
+          the post-boom launch completes normally.
+Tests: 202/202 pass (2 added). ruff: clean. mypy: clean.
+Notes: This satisfies design §8 acceptance criterion 5 at the
+unit-test level. The §8.4 real-LiveKit integration test will
+re-prove the property end-to-end against a containerized server
+in a later Phase 2 task. The first test snapshots executors
+before draining because the pool's done callback removes them
+from `processes` once each task settles; reading `.status`
+from the snapshot lets us assert the four siblings are SUCCESS
+even after they leave the live list.
+
 ## 2026-05-03 15:35 UTC — bench: record density results (Phase 1 §7 gate met)
 Files: docs/benchmarks/density-v0.1.md (new, ~70 LOC: methodology,
        caveats, six-row results table, verdict).

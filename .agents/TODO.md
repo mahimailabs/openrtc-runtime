@@ -168,7 +168,7 @@ sessions at ≤ 4 GB RSS, no errors. If not met, add a
 ## Phase 2 — Productionize (Week 2)
 
 Tasks:
-- [ ] Per-job error isolation test: a session raising
+- [x] Per-job error isolation test: a session raising
   `RuntimeError` does not affect 4 sibling sessions.
 - [ ] Implement worker supervisor: track consecutive session
   failures; after N (default 5), call `aclose()` and exit non-zero.
