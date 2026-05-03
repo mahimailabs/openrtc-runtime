@@ -142,6 +142,25 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 20:05 UTC — docs(cli): cover --isolation + --max-concurrent-sessions
+Files: docs/cli.md: merged the per-subcommand entries for
+       start/dev/console (they share the same option shape) and
+       added a "Coroutine-mode runtime knobs (v0.1)" subsection
+       documenting both flags with usage examples (default,
+       process opt-in, tuned threshold). Cross-references
+       docs/concepts/architecture.md and the README.
+       .agents/TODO.md: recorded the gap under "Discovered
+       work" with the [x] checkbox + reason.
+Tests: 256/256 pass + 2 skipped (docs only). ruff/mypy
+unaffected.
+Notes: Found while auditing §8.9 ("CLI flags work and are
+documented") for v0.1 release readiness. The flags themselves
+work and were already in the README + test suite + --help, but
+the standalone docs/cli.md page hadn't been updated when the
+flags landed (iteration 40). Releasing v0.1 with this gap
+would technically violate §8.9 since the doc page is the
+canonical CLI reference. Now closed.
+
 ## 2026-05-03 19:50 UTC — test(coverage): close defensive gaps in coroutine.py (90% -> 97%)
 Files: tests/test_coroutine_coverage.py (new, ~140 LOC, 10
        tests targeting the specific uncovered branches the

@@ -107,29 +107,52 @@ openrtc list --agents-dir ./agents --plain
 openrtc list ./agents --json
 ```
 
-### `openrtc start`
+### `openrtc start` / `openrtc dev` / `openrtc console`
 
-Production-style worker (same role as `python agent.py start`).
+Worker subcommands. `start` is production-style; `dev` adds reload;
+`console` is a local-only sandbox. All three accept the same option
+shape (see `--help` per command for the full list).
 
 ```bash
 openrtc start ./agents
-```
-
-### `openrtc dev`
-
-Development worker with reload (same role as `python agent.py dev`).
-
-```bash
 openrtc dev ./agents
-```
-
-### `openrtc console`
-
-Local console session (same role as `python agent.py console`).
-
-```bash
 openrtc console ./agents
 ```
+
+#### Coroutine-mode runtime knobs (v0.1)
+
+Two flags pick the worker isolation mode and the coroutine-mode
+backpressure threshold. They show up under the **OpenRTC** panel in
+`--help` and are accepted by `start`, `dev`, and `console`.
+
+- **`--isolation`** — `coroutine` (default) or `process`.
+  - `coroutine` runs every session as an `asyncio.Task` inside one
+    worker process and shares the prewarmed VAD / turn detector
+    across sessions. Use this when density is the goal.
+  - `process` keeps the v0.0.x behavior of one OS subprocess per
+    session via `livekit-agents`'s default `ProcPool`. Use this when
+    you need hard process isolation between sessions or per-session
+    memory caps via `livekit-agents`' `job_memory_limit_mb`.
+- **`--max-concurrent-sessions`** — Integer ≥ 1, default `50`. The
+  coroutine pool reports `load >= 1.0` to LiveKit dispatch once this
+  many sessions are in flight, so the dispatcher routes new jobs
+  elsewhere. Ignored under `--isolation process` (livekit-agents'
+  own load math applies there).
+
+```bash
+# Default: coroutine mode at 50 concurrent sessions per worker.
+openrtc start ./agents
+
+# Opt back into v0.0.x behavior:
+openrtc start ./agents --isolation process
+
+# Tune the coroutine threshold for a 1-vCPU / small-memory host:
+openrtc start ./agents --max-concurrent-sessions 12
+```
+
+See `docs/concepts/architecture.md` for the coroutine-mode lifecycle
+and the README's "Isolation modes" section for a side-by-side
+comparison table.
 
 ### `openrtc connect`
 
