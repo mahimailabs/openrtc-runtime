@@ -19,12 +19,12 @@ from typing import Any, TypeVar, cast
 
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 
-from openrtc.provider_types import ProviderValue
 from openrtc.resources import (
     MetricsStreamEvent,
     PoolRuntimeSnapshot,
     RuntimeMetricsStore,
 )
+from openrtc.types import ProviderValue
 
 logger = logging.getLogger("openrtc")
 

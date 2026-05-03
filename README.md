@@ -294,7 +294,7 @@ src/openrtc/
 ├── cli_livekit.py         # LiveKit argv/env handoff, pool run
 ├── cli_params.py          # shared worker handoff option bundles
 ├── metrics_stream.py      # JSONL metrics schema
-├── provider_types.py      # ProviderValue and related typing
+├── types.py               # ProviderValue and related typing
 ├── tui_app.py             # optional Textual sidecar
 └── pool.py                # AgentPool, discovery, routing
 ```

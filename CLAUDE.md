@@ -49,7 +49,7 @@ Almost everything that matters happens here:
 
 ### Provider passthrough contract
 
-`ProviderValue = str | object` (see `provider_types.py`). Anything passed to `stt=`, `llm=`, `tts=` on `pool.add()` or as pool defaults is forwarded to `AgentSession` unchanged: instantiated plugin objects (`openai.STT(...)`) work, and so do shorthand strings (`"openai/gpt-4o-mini-transcribe"`) — the LiveKit runtime resolves the strings at session construction time. OpenRTC does not interpret or validate them.
+`ProviderValue = str | object` (see `types.py`). Anything passed to `stt=`, `llm=`, `tts=` on `pool.add()` or as pool defaults is forwarded to `AgentSession` unchanged: instantiated plugin objects (`openai.STT(...)`) work, and so do shorthand strings (`"openai/gpt-4o-mini-transcribe"`) — the LiveKit runtime resolves the strings at session construction time. OpenRTC does not interpret or validate them.
 
 ### Spawn-safe configuration
 

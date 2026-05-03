@@ -20,3 +20,16 @@ task (PROMPT.md exception). Tests now call module-level
 coverage, no wrapper layer. Branch override: staying on
 feat/light-websocket per user instruction (overrides PROMPT.md
 v0.1/<slug> convention).
+
+## 2026-05-03 06:48 UTC — refactor: rename provider_types.py to types.py
+Files: git mv src/openrtc/provider_types.py -> src/openrtc/types.py,
+       src/openrtc/__init__.py (1 import path),
+       src/openrtc/pool.py (1 import path; ruff-fixed import order),
+       src/openrtc/cli_params.py (1 import path),
+       tests/test_cli.py (1 import path; ruff-fixed import order),
+       README.md, CLAUDE.md (doc references).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: Pure rename per Phase 0 refactor rules (no behavior change).
+Used `git mv` so blame is preserved. ruff auto-fix reordered the now-
+alphabetically-misplaced imports in pool.py and tests/test_cli.py.
+docs/audit-2026-05-02.md left unchanged (historical snapshot).

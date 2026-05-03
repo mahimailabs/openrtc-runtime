@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from openrtc.provider_types import ProviderValue
+from openrtc.types import ProviderValue
 
 
 def agent_provider_kwargs(

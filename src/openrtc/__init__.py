@@ -3,7 +3,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 from .pool import AgentConfig, AgentDiscoveryConfig, AgentPool, agent_config
-from .provider_types import ProviderValue
+from .types import ProviderValue
 
 try:
     __version__ = version("openrtc")

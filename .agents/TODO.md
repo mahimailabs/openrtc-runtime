@@ -63,7 +63,7 @@ Tasks:
 - [x] Delete dead code: `_version.py`, `AgentPool._resolve_agent`,
   `AgentPool._handle_session`, underscore-prefixed exports in
   `cli_app.__all__`. Verify no external references.
-- [ ] Rename `provider_types.py` → `types.py`.
+- [x] Rename `provider_types.py` → `types.py`.
 - [ ] Create `core/` package. Move `pool.py` into it (no split yet).
 - [ ] Extract `core/config.py` from `pool.py`: `AgentConfig`,
   `AgentDiscoveryConfig`, `agent_config` decorator.
