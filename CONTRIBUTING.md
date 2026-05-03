@@ -124,6 +124,14 @@ If your change affects public behavior, update the relevant docs:
 - docstrings in `src/openrtc/`
 - examples, when new behavior should be demonstrated
 
+## Releasing
+
+The release flow is documented in `docs/release-v0.1.md` (a single-page
+operator checklist). For v0.1.0 specifically, the changelog migration
+block is staged in the `[Unreleased]` section of `docs/changelog.md` and
+the publish workflow auto-prepends a versioned section after the tag
+fires.
+
 ## Pull requests
 
 Good pull requests for OpenRTC are:

@@ -268,3 +268,7 @@ priority.)
   version placeholders (0.0.15 -> 0.1.0; 1.4.3 -> 1.5.0) and
   add an "Isolation mode" dropdown so triage of v0.1 issues
   can route by mode without a follow-up question.
+- [x] Write `docs/release-v0.1.md` operator runbook so the §8.12
+  tagging+publishing step (the only `[?]` blocker on v0.1)
+  has a literal step-by-step checklist. Linked from
+  CONTRIBUTING.md's new "Releasing" section.

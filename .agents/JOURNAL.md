@@ -142,6 +142,39 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 20:45 UTC — docs(release): single-page v0.1 release checklist
+Files: docs/release-v0.1.md (new, ~110 LOC):
+       - Pre-flight checks (merge to main, CI green on the
+         merge commit, density gate green, optional integration
+         run with real OPENAI_API_KEY).
+       - Tagging commands (annotated tag, push) and the
+         hatch-vcs derivation note.
+       - GitHub release-creation walkthrough including which
+         block of changelog.md to copy as the body.
+       - What fires automatically (publish.yml + deploy-docs.yml
+         + auto-prepend of the versioned changelog section,
+         including the secrets each step needs).
+       - Post-release verification: pip install in a clean venv,
+         __version__ assertion, --help flag check, PyPI URL,
+         changelog page on the docs site.
+       - Bump-the-fallback reminder for the next dev cycle
+         (pyproject.toml + __init__.py both).
+       - Recovery playbook for common failure modes (PyPI
+         already has the version, wrong commit tagged,
+         changelog push token missing).
+       CONTRIBUTING.md: new "Releasing" section pointing at the
+       runbook.
+Tests: 256/256 pass + 2 skipped. ruff: clean.
+Notes: Iteration was triggered by the Ralph loop firing again
+with no autonomous-completable work remaining (the only [?]
+TODO is operator-only). Used the iteration to make the
+operator's last-mile §8.12 work as friction-free as possible:
+a single page they read instead of cross-referencing the
+publish workflow + design doc + changelog. The release prep is
+now genuinely complete; once the operator runs the steps in
+docs/release-v0.1.md, every §8 acceptance criterion will be
+demonstrably satisfied.
+
 ## 2026-05-03 20:30 UTC — chore(issue-template): refresh for v0.1
 Files: .github/ISSUE_TEMPLATE/bug_report.yml: bumped stale
        version placeholders (OpenRTC 0.0.15 -> 0.1.0;
