@@ -142,6 +142,30 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 00:45 UTC — test(coroutine): close execution/coroutine.py gap (97% -> 100%) — project at 100%
+Files: tests/test_coroutine_coverage.py (+5 tests, ~100 LOC).
+Tests: 353/353 pass + 2 skipped. Coverage: coroutine.py 100%
+(was 97%); total 100.00% (was 99.51%). ruff: clean. mypy: clean.
+Notes: New tests pin the last defensive branches:
+(a) `_consume_cancelled_task_exception` swallowing
+`InvalidStateError` when the helper is called on a not-yet-done
+task (production trigger: a tight race between `add_done_callback`
+firing and someone querying `task.exception()`);
+(b) `CoroutineJobExecutor.join` swallowing CancelledError raised
+by a parallel `task.cancel()` while join is awaiting the task,
+and the defensive generic-Exception swallow when a future hands
+the executor a task that bypasses `_run_entrypoint` (e.g. a
+direct `_task` injection from a future caller);
+(c) `aclose` swallowing a *non*-CancelledError exception raised
+post-cancel (the task catches CancelledError and re-raises
+RuntimeError; aclose absorbs it and still flips status to FAILED
++ clears started); (d) `_build_job_context` real-room branch
+when `info.fake_job=False` — uses the actual `livekit.rtc.Room()`
+since the constructor is side-effect-free in the SDK
+(native libraries fire only on `.connect()`). The project is now
+at 100% line coverage. Only criterion §8.12 (PyPI tag + release)
+remains, and that is operator-blocked.
+
 ## 2026-05-04 00:30 UTC — test(discovery): close core/discovery.py coverage gap (98% -> 100%)
 Files: tests/test_discovery.py (+1 test, ~20 LOC).
 Tests: 348/348 pass + 2 skipped. Coverage: discovery.py 100%

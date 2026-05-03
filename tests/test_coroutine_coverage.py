@@ -129,6 +129,124 @@ def test_build_job_context_before_start_raises() -> None:
         pool._build_job_context(info)  # type: ignore[arg-type]
 
 
+def test_consume_cancelled_task_exception_swallows_invalid_state_error() -> None:
+    """`task.exception()` on a not-done task raises InvalidStateError; swallow it."""
+    from openrtc.execution.coroutine import _consume_cancelled_task_exception
+
+    async def _scenario() -> None:
+        async def _runs_forever() -> None:
+            await asyncio.sleep(60)
+
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(_runs_forever())
+        try:
+            assert not task.done()
+            _consume_cancelled_task_exception(task)
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    asyncio.run(_scenario())
+
+
+def test_executor_join_swallows_unexpected_exception_from_task() -> None:
+    """`join()` defends against tasks that bypass _run_entrypoint and raise directly."""
+    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+
+    executor = CoroutineJobExecutor()
+
+    async def _scenario() -> None:
+        loop = asyncio.get_running_loop()
+
+        async def _raises() -> None:
+            raise RuntimeError("bypass-wrapper")
+
+        executor._task = loop.create_task(_raises())
+        executor._status = JobStatus.RUNNING
+        await executor.join()
+
+    asyncio.run(_scenario())
+
+
+def test_executor_aclose_swallows_non_cancelled_exception_after_cancel() -> None:
+    """`aclose()` swallows whatever the task raises post-cancel (not just CancelledError)."""
+    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+
+    executor = CoroutineJobExecutor()
+
+    async def _scenario() -> None:
+        loop = asyncio.get_running_loop()
+
+        async def _swap_cancel_for_runtime_error() -> None:
+            try:
+                await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                raise RuntimeError("post-cancel runtime") from None
+
+        executor._task = loop.create_task(_swap_cancel_for_runtime_error())
+        executor._status = JobStatus.RUNNING
+        executor._started = True
+        await asyncio.sleep(0)
+        await executor.aclose()
+        assert executor.status is JobStatus.FAILED
+        assert executor.started is False
+
+    asyncio.run(_scenario())
+
+
+def test_executor_join_swallows_cancelled_error_from_in_flight_task() -> None:
+    """`join()` swallows a CancelledError raised by the in-flight task."""
+    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+
+    executor = CoroutineJobExecutor()
+
+    async def _scenario() -> None:
+        loop = asyncio.get_running_loop()
+
+        async def _runs_until_cancelled() -> None:
+            await asyncio.sleep(60)
+
+        task = loop.create_task(_runs_until_cancelled())
+        executor._task = task
+        executor._status = JobStatus.RUNNING
+
+        async def _race_cancel() -> None:
+            await asyncio.sleep(0)
+            task.cancel()
+
+        cancel_task = loop.create_task(_race_cancel())
+        await executor.join()
+        await cancel_task
+
+    asyncio.run(_scenario())
+
+
+def test_build_job_context_real_room_branch_runs_when_fake_job_is_false() -> None:
+    """`info.fake_job=False` triggers the real `rtc.Room()` construction branch."""
+    from livekit import rtc
+
+    pool = CoroutinePool(**_kwargs())
+
+    async def _scenario() -> object:
+        await pool.start()
+        info = SimpleNamespace(
+            job=SimpleNamespace(id="real-room-test", room=SimpleNamespace(name="r")),
+            fake_job=False,
+            worker_id="w",
+            accept_arguments=SimpleNamespace(identity="i", name="", metadata=""),
+            url="ws://x",
+            token="t",
+        )
+        return pool._build_job_context(info)
+
+    ctx = asyncio.run(_scenario())
+
+    assert isinstance(ctx._room, rtc.Room)
+
+
 def test_launch_job_re_raises_when_executor_launch_job_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -298,6 +298,21 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `execution/coroutine.py` coverage gap (97% -> 100%):
+  5 tests in tests/test_coroutine_coverage.py covering the
+  last defensive branches: `_consume_cancelled_task_exception`
+  swallowing `InvalidStateError` when called on a not-done
+  task (the post-`add_done_callback` race window);
+  `CoroutineJobExecutor.join` swallowing `CancelledError`
+  from a racing cancel of the in-flight task; same `join`
+  swallowing an `Exception` from a task that bypassed
+  `_run_entrypoint`; `aclose` swallowing a non-CancelledError
+  exception raised post-cancel (task that catches
+  CancelledError and re-raises something else); and
+  `_build_job_context` real-room branch when `info.fake_job=False`
+  (instantiates an actual `livekit.rtc.Room` — constructor is
+  side-effect-free, native libs only fire on `.connect()`).
+  Project-wide coverage now 100%.
 - [x] Close `core/discovery.py` coverage gap (98% -> 100%):
   1 test in tests/test_discovery.py exercising the
   `_load_module_from_path` defensive raise when
