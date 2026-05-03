@@ -142,6 +142,38 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 18:20 UTC — ci: canary job vs latest livekit-agents (§9.1)
+Files: .github/workflows/canary.yml (new, ~85 LOC).
+Tests: 239 pass + 2 skipped (no functional changes). YAML
+validates via `python -c "import yaml; yaml.safe_load(...)"`.
+Notes: Implements the canary called for in design §9.1 ("Add a
+CI canary job that runs the test suite against the latest
+livekit-agents release as it ships — early warning system").
+
+Workflow shape:
+- Triggers: nightly cron (06:17 UTC) + workflow_dispatch.
+  Pull requests do NOT run it (the regular test workflow already
+  verifies behavior against the pin).
+- continue-on-error: true (informational; does not block PRs or
+  release).
+- Service container: livekit/livekit-server:v1.7 in --dev mode
+  with healthcheck (matches docker-compose.test.yml so manual
+  and CI runs share credentials).
+- Steps: uv sync (pinned), then `uv pip install --upgrade
+  --resolution highest "livekit-agents[openai,silero,turn-detector]<2"`
+  to bypass the ~=1.5 pin and resolve to the highest released
+  matching version. Then `uv run pytest -m integration -v` with
+  LIVEKIT_URL/KEY/SECRET aligned to the dev server and
+  OPENAI_API_KEY pulled from repository secrets.
+- on-failure step prints resolved livekit-agents and livekit
+  versions for debugging.
+
+Security: workflow consumes only literal strings and the
+OPENAI_API_KEY repo secret. No untrusted user input
+(issue/PR/comment bodies) is interpolated into run: commands,
+so the standard command-injection patterns do not apply. Noted
+in the file's preamble.
+
 ## 2026-05-03 18:08 UTC — test(drain): SIGTERM-style drain with 3 in-flight (§8.8)
 Files: tests/test_coroutine_drain.py: 1 new test
        (test_sigterm_style_drain_with_three_in_flight_sessions_waits_then_exits)

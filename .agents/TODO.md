@@ -207,7 +207,7 @@ Tasks:
   release, and aclose() leaves no residual asyncio tasks on the
   loop. Real subprocess + signal delivery is platform-specific
   and outside the unit boundary.)
-- [ ] Add CI canary job that runs `pytest -m integration` against
+- [x] Add CI canary job that runs `pytest -m integration` against
   the latest `livekit-agents` release (allowed to fail;
   informational).
 - [ ] Add CI density benchmark job; fail if peak RSS > 4 GB.
