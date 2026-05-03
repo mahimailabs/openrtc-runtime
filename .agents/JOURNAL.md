@@ -107,3 +107,37 @@ _find_local_agent_subclass) are now free functions — none of them
 used `self`, so the conversion is mechanical and behavior-preserving.
 _resolve_discovery_metadata dropped the unused `module` parameter
 along the way (only agent_cls is read). Public API unchanged.
+
+## 2026-05-03 08:10 UTC — refactor: extract core/serialization.py from pool.py
+Files: src/openrtc/core/serialization.py (new, 188 LOC: _AgentClassRef,
+       _ProviderRef, _PROVIDER_REF_KEYS, _OPENAI_NOT_GIVEN_TYPE,
+       _serialize_provider_value, _deserialize_provider_value,
+       _try_build_provider_ref, _extract_provider_kwargs,
+       _filter_provider_kwargs, _is_not_given, _build_agent_class_ref,
+       _resolve_agent_class, _resolve_qualname),
+       src/openrtc/core/pool.py (~150 LOC removed: all the serialization
+       block plus the openai NotGiven import; ruff auto-removed the
+       now-unused ModuleType import after fixup),
+       src/openrtc/core/config.py (TYPE_CHECKING block dropped; late
+       imports inside __post_init__/__getstate__/__setstate__ collapsed
+       to module-level imports from core.serialization. Also picked up
+       _resolve_discovery_metadata from discovery.py — see below.),
+       src/openrtc/core/discovery.py (dropped _resolve_discovery_metadata
+       and the now-unused `cast`, `_AGENT_METADATA_ATTR`,
+       `AgentDiscoveryConfig` imports — required to break a new cycle
+       config -> serialization -> discovery -> config),
+       tests/test_pool.py (added `import openrtc.core.serialization as
+       serialization_module`; rewrote 3 references plus the
+       `from openrtc.core.pool import _is_not_given` to point at the
+       new module).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: serialization.py uses `importlib.import_module("pickle")` for
+the spawn-safety probe so the behavior matches what pool.py already
+did. The `_resolve_discovery_metadata` function moved out of
+discovery.py and into config.py because it only reads
+`_AGENT_METADATA_ATTR` and returns `AgentDiscoveryConfig` — both
+already in config.py. This kept the import graph acyclic
+(config -> serialization -> discovery; pool depends on all three).
+Public API unchanged. Note: the previous iteration's commit
+(b1d9307) shipped the code already; this entry catches the journal
+up after a hook blocked the inline edit.
