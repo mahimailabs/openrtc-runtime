@@ -142,6 +142,25 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 05:45 UTC — chore(editorconfig): add `.editorconfig` for cross-editor consistency
+Files: .editorconfig (new, 26 LOC).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Notes: Settings match what already exists in the repo so
+existing files don't need a sweeping reformat:
+- Python + TOML: 4-space indent (PEP 8 / ruff default for .py;
+  4-space matches pyproject.toml's existing style for .toml).
+- YAML / JSON / Markdown / shell: 2-space indent (community
+  default and matches existing workflow YAMLs).
+- Makefile: tab indent (required by make).
+- All files: UTF-8, LF endings, final newline, trailing
+  whitespace stripped.
+First draft used 2-space for TOML; verified existing
+pyproject.toml uses 4-space and corrected before committing.
+Editor support is built in for VSCode / JetBrains / Vim and
+common contributor IDEs, so no per-contributor onboarding step
+is needed.
+
 ## 2026-05-04 05:30 UTC — docs(github): add PR template
 Files: .github/PULL_REQUEST_TEMPLATE.md (new, ~28 LOC).
 Tests: 374/374 pass + 2 skipped (no-op for tests).

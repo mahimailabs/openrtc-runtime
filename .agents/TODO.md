@@ -250,6 +250,14 @@ Tasks:
 
 ## Discovered work
 
+- [x] Add `.editorconfig` so file-level conventions (charset,
+  EOL, final newline, trailing whitespace, indent) stay
+  consistent regardless of the contributor's editor /
+  IDE config. Settings match what's already in the repo:
+  Python + TOML use 4-space indent (PEP 8 / ruff default
+  + existing pyproject.toml style); YAML / JSON / Markdown
+  / shell use 2-space; Makefile uses literal tabs (required
+  by make).
 - [x] Add `.github/PULL_REQUEST_TEMPLATE.md`. GitHub auto-populates
   the PR description with this template; the checklist nudges
   contributors to confirm `make ci` passes, that tests are
