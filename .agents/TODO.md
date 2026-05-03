@@ -298,6 +298,19 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `core/turn_handling.py` coverage gap (88% -> 100%):
+  16 focused unit tests in tests/test_turn_handling.py for the
+  per-key deprecated-kwarg translations
+  (`min_endpointing_delay`, `max_endpointing_delay`,
+  `allow_interruptions` true/false, `discard_audio_if_uninterruptible`,
+  `min_interruption_duration`, `min_interruption_words`,
+  `false_interruption_timeout`,
+  `agent_false_interruption_timeout`,
+  `resume_false_interruption`, `turn_detection`), the
+  `LIVEKIT_REMOTE_EOT_URL` / inference-executor branches in
+  `_supports_multilingual_turn_detection`, and the
+  non-Mapping `turn_handling` passthrough. Locks down the
+  v0.0.x compat surface before tagging.
 - [x] Close `core/routing.py` coverage gap (76% -> 100%):
   empty-agents guard (line 25), room-metadata branch (line 33),
   string-JSON metadata parse path (lines 56-67), blank/scalar/

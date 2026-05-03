@@ -142,6 +142,26 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 22:00 UTC — test(turn-handling): close core/turn_handling.py coverage gap (88% -> 100%)
+Files: tests/test_turn_handling.py (new, 16 tests, ~140 LOC).
+Tests: 279/279 pass + 2 skipped. Coverage: turn_handling.py
+100% (was 88%); total 93.12% (was 92.58%). ruff: clean.
+mypy: clean.
+Notes: Tests cover the per-key deprecated -> modern kwarg
+translations (min_endpointing_delay, max_endpointing_delay,
+allow_interruptions true/false, discard_audio_if_uninterruptible,
+min_interruption_duration, min_interruption_words,
+false_interruption_timeout,
+agent_false_interruption_timeout, resume_false_interruption,
+turn_detection), the LIVEKIT_REMOTE_EOT_URL and inference-executor
+branches in _supports_multilingual_turn_detection, and the
+non-Mapping `turn_handling` passthrough (line 59 — when a user
+passes a TurnHandling dataclass or sentinel rather than a dict).
+Pre-v0.1 module but the deprecated-kwarg translation is the
+v0.0.x compat surface; locking the per-key mappings in pure
+unit tests means a future refactor of turn_handling.py won't
+silently change the user-facing semantics for any one key.
+
 ## 2026-05-03 21:45 UTC — test(routing): close core/routing.py coverage gap (76% -> 100%)
 Files: tests/test_routing.py (+7 tests, ~50 LOC):
        - test_resolve_agent_raises_when_no_agents_registered
