@@ -5,30 +5,29 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from typer import Context
 
-from openrtc.cli_dashboard import (
+from openrtc.cli.dashboard import (
     build_list_json_payload,
     build_runtime_dashboard,
     print_list_plain,
     print_list_rich_table,
     print_resource_summary_rich,
 )
-from openrtc.cli_livekit import (
+from openrtc.cli.livekit import (
     _delegate_discovered_pool_to_livekit,
     _discover_or_exit,
     _run_connect_handoff,
-    _run_pool_with_reporting,
-    _strip_openrtc_only_flags_for_livekit,
     inject_cli_positional_paths,
 )
-from openrtc.cli_params import SharedLiveKitWorkerOptions, agent_provider_kwargs
-from openrtc.cli_reporter import RuntimeReporter
-from openrtc.cli_types import (
+from openrtc.cli.params import SharedLiveKitWorkerOptions, agent_provider_kwargs
+from openrtc.cli.reporter import RuntimeReporter
+from openrtc.cli.types import (
     _LIVEKIT_CLI_CONTEXT_SETTINGS,
     PANEL_ADVANCED,
     AgentsDirArg,
@@ -40,18 +39,20 @@ from openrtc.cli_types import (
     DefaultLlmArg,
     DefaultSttArg,
     DefaultTtsArg,
+    IsolationArg,
     LiveKitApiKeyArg,
     LiveKitApiSecretArg,
     LiveKitLogLevelArg,
     LiveKitUrlArg,
+    MaxConcurrentSessionsArg,
     MetricsJsonFileArg,
     MetricsJsonlArg,
     MetricsJsonlIntervalArg,
     TuiFromStartArg,
     TuiWatchPathArg,
 )
-from openrtc.metrics_stream import DEFAULT_METRICS_JSONL_FILENAME
-from openrtc.pool import AgentPool
+from openrtc.core.pool import AgentPool
+from openrtc.observability.stream import DEFAULT_METRICS_JSONL_FILENAME
 
 logger = logging.getLogger("openrtc")
 
@@ -172,7 +173,7 @@ _STANDARD_LIVEKIT_WORKER_SPECS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _make_standard_livekit_worker_handler(subcommand: str):
+def _make_standard_livekit_worker_handler(subcommand: str) -> Callable[..., None]:
     """Build a Typer command that shares one option signature for start/dev/console."""
 
     def handler(
@@ -191,6 +192,8 @@ def _make_standard_livekit_worker_handler(subcommand: str):
         metrics_json_file: MetricsJsonFileArg = None,
         metrics_jsonl: MetricsJsonlArg = None,
         metrics_jsonl_interval: MetricsJsonlIntervalArg = None,
+        isolation: IsolationArg = "coroutine",
+        max_concurrent_sessions: MaxConcurrentSessionsArg = 50,
     ) -> None:
         _delegate_discovered_pool_to_livekit(
             subcommand,
@@ -209,6 +212,8 @@ def _make_standard_livekit_worker_handler(subcommand: str):
                 metrics_json_file=metrics_json_file,
                 metrics_jsonl=metrics_jsonl,
                 metrics_jsonl_interval=metrics_jsonl_interval,
+                isolation=isolation,
+                max_concurrent_sessions=max_concurrent_sessions,
             ),
         )
 
@@ -301,7 +306,7 @@ def tui_command(
     start the worker with ``--metrics-jsonl`` set to that same path.
     """
     try:
-        from openrtc.tui_app import run_metrics_tui
+        from openrtc.tui.app import run_metrics_tui
     except ImportError as exc:
         logger.error(
             "The TUI requires Textual. Install with: pip install 'openrtc[tui]' "
@@ -360,8 +365,6 @@ def main(argv: list[str] | None = None) -> int:
 
 __all__ = [
     "RuntimeReporter",
-    "_run_pool_with_reporting",
-    "_strip_openrtc_only_flags_for_livekit",
     "app",
     "build_runtime_dashboard",
     "main",

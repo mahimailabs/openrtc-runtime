@@ -1,0 +1,78 @@
+name: Canary (latest livekit-agents)
+
+# Informational job that runs the integration suite against the latest
+# released livekit-agents (instead of the pin in pyproject.toml). The
+# job is allowed to fail; failures here mean upstream has shipped a
+# breaking change OpenRTC v0.1 still depends on. See
+# docs/design/v0.1.md §9.1.
+#
+# Schedule: nightly + on-demand. Pull requests do NOT run this job
+# (the test suite already verifies behavior against the pin).
+#
+# Security note: this workflow only consumes literal strings and
+# secrets. No untrusted user-provided input (issue/PR/comment bodies)
+# is interpolated into run: commands, so the standard
+# command-injection patterns do not apply here.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-against-latest:
+    name: pytest -m integration vs latest livekit-agents
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    services:
+      livekit:
+        image: livekit/livekit-server:v1.7
+        options: >-
+          --health-cmd "wget -qO- http://127.0.0.1:7880/ || exit 1"
+          --health-interval 2s
+          --health-timeout 1s
+          --health-retries 30
+        ports:
+          - 7880:7880
+          - 7881:7881
+          - 7882:7882/udp
+        env:
+          LIVEKIT_KEYS: "devkey: secret"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version: "3.12"
+
+      - name: Install dependencies (pinned)
+        run: uv sync --group dev
+
+      - name: Bump livekit-agents to latest released version
+        run: |
+          uv pip install --upgrade --resolution highest \
+            "livekit-agents[openai,silero,turn-detector]<2"
+          uv pip show livekit-agents | grep -E "^Version"
+
+      - name: Run integration tests
+        env:
+          LIVEKIT_URL: ws://localhost:7880
+          LIVEKIT_API_KEY: devkey
+          LIVEKIT_API_SECRET: secret
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: uv run pytest -m integration -v
+
+      - name: Print resolved livekit-agents version on failure
+        if: failure()
+        run: |
+          uv pip show livekit-agents
+          uv pip show livekit

@@ -182,6 +182,46 @@ Assume an illustrative **~400 MB** idle baseline per worker for the shared stack
 
 Exact numbers depend on your providers, concurrency, and call patterns. The win is not loading that stack once per agent worker.
 
+## Isolation modes
+
+`AgentPool` accepts an `isolation` argument that picks how each session
+runs inside the worker. The v0.1 default is `"coroutine"`; pass
+`isolation="process"` to opt back into the v0.0.x behavior:
+
+```python
+pool = AgentPool(
+    isolation="coroutine",          # default in v0.1
+    max_concurrent_sessions=50,     # backpressure threshold (coroutine only)
+)
+```
+
+| Aspect | `coroutine` (default) | `process` |
+| --- | --- | --- |
+| Sessions per worker | Many (one `asyncio.Task` per session, shared `JobProcess`) | One (each session is its own subprocess via `livekit-agents` `ProcPool`) |
+| Prewarm cost (VAD, turn detector) | Paid once per worker | Paid once per session subprocess |
+| Crash isolation | Cooperative: an unhandled exception in one session is logged and marked FAILED; siblings continue. After `consecutive_failure_limit` (default 5) the worker calls `aclose()` so the platform restarts it. | Hard: each subprocess crashes independently; siblings unaffected. |
+| Per-session memory cap | Not enforced (asyncio shares one process) | Enforced via `livekit-agents` `job_memory_limit_mb` |
+| Backpressure | `current_load() = active / max_concurrent_sessions` reported as worker load; LiveKit dispatch routes elsewhere at `>= load_threshold` | `livekit-agents` default load math (CPU-based) |
+| When to pick | High density on a single host; cost-sensitive deployments. | Regulatory/compliance requires hard process isolation; per-session memory caps required. |
+
+### Density (50 concurrent sessions, one worker)
+
+From the v0.1 stub-workload benchmark (`tests/benchmarks/density.py`,
+results recorded at `docs/benchmarks/density-v0.1.md`):
+
+| Sessions | Successes | Peak RSS  | Elapsed | Within 4 GB budget |
+| --- | --- | --- | --- | --- |
+|  50 | 50  | 367 MB  | 1.04 s | ✓ |
+| 100 | 100 | 617 MB  | 1.10 s | ✓ |
+| 200 | 200 | 1073 MB | 1.19 s | ✓ |
+| 500 | 500 | 1370 MB | 1.30 s | ✓ |
+
+**Caveat:** the benchmark allocates ~5 MB per session to stress task
+scheduling, not a realistic ~60 MB/session WebRTC + LLM footprint.
+Validate against the §8.4 real-LiveKit integration test (which needs
+`docker compose -f docker-compose.test.yml up -d` and `OPENAI_API_KEY`)
+before quoting a per-session memory number to your operators.
+
 ## Routing
 
 One process hosts several agent classes, so each session must resolve to a single registered name. `AgentPool` resolves the agent in this order:
@@ -268,6 +308,13 @@ Everything openrtc exposes publicly is listed here. Anything else is internal an
 - `agent_config(...)`
 - `ProviderValue` — type alias for STT/LLM/TTS slot values (provider ID strings or LiveKit plugin instances)
 
+`AgentPool(...)` constructor (all keyword-only, all optional):
+
+- `default_stt`, `default_llm`, `default_tts`, `default_greeting` — pool-wide defaults applied when `add()` / `discover()` doesn't override them.
+- `isolation: "coroutine" | "process"` (v0.1) — worker isolation mode. Default `"coroutine"` runs every session as an `asyncio.Task` in one worker; `"process"` keeps the v0.0.x one-subprocess-per-session behavior.
+- `max_concurrent_sessions: int` (v0.1) — coroutine-mode backpressure threshold. Default `50`. The worker reports `load >= 1.0` to LiveKit dispatch once this many sessions are in flight; ignored under `isolation="process"`.
+- `consecutive_failure_limit: int` (v0.1) — coroutine-mode supervisor threshold. Default `5`. After this many non-`SUCCESS` session terminations the worker calls `aclose()` so the deployment platform can restart it; ignored under `isolation="process"`.
+
 On `AgentPool`:
 
 - `add(...)`
@@ -279,6 +326,9 @@ On `AgentPool`:
 - `runtime_snapshot()`
 - `drain_metrics_stream_events()` — for JSONL export paths (mainly CLI; rare in app code)
 - `server`
+- `isolation` (read-only property, v0.1)
+- `max_concurrent_sessions` (read-only property, v0.1)
+- `consecutive_failure_limit` (read-only property, v0.1)
 
 ## Project structure
 
@@ -286,23 +336,31 @@ On `AgentPool`:
 src/openrtc/
 ├── __init__.py
 ├── py.typed
-├── cli.py                 # lazy console entry / missing-extra hints
-├── cli_app.py             # Typer commands and programmatic main()
-├── cli_types.py           # shared CLI option aliases
-├── cli_dashboard.py     # Rich dashboard and list output
-├── cli_reporter.py        # background metrics reporter thread
-├── cli_livekit.py         # LiveKit argv/env handoff, pool run
-├── cli_params.py          # shared worker handoff option bundles
-├── metrics_stream.py      # JSONL metrics schema
-├── provider_types.py      # ProviderValue and related typing
-├── tui_app.py             # optional Textual sidecar
-└── pool.py                # AgentPool, discovery, routing
+├── types.py               # ProviderValue and related typing
+├── tui/
+│   ├── __init__.py
+│   └── app.py             # optional Textual sidecar
+├── cli/
+│   ├── __init__.py        # re-exports `main` and `app`
+│   ├── entry.py           # lazy console entry / missing-extra hint
+│   ├── commands.py        # Typer commands and programmatic main()
+│   ├── types.py           # shared CLI option aliases
+│   ├── dashboard.py       # Rich dashboard and list output
+│   ├── reporter.py        # background metrics reporter thread
+│   ├── livekit.py         # LiveKit argv/env handoff, pool run
+│   └── params.py          # shared worker handoff option bundles
+├── core/
+│   └── pool.py            # AgentPool, discovery, routing
+└── observability/
+    ├── metrics.py         # RuntimeMetricsStore, footprint helpers
+    ├── snapshot.py        # PoolRuntimeSnapshot dataclass
+    └── stream.py          # JSONL metrics schema
 ```
 
-- `pool.py` — `AgentPool`, discovery, routing
-- `cli.py` / `cli_app.py` — Typer/Rich CLI (`openrtc[cli]`)
-- `metrics_stream.py` — JSONL metrics schema
-- `tui_app.py` — optional Textual sidecar (`openrtc[tui]`)
+- `core/pool.py`: `AgentPool`, discovery, routing
+- `cli/`: Typer/Rich CLI (`openrtc[cli]`)
+- `observability/stream.py`: JSONL metrics schema
+- `tui/app.py`: optional Textual sidecar (`openrtc[tui]`)
 
 ## Contributing
 

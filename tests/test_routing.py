@@ -8,6 +8,8 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
+from openrtc.core.pool import _run_universal_session
+from openrtc.core.routing import _resolve_agent_config
 
 
 class RestaurantAgent(Agent):
@@ -112,7 +114,7 @@ def test_resolve_agent_prefers_job_metadata_over_room_metadata(
         room_metadata={"agent": "restaurant"},
     )
 
-    resolved = pool._resolve_agent(ctx)
+    resolved = _resolve_agent_config(pool._agents, ctx)
 
     assert resolved.name == "dental"
 
@@ -120,7 +122,7 @@ def test_resolve_agent_prefers_job_metadata_over_room_metadata(
 def test_resolve_agent_supports_demo_metadata_key(pool: AgentPool) -> None:
     ctx = FakeJobContext(job_metadata={"demo": "restaurant"})
 
-    resolved = pool._resolve_agent(ctx)
+    resolved = _resolve_agent_config(pool._agents, ctx)
 
     assert resolved.name == "restaurant"
 
@@ -128,7 +130,7 @@ def test_resolve_agent_supports_demo_metadata_key(pool: AgentPool) -> None:
 def test_resolve_agent_prefers_agent_key_over_demo_key(pool: AgentPool) -> None:
     ctx = FakeJobContext(job_metadata={"agent": "dental", "demo": "restaurant"})
 
-    resolved = pool._resolve_agent(ctx)
+    resolved = _resolve_agent_config(pool._agents, ctx)
 
     assert resolved.name == "dental"
 
@@ -136,7 +138,7 @@ def test_resolve_agent_prefers_agent_key_over_demo_key(pool: AgentPool) -> None:
 def test_resolve_agent_matches_room_name_prefix(pool: AgentPool) -> None:
     ctx = FakeJobContext(room_name="dental-follow-up")
 
-    resolved = pool._resolve_agent(ctx)
+    resolved = _resolve_agent_config(pool._agents, ctx)
 
     assert resolved.name == "dental"
 
@@ -144,7 +146,7 @@ def test_resolve_agent_matches_room_name_prefix(pool: AgentPool) -> None:
 def test_resolve_agent_falls_back_to_first_registered_agent(pool: AgentPool) -> None:
     ctx = FakeJobContext(room_name="general-room")
 
-    resolved = pool._resolve_agent(ctx)
+    resolved = _resolve_agent_config(pool._agents, ctx)
 
     assert resolved.name == "restaurant"
 
@@ -156,14 +158,91 @@ def test_resolve_agent_raises_for_unknown_metadata_agent(pool: AgentPool) -> Non
         ValueError,
         match="Unknown agent 'missing' requested via job metadata",
     ):
-        pool._resolve_agent(ctx)
+        _resolve_agent_config(pool._agents, ctx)
+
+
+def test_resolve_agent_raises_when_no_agents_registered() -> None:
+    ctx = FakeJobContext()
+
+    with pytest.raises(RuntimeError, match="No agents are registered"):
+        _resolve_agent_config({}, ctx)
+
+
+def test_resolve_agent_uses_room_metadata_when_job_metadata_absent(
+    pool: AgentPool,
+) -> None:
+    ctx = FakeJobContext(room_metadata={"agent": "dental"})
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_parses_json_string_metadata(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata='{"agent": "dental"}')
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_ignores_non_json_string_metadata(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata="not-json", room_name="dental-room")
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_ignores_blank_string_metadata(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata="   ")
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "restaurant"
+
+
+def test_resolve_agent_ignores_json_scalar_metadata(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata="42")
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "restaurant"
+
+
+def test_resolve_agent_ignores_empty_metadata_value(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata={"agent": "   "})
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "restaurant"
+
+
+def test_agent_name_from_metadata_returns_none_for_non_string_non_mapping() -> None:
+    """Branch: an int (or list) metadata value bypasses both string and mapping paths."""
+    from openrtc.core.routing import _agent_name_from_metadata
+
+    assert _agent_name_from_metadata(42) is None
+    assert _agent_name_from_metadata([1, 2, 3]) is None
+
+
+def test_resolve_agent_falls_back_when_room_name_is_not_a_string(
+    pool: AgentPool,
+) -> None:
+    """Branch: ``room.name`` of None skips the prefix-match loop entirely."""
+    ctx = FakeJobContext()
+    ctx.room.name = None  # type: ignore[assignment]
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "restaurant"
 
 
 def test_remove_changes_default_fallback_order(pool: AgentPool) -> None:
     pool.remove("restaurant")
     ctx = FakeJobContext(room_name="general-room")
 
-    resolved = pool._resolve_agent(ctx)
+    resolved = _resolve_agent_config(pool._agents, ctx)
 
     assert resolved.name == "dental"
 
@@ -171,7 +250,7 @@ def test_remove_changes_default_fallback_order(pool: AgentPool) -> None:
 def test_handle_session_passes_session_kwargs_and_provider_objects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     stt_provider = object()
     llm_provider = object()
     tts_provider = object()
@@ -186,7 +265,7 @@ def test_handle_session_passes_session_kwargs_and_provider_objects(
     )
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(pool._handle_session(ctx))
+    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["stt"] is stt_provider
@@ -202,7 +281,7 @@ def test_handle_session_passes_session_kwargs_and_provider_objects(
 def test_handle_session_passes_provider_strings_through_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     pool = AgentPool()
     pool.add(
         "dental",
@@ -213,7 +292,7 @@ def test_handle_session_passes_provider_strings_through_unchanged(
     )
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(pool._handle_session(ctx))
+    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["stt"] == "openai/gpt-4o-mini-transcribe"
@@ -224,7 +303,7 @@ def test_handle_session_passes_provider_strings_through_unchanged(
 def test_handle_session_supports_direct_session_kwargs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     pool = AgentPool()
     pool.add(
         "dental",
@@ -235,7 +314,7 @@ def test_handle_session_supports_direct_session_kwargs(
     )
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(pool._handle_session(ctx))
+    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["max_tool_steps"] == 6
@@ -246,7 +325,7 @@ def test_handle_session_supports_direct_session_kwargs(
 def test_handle_session_preserves_explicit_turn_handling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     custom_turn_detection = object()
     pool = AgentPool()
     pool.add(
@@ -261,7 +340,7 @@ def test_handle_session_preserves_explicit_turn_handling(
     )
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(pool._handle_session(ctx))
+    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["turn_handling"]["turn_detection"] is custom_turn_detection
@@ -272,13 +351,13 @@ def test_handle_session_preserves_explicit_turn_handling(
 def test_handle_session_uses_multilingual_turn_detection_when_inference_executor_exists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     pool = AgentPool()
     pool.add("dental", DentalAgent)
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
     ctx.proc.inference_executor = object()
 
-    asyncio.run(pool._handle_session(ctx))
+    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["turn_handling"]["turn_detection"] is not None
@@ -289,10 +368,10 @@ def test_handle_session_generates_greeting_after_connect(
     monkeypatch: pytest.MonkeyPatch,
     pool: AgentPool,
 ) -> None:
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     ctx = FakeJobContext(job_metadata={"agent": "restaurant"})
 
-    asyncio.run(pool._handle_session(ctx))
+    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.events == ["start", "generate_reply"]
@@ -305,10 +384,10 @@ def test_handle_session_skips_greeting_when_not_configured(
     monkeypatch: pytest.MonkeyPatch,
     pool: AgentPool,
 ) -> None:
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(pool._handle_session(ctx))
+    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.events == ["start"]

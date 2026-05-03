@@ -10,7 +10,9 @@ from types import SimpleNamespace
 import pytest
 from livekit.agents import Agent
 
-import openrtc.pool as pool_module
+import openrtc.core.discovery as discovery_module
+import openrtc.core.pool as pool_module
+import openrtc.core.serialization as serialization_module
 from openrtc import AgentPool
 
 
@@ -32,6 +34,91 @@ def test_add_registers_agent() -> None:
 
     assert config.name == "test"
     assert pool.list_agents() == ["test"]
+
+
+def test_isolation_defaults_to_coroutine() -> None:
+    """v0.1 default is coroutine mode; the setting is plumbed but not yet acted on."""
+    pool = AgentPool()
+
+    assert pool.isolation == "coroutine"
+
+
+def test_isolation_accepts_process_mode() -> None:
+    pool = AgentPool(isolation="process")
+
+    assert pool.isolation == "process"
+
+
+def test_isolation_rejects_unknown_mode() -> None:
+    with pytest.raises(ValueError, match="isolation must be 'coroutine' or 'process'"):
+        AgentPool(isolation="threaded")  # type: ignore[arg-type]
+
+
+def test_max_concurrent_sessions_defaults_to_50() -> None:
+    pool = AgentPool()
+
+    assert pool.max_concurrent_sessions == 50
+
+
+def test_max_concurrent_sessions_accepts_override() -> None:
+    pool = AgentPool(max_concurrent_sessions=10)
+
+    assert pool.max_concurrent_sessions == 10
+
+
+def test_max_concurrent_sessions_rejects_non_int() -> None:
+    with pytest.raises(TypeError, match="must be an int"):
+        AgentPool(max_concurrent_sessions=10.0)  # type: ignore[arg-type]
+
+
+def test_max_concurrent_sessions_rejects_bool() -> None:
+    with pytest.raises(TypeError, match="must be an int"):
+        AgentPool(max_concurrent_sessions=True)  # type: ignore[arg-type]
+
+
+def test_isolation_coroutine_constructs_coroutine_agent_server() -> None:
+    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+
+    pool = AgentPool()  # default isolation="coroutine"
+
+    assert isinstance(pool.server, _CoroutineAgentServer)
+
+
+def test_isolation_process_constructs_vanilla_agent_server() -> None:
+    from livekit.agents import AgentServer
+
+    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+
+    pool = AgentPool(isolation="process")
+
+    assert isinstance(pool.server, AgentServer)
+    assert not isinstance(pool.server, _CoroutineAgentServer)
+
+
+def test_isolation_coroutine_passes_max_concurrent_sessions_to_server() -> None:
+    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+
+    pool = AgentPool(max_concurrent_sessions=12)
+
+    assert isinstance(pool.server, _CoroutineAgentServer)
+    assert pool.server._max_concurrent_sessions == 12
+
+
+def test_isolation_process_does_not_carry_max_concurrent_sessions() -> None:
+    """Process-mode AgentServer never sees the OpenRTC-only kwarg."""
+    pool = AgentPool(isolation="process", max_concurrent_sessions=7)
+
+    # The setting still lives on the pool for documentation/inspection,
+    # but the server is the vanilla AgentServer that knows nothing of it.
+    assert pool.max_concurrent_sessions == 7
+    assert not hasattr(pool.server, "_max_concurrent_sessions")
+
+
+def test_max_concurrent_sessions_rejects_zero_or_negative() -> None:
+    with pytest.raises(ValueError, match="must be >= 1"):
+        AgentPool(max_concurrent_sessions=0)
+    with pytest.raises(ValueError, match="must be >= 1"):
+        AgentPool(max_concurrent_sessions=-3)
 
 
 def test_add_uses_pool_defaults_when_agent_values_are_omitted() -> None:
@@ -93,7 +180,7 @@ def test_add_duplicate_name_raises() -> None:
     pool = AgentPool()
     pool.add("test", DemoAgent)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already registered"):
         pool.add("test", DemoAgent)
 
 
@@ -133,7 +220,7 @@ def test_add_rejects_main_module_agent_without_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(DemoAgent, "__module__", "__main__")
-    monkeypatch.setattr(pool_module.inspect, "getsourcefile", lambda _value: None)
+    monkeypatch.setattr(discovery_module.inspect, "getsourcefile", lambda _value: None)
 
     pool = AgentPool()
 
@@ -149,9 +236,9 @@ def test_try_get_module_path_returns_none_when_inspect_fails(
     def raise_error(_value: object) -> str:
         raise error_type("boom")
 
-    monkeypatch.setattr(pool_module.inspect, "getsourcefile", raise_error)
+    monkeypatch.setattr(discovery_module.inspect, "getsourcefile", raise_error)
 
-    assert pool_module._try_get_module_path(DemoAgent) is None
+    assert discovery_module._try_get_module_path(DemoAgent) is None
 
 
 def test_resolve_agent_class_reuses_loaded_discovered_module(tmp_path: Path) -> None:
@@ -164,11 +251,11 @@ def test_resolve_agent_class_reuses_loaded_discovered_module(tmp_path: Path) -> 
         encoding="utf-8",
     )
 
-    module_name = pool_module._discovered_module_name(module_path)
-    module = pool_module._load_module_from_path(module_name, module_path)
-    agent_ref = pool_module._build_agent_class_ref(module.SampleAgent)
+    module_name = discovery_module._discovered_module_name(module_path)
+    module = discovery_module._load_module_from_path(module_name, module_path)
+    agent_ref = serialization_module._build_agent_class_ref(module.SampleAgent)
 
-    resolved = pool_module._resolve_agent_class(agent_ref)
+    resolved = serialization_module._resolve_agent_class(agent_ref)
 
     assert resolved is module.SampleAgent
 
@@ -183,27 +270,27 @@ def test_resolve_agent_class_falls_back_to_module_path(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    agent_ref = pool_module._AgentClassRef(
+    agent_ref = serialization_module._AgentClassRef(
         module_name="missing_runtime_module",
         qualname="FallbackAgent",
         module_path=str(module_path),
     )
 
-    resolved = pool_module._resolve_agent_class(agent_ref)
+    resolved = serialization_module._resolve_agent_class(agent_ref)
 
     assert resolved.__name__ == "FallbackAgent"
     assert issubclass(resolved, Agent)
 
 
 def test_resolve_agent_class_raises_when_module_cannot_be_imported() -> None:
-    agent_ref = pool_module._AgentClassRef(
+    agent_ref = serialization_module._AgentClassRef(
         module_name="missing_runtime_module_without_path",
         qualname="MissingAgent",
         module_path=None,
     )
 
     with pytest.raises(ModuleNotFoundError):
-        pool_module._resolve_agent_class(agent_ref)
+        serialization_module._resolve_agent_class(agent_ref)
 
 
 def test_resolve_agent_class_rejects_non_agent_symbol(tmp_path: Path) -> None:
@@ -213,14 +300,14 @@ def test_resolve_agent_class_rejects_non_agent_symbol(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    agent_ref = pool_module._AgentClassRef(
+    agent_ref = serialization_module._AgentClassRef(
         module_name="missing_non_agent_module",
         qualname="NotAnAgent",
         module_path=str(module_path),
     )
 
     with pytest.raises(TypeError, match="is not a livekit.agents.Agent subclass"):
-        pool_module._resolve_agent_class(agent_ref)
+        serialization_module._resolve_agent_class(agent_ref)
 
 
 def test_load_module_from_path_reuses_existing_module(tmp_path: Path) -> None:
@@ -228,8 +315,8 @@ def test_load_module_from_path_reuses_existing_module(tmp_path: Path) -> None:
     module_path.write_text("VALUE = 1\n", encoding="utf-8")
 
     module_name = "openrtc_test_reused_module"
-    first_module = pool_module._load_module_from_path(module_name, module_path)
-    second_module = pool_module._load_module_from_path(module_name, module_path)
+    first_module = discovery_module._load_module_from_path(module_name, module_path)
+    second_module = discovery_module._load_module_from_path(module_name, module_path)
 
     assert second_module is first_module
 
@@ -240,7 +327,7 @@ def test_load_module_from_path_cleans_up_sys_modules_on_failure(tmp_path: Path) 
 
     module_name = "openrtc_test_broken_module"
     with pytest.raises(RuntimeError, match="boom"):
-        pool_module._load_module_from_path(module_name, module_path)
+        discovery_module._load_module_from_path(module_name, module_path)
 
     assert module_name not in sys.modules
 
@@ -381,7 +468,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
         VAD = FakeVAD
 
     monkeypatch.setattr(
-        "openrtc.pool._load_shared_runtime_dependencies",
+        "openrtc.core.pool._load_shared_runtime_dependencies",
         lambda: (FakeSilero, FakeTurnDetector),
     )
     setup_callback(process)
@@ -417,7 +504,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
             raise AssertionError("Greeting should not be generated in this test.")
 
     ctx = FakeJobContext()
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     asyncio.run(session_callback(ctx))
 
     assert ctx.connected is True
@@ -472,11 +559,11 @@ def test_runtime_snapshot_reports_active_sessions_and_failures(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     ctx = FakeJobContext()
 
     async def run_session() -> None:
-        await pool._handle_session(ctx)
+        await pool_module._run_universal_session(pool._runtime_state, ctx)
 
     async def exercise() -> None:
         task = asyncio.create_task(run_session())
@@ -525,10 +612,12 @@ def test_runtime_snapshot_records_session_failures(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
 
     with pytest.raises(RuntimeError, match="boom"):
-        asyncio.run(pool._handle_session(FakeJobContext()))
+        asyncio.run(
+            pool_module._run_universal_session(pool._runtime_state, FakeJobContext())
+        )
 
     snapshot = pool.runtime_snapshot()
     assert snapshot.active_sessions == 0
@@ -562,10 +651,12 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_build_fails
     ) -> dict[str, object]:
         raise RuntimeError("session kwargs boom")
 
-    monkeypatch.setattr("openrtc.pool._build_session_kwargs", raise_build_error)
+    monkeypatch.setattr("openrtc.core.pool._build_session_kwargs", raise_build_error)
 
     with pytest.raises(RuntimeError, match="session kwargs boom"):
-        asyncio.run(pool._handle_session(FakeJobContext()))
+        asyncio.run(
+            pool_module._run_universal_session(pool._runtime_state, FakeJobContext())
+        )
 
     snapshot = pool.runtime_snapshot()
     assert snapshot.active_sessions == 0
@@ -596,10 +687,12 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_constructor
         def __init__(self, **kwargs: object) -> None:
             raise RuntimeError("session constructor boom")
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", BrokenSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", BrokenSession)
 
     with pytest.raises(RuntimeError, match="session constructor boom"):
-        asyncio.run(pool._handle_session(FakeJobContext()))
+        asyncio.run(
+            pool_module._run_universal_session(pool._runtime_state, FakeJobContext())
+        )
 
     snapshot = pool.runtime_snapshot()
     assert snapshot.active_sessions == 0
@@ -618,7 +711,7 @@ def test_is_not_given_detects_openai_sentinels_without_repr() -> None:
     pytest.importorskip("openai")
     from openai import NOT_GIVEN, not_given
 
-    from openrtc.pool import _is_not_given
+    from openrtc.core.serialization import _is_not_given
 
     assert _is_not_given(NOT_GIVEN) is True
     assert _is_not_given(not_given) is True
@@ -627,7 +720,7 @@ def test_is_not_given_detects_openai_sentinels_without_repr() -> None:
 
 
 def test_is_not_given_ignores_unrelated_class_named_notgiven() -> None:
-    from openrtc.pool import _is_not_given
+    from openrtc.core.serialization import _is_not_given
 
     class NotGiven:
         pass
@@ -647,7 +740,7 @@ def test_deprecated_session_kwargs_warning(
         async def start(self, *, agent: object, room: object) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     pool.add(
         "test",
         DemoAgent,
@@ -671,7 +764,7 @@ def test_deprecated_session_kwargs_warning(
     ctx.connect = do_connect.__get__(ctx, type(ctx))  # type: ignore[attr-defined]
 
     with pytest.warns(DeprecationWarning, match="turn_handling"):
-        asyncio.run(pool._handle_session(ctx))
+        asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))
 
 
 def test_no_warning_for_modern_session_kwargs(
@@ -686,7 +779,7 @@ def test_no_warning_for_modern_session_kwargs(
         async def start(self, *, agent: object, room: object) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     pool.add(
         "test",
         DemoAgent,
@@ -708,4 +801,104 @@ def test_no_warning_for_modern_session_kwargs(
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
-        asyncio.run(pool._handle_session(ctx))
+        asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))
+
+
+def test_add_rejects_empty_name() -> None:
+    """An empty (or whitespace-only) name is rejected at registration."""
+    pool = AgentPool()
+
+    with pytest.raises(ValueError, match="non-empty string"):
+        pool.add("   ", DemoAgent)
+
+
+def test_run_raises_when_no_agents_registered() -> None:
+    """``run()`` requires at least one agent before LiveKit handoff."""
+    pool = AgentPool()
+
+    with pytest.raises(RuntimeError, match="Register at least one agent"):
+        pool.run()
+
+
+def test_run_invokes_cli_run_app_when_agents_are_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``run()`` hands the configured server to LiveKit's ``cli.run_app``."""
+    captured: list[object] = []
+
+    monkeypatch.setattr(
+        "openrtc.core.pool.cli.run_app", lambda server: captured.append(server)
+    )
+    pool = AgentPool()
+    pool.add("a", DemoAgent)
+
+    pool.run()
+
+    assert captured == [pool._server]
+
+
+def test_prewarm_worker_raises_when_runtime_state_has_no_agents() -> None:
+    """``_prewarm_worker`` defends against the worker spawning with zero agents."""
+    pool = AgentPool()
+    proc = SimpleNamespace(userdata={})
+
+    with pytest.raises(RuntimeError, match="Register at least one agent"):
+        pool_module._prewarm_worker(pool._runtime_state, proc)
+
+
+def test_run_universal_session_raises_when_no_agents_registered() -> None:
+    """The session entrypoint raises before agent resolution if registry is empty."""
+    pool = AgentPool()
+    ctx = SimpleNamespace(
+        job=SimpleNamespace(metadata=None),
+        room=SimpleNamespace(metadata=None, name="x"),
+        proc=SimpleNamespace(userdata={}),
+    )
+
+    with pytest.raises(RuntimeError, match="No agents are registered"):
+        asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))
+
+
+def test_load_shared_runtime_dependencies_raises_when_plugin_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing LiveKit plugin surfaces as a clear RuntimeError, not ImportError."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _import_without_silero(
+        name: str,
+        globals: object = None,  # noqa: A002 — must match __import__ signature
+        locals: object = None,  # noqa: A002 — must match __import__ signature
+        fromlist: object = (),
+        level: int = 0,
+    ) -> object:
+        if name == "livekit.plugins" and "silero" in tuple(fromlist or ()):
+            raise ModuleNotFoundError("No module named 'livekit.plugins.silero'")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _import_without_silero)
+
+    with pytest.raises(RuntimeError, match="silero"):
+        pool_module._load_shared_runtime_dependencies()
+
+
+def test_merge_session_kwargs_skips_direct_when_none() -> None:
+    """Branch: when ``direct_session_kwargs`` is None, only the base mapping wins."""
+    pool = AgentPool()
+
+    merged = pool._merge_session_kwargs({"a": 1, "b": 2}, direct_session_kwargs=None)
+
+    assert merged == {"a": 1, "b": 2}
+
+
+def test_load_shared_runtime_dependencies_returns_silero_and_turn_detector() -> None:
+    """Happy path returns the live silero module and the multilingual turn detector."""
+    pytest.importorskip("livekit.plugins.silero")
+    pytest.importorskip("livekit.plugins.turn_detector.multilingual")
+
+    silero, multilingual = pool_module._load_shared_runtime_dependencies()
+
+    assert hasattr(silero, "VAD")
+    assert multilingual.__name__ == "MultilingualModel"

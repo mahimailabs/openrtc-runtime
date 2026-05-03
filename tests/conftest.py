@@ -2,7 +2,7 @@
 
 LiveKit SDK shim (below): if ``livekit.agents`` cannot be imported, we register a
 minimal ``livekit`` / ``livekit.agents`` package so tests can import
-``openrtc.pool`` without the real wheel. The shapes here mirror only what
+``openrtc.core.pool`` without the real wheel. The shapes here mirror only what
 OpenRTC uses today; they are **not** a full SDK copy.
 
 **Target:** align with ``livekit-agents`` as pinned in ``pyproject.toml`` (see
@@ -101,7 +101,7 @@ except ImportError:
 
 import pytest
 
-from openrtc.resources import (
+from openrtc.observability.snapshot import (
     PoolRuntimeSnapshot,
     ProcessResidentSetInfo,
     SavingsEstimate,

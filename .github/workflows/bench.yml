@@ -1,0 +1,57 @@
+name: Density benchmark
+
+# Runs the v0.1 density benchmark (tests/benchmarks/density.py) and
+# fails the job if peak RSS exceeds the 4 GB budget defined by design
+# §7. The script's exit code drives the gate: 0 = under budget, 2 =
+# over budget, 3 = at least one session error.
+#
+# Triggers: pushes to main and pull requests. The script runs in
+# under 5 seconds at 50 sessions on the GitHub-hosted runners we use.
+#
+# Security note: this workflow only consumes literal strings. No
+# untrusted user input (issue/PR/comment bodies) is interpolated into
+# run: commands.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  density:
+    name: 50 concurrent sessions, peak RSS <= 4 GB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run density benchmark (gate at 4096 MB peak RSS)
+        run: |
+          uv run python tests/benchmarks/density.py \
+            --sessions 50 \
+            --rss-budget-mb 4096 \
+            --json | tee density-result.json
+
+      - name: Upload density result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: density-result-${{ github.run_id }}
+          path: density-result.json
+          if-no-files-found: warn
+          retention-days: 30

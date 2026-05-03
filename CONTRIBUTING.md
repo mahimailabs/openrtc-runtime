@@ -42,6 +42,21 @@ is hand-maintained to match APIs OpenRTC uses; when you upgrade the
 re-run the full suite locally and update `conftest.py` if anything still relies
 on the stub.
 
+### Run integration tests against a local LiveKit server
+
+Tests under `tests/integration/` (marked `@pytest.mark.integration`) talk to a
+real LiveKit dev server. Bring one up with the bundled compose file:
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+uv run pytest -m integration
+docker compose -f docker-compose.test.yml down
+```
+
+The `livekit_dev_server` fixture in `tests/integration/conftest.py` skips the
+test cleanly when no server is reachable, so `pytest -m integration` is safe to
+run in CI environments that do not start the harness.
+
 ### Run Ruff lint checks
 
 ```bash
@@ -62,16 +77,41 @@ CI runs `mypy src/` on pull requests (see `.github/workflows/lint.yml`). Locally
 uv run mypy src/
 ```
 
+The mypy config in `pyproject.toml` enables `strict = true`, so untyped defs,
+implicit `Optional`, redundant casts, and `Any` returns are all hard failures.
 The wheel and sdist ship `src/openrtc/py.typed` (empty PEP 561 marker) so tools
 like mypy and pyright treat `openrtc` as a typed dependency.
+
+### Run every CI gate at once
+
+```bash
+make ci
+```
+
+Runs `lint format-check typecheck test` in the same order as CI. Cheapest checks
+first, so a broken lint short-circuits before the test suite. Use this before
+`git push` to catch every PR-blocking failure locally.
+
+### Pre-commit hooks
+
+The repo ships a pre-commit config (ruff, ruff-format, basic file hygiene, and
+`mypy --strict src/`). Install once:
+
+```bash
+uv run pre-commit install
+```
+
+Subsequent `git commit` runs the hooks automatically. The mypy hook only fires
+when source code or `pyproject.toml` change, so commits that only touch tests,
+docs, or workflow YAMLs skip the typecheck cost.
 
 ## Project architecture
 
 Keep these responsibilities in mind when contributing:
 
-- `src/openrtc/pool.py` contains the core pooling, discovery, routing, and
+- `src/openrtc/core/pool.py` contains the core pooling, discovery, routing, and
   session-construction logic.
-- `src/openrtc/cli.py` is the console entrypoint; `src/openrtc/cli_app.py`
+- `src/openrtc/cli/` is the console entrypoint package; `src/openrtc/cli/commands.py`
   implements the Typer/Rich CLI (optional extra ``openrtc[cli]``; dev deps
   include it for local runs).
 - `src/openrtc/__init__.py` defines the public package surface.
@@ -109,6 +149,14 @@ If your change affects public behavior, update the relevant docs:
 - docstrings in `src/openrtc/`
 - examples, when new behavior should be demonstrated
 
+## Releasing
+
+The release flow is documented in `docs/release-v0.1.md` (a single-page
+operator checklist). For v0.1.0 specifically, the changelog migration
+block is staged in the `[Unreleased]` section of `docs/changelog.md` and
+the publish workflow auto-prepends a versioned section after the tag
+fires.
+
 ## Pull requests
 
 Good pull requests for OpenRTC are:
@@ -119,5 +167,5 @@ Good pull requests for OpenRTC are:
 - easy to review
 - aligned with the existing architecture
 
-If you are unsure where a change belongs, start by reading `src/openrtc/pool.py`
+If you are unsure where a change belongs, start by reading `src/openrtc/core/pool.py`
 and open a small, incremental PR.

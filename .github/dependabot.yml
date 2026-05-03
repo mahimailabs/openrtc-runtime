@@ -1,0 +1,54 @@
+# Dependabot keeps the dev/runtime dep set fresh and surfaces security
+# advisories. Two ecosystems: pip (covers uv-managed deps via pyproject.toml)
+# and github-actions (the workflow files).
+#
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  # Python runtime + dev dependencies declared in pyproject.toml.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+    groups:
+      # Bundle dev tooling so a typical week is one PR not many.
+      dev-tooling:
+        patterns:
+          - "ruff"
+          - "mypy"
+          - "pytest"
+          - "pytest-*"
+          - "pre-commit"
+          - "rich"
+          - "typer"
+    ignore:
+      # livekit-agents is pinned `~=1.5` deliberately (design §9.1: the
+      # internal-ish surfaces we hook are version-sensitive). The canary
+      # CI job watches the next minor; do not auto-bump.
+      - dependency-name: "livekit-agents"
+
+  # Bump pinned action versions (e.g. actions/checkout@v4) when upstream
+  # cuts a new release.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(actions)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"

@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
+import click
 import typer
 
-from openrtc.metrics_stream import DEFAULT_METRICS_JSONL_FILENAME
+from openrtc.observability.stream import DEFAULT_METRICS_JSONL_FILENAME
 
 PANEL_OPENRTC = "OpenRTC"
 PANEL_LIVEKIT = "Connection"
@@ -75,6 +76,35 @@ DefaultGreetingArg = Annotated[
             "override greeting via @agent_config(...)."
         ),
         rich_help_panel=PANEL_ADVANCED,
+    ),
+]
+
+IsolationArg = Annotated[
+    str,
+    typer.Option(
+        "--isolation",
+        case_sensitive=False,
+        click_type=click.Choice(["coroutine", "process"], case_sensitive=False),
+        help=(
+            "Worker isolation mode (default 'coroutine'). 'coroutine' runs "
+            "every session as an asyncio.Task in one worker for high density; "
+            "'process' is the v0.0.x default of one OS process per session."
+        ),
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+MaxConcurrentSessionsArg = Annotated[
+    int,
+    typer.Option(
+        "--max-concurrent-sessions",
+        min=1,
+        help=(
+            "Coroutine-mode backpressure threshold (default 50). The worker "
+            "reports load >= 1.0 to LiveKit dispatch once this many sessions "
+            "are in flight; ignored under --isolation process."
+        ),
+        rich_help_panel=PANEL_OPENRTC,
     ),
 ]
 

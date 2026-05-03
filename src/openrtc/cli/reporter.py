@@ -10,9 +10,9 @@ from pathlib import Path
 from rich.live import Live
 from rich.panel import Panel
 
-from openrtc.cli_dashboard import build_runtime_dashboard, console
-from openrtc.metrics_stream import JsonlMetricsSink
-from openrtc.pool import AgentPool
+from openrtc.cli.dashboard import build_runtime_dashboard, console
+from openrtc.core.pool import AgentPool
+from openrtc.observability.stream import JsonlMetricsSink
 
 
 class RuntimeReporter:

@@ -1,4 +1,4 @@
-"""Textual sidecar UI for tailing :mod:`openrtc.metrics_stream` JSONL output."""
+"""Textual sidecar UI for tailing :mod:`openrtc.observability.stream` JSONL output."""
 
 from __future__ import annotations
 
@@ -9,7 +9,11 @@ from typing import Any, TextIO
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header, Static
 
-from openrtc.metrics_stream import KIND_EVENT, KIND_SNAPSHOT, parse_metrics_jsonl_line
+from openrtc.observability.stream import (
+    KIND_EVENT,
+    KIND_SNAPSHOT,
+    parse_metrics_jsonl_line,
+)
 
 
 def validate_metrics_watch_path(path: Path) -> None:

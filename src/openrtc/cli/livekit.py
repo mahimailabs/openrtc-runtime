@@ -11,9 +11,10 @@ from pathlib import Path
 
 import typer
 
-from openrtc.cli_params import SharedLiveKitWorkerOptions
-from openrtc.cli_reporter import RuntimeReporter
-from openrtc.pool import AgentConfig, AgentPool
+from openrtc.cli.params import SharedLiveKitWorkerOptions
+from openrtc.cli.reporter import RuntimeReporter
+from openrtc.core.config import AgentConfig
+from openrtc.core.pool import AgentPool
 
 logger = logging.getLogger("openrtc")
 

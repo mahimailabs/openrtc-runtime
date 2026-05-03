@@ -12,7 +12,7 @@ body:
     attributes:
       label: OpenRTC version
       description: Output of `python -c "import openrtc; print(openrtc.__version__)"`
-      placeholder: "e.g. 0.0.15"
+      placeholder: "e.g. 0.1.0"
     validations:
       required: true
 
@@ -30,7 +30,23 @@ body:
     attributes:
       label: livekit-agents version
       description: Output of `python -c "import livekit.agents; print(livekit.agents.__version__)"`
-      placeholder: "e.g. 1.4.3"
+      placeholder: "e.g. 1.5.0"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: isolation
+    attributes:
+      label: Isolation mode
+      description: |
+        Which `AgentPool(isolation=...)` was the worker running? Many
+        v0.1 bug paths only reproduce in one mode. If you're not sure
+        and didn't pass the flag, the v0.1 default is `coroutine`.
+      options:
+        - coroutine (default)
+        - process
+        - both / not sure
+      default: 0
     validations:
       required: false
 

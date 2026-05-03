@@ -9,18 +9,16 @@ from pathlib import Path
 
 import pytest
 
-from openrtc.cli_app import RuntimeReporter
-from openrtc.metrics_stream import (
+from openrtc.cli.commands import RuntimeReporter
+from openrtc.observability.metrics import MetricsStreamEvent
+from openrtc.observability.snapshot import PoolRuntimeSnapshot
+from openrtc.observability.stream import (
     KIND_EVENT,
     KIND_SNAPSHOT,
     METRICS_STREAM_SCHEMA_VERSION,
     JsonlMetricsSink,
     parse_metrics_jsonl_line,
     snapshot_envelope,
-)
-from openrtc.resources import (
-    MetricsStreamEvent,
-    PoolRuntimeSnapshot,
 )
 
 
@@ -184,7 +182,7 @@ def test_jsonl_sink_writes_snapshot_then_event(
 
 
 def test_runtime_metrics_store_drains_stream_events() -> None:
-    from openrtc.resources import RuntimeMetricsStore
+    from openrtc.observability.metrics import RuntimeMetricsStore
 
     store = RuntimeMetricsStore()
     store.record_session_started("dental")
@@ -197,8 +195,8 @@ def test_runtime_metrics_store_overflow_emits_synthetic_on_drain(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    from openrtc import resources as resources_mod
-    from openrtc.resources import RuntimeMetricsStore
+    from openrtc.observability import metrics as resources_mod
+    from openrtc.observability.metrics import RuntimeMetricsStore
 
     monkeypatch.setattr(resources_mod, "_STREAM_EVENTS_MAXLEN", 3)
     store = RuntimeMetricsStore()
@@ -333,3 +331,98 @@ def test_runtime_reporter_emits_jsonl_periodically(
     last = json.loads(lines[-1])
     assert first["schema_version"] == METRICS_STREAM_SCHEMA_VERSION
     assert last["seq"] > first["seq"]
+
+
+def test_runtime_reporter_build_dashboard_renderable_uses_pool_snapshot(
+    minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
+) -> None:
+    """``_build_dashboard_renderable`` returns a Rich Panel built from the snapshot."""
+    pool = _StubPool(minimal_pool_runtime_snapshot)
+    reporter = RuntimeReporter(
+        pool,
+        dashboard=False,
+        refresh_seconds=1.0,
+        json_output_path=None,
+    )
+
+    panel = reporter._build_dashboard_renderable()
+
+    from rich.panel import Panel
+
+    assert isinstance(panel, Panel)
+
+
+def test_runtime_reporter_periodic_tick_runs_when_live_is_none(
+    tmp_path: Path,
+    minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
+) -> None:
+    """Branch: dashboard=False + json_output_path set means live=None but tick fires."""
+    json_path = tmp_path / "snapshot.json"
+    pool = _StubPool(minimal_pool_runtime_snapshot)
+    reporter = RuntimeReporter(
+        pool,
+        dashboard=False,
+        refresh_seconds=0.25,
+        json_output_path=json_path,
+    )
+    reporter.start()
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and not json_path.exists():
+        time.sleep(0.02)
+    reporter.stop()
+
+    assert json_path.exists()
+
+
+def test_jsonl_metrics_sink_close_is_idempotent(tmp_path: Path) -> None:
+    """Branch: ``close()`` on a never-opened (or already-closed) sink is a no-op."""
+    sink = JsonlMetricsSink(tmp_path / "x.jsonl")
+
+    sink.close()  # never opened — _file is None, branch falls through
+
+    sink.open()
+    sink.close()
+    sink.close()  # already closed — _file is None again
+
+
+def test_runtime_reporter_dashboard_path_runs_one_tick(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
+) -> None:
+    """``dashboard=True`` enters the Rich Live context and ticks at least once."""
+    update_calls: list[object] = []
+
+    class _StubLive:
+        def __init__(self, renderable: object, **_kwargs: object) -> None:
+            update_calls.append(("init", renderable))
+
+        def __enter__(self) -> _StubLive:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def update(self, renderable: object) -> None:
+            update_calls.append(("update", renderable))
+
+    monkeypatch.setattr("openrtc.cli.reporter.Live", _StubLive)
+
+    json_path = tmp_path / "snapshot.json"
+    pool = _StubPool(minimal_pool_runtime_snapshot)
+    reporter = RuntimeReporter(
+        pool,
+        dashboard=True,
+        refresh_seconds=0.25,
+        json_output_path=json_path,
+    )
+    reporter.start()
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and not json_path.exists():
+        time.sleep(0.02)
+    reporter.stop()
+
+    assert json_path.exists()
+    kinds = [kind for kind, _ in update_calls]
+    assert kinds[0] == "init"
+    assert "update" in kinds

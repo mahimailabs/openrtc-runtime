@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from openrtc.provider_types import ProviderValue
+from openrtc.types import ProviderValue
 
 
 def agent_provider_kwargs(
@@ -15,7 +15,7 @@ def agent_provider_kwargs(
     default_tts: ProviderValue | None,
     default_greeting: str | None,
 ) -> dict[str, Any]:
-    """Keyword arguments for :class:`openrtc.pool.AgentPool` provider defaults."""
+    """Keyword arguments for :class:`openrtc.core.pool.AgentPool` provider defaults."""
     return {
         "default_stt": default_stt,
         "default_llm": default_llm,
@@ -24,12 +24,24 @@ def agent_provider_kwargs(
     }
 
 
+def agent_pool_runtime_kwargs(
+    *,
+    isolation: str = "coroutine",
+    max_concurrent_sessions: int = 50,
+) -> dict[str, Any]:
+    """Keyword arguments for the runtime knobs on :class:`AgentPool`."""
+    return {
+        "isolation": isolation,
+        "max_concurrent_sessions": max_concurrent_sessions,
+    }
+
+
 @dataclass(frozen=True)
 class SharedLiveKitWorkerOptions:
     """Options shared by ``start`` / ``dev`` / ``console`` / ``connect`` handoff paths.
 
     Typer still lists each flag on every command so ``--help`` stays accurate; this
-    dataclass deduplicates the handoff to :mod:`openrtc.cli_livekit`.
+    dataclass deduplicates the handoff to :mod:`openrtc.cli.livekit`.
     """
 
     agents_dir: Path
@@ -46,14 +58,22 @@ class SharedLiveKitWorkerOptions:
     metrics_json_file: Path | None
     metrics_jsonl: Path | None
     metrics_jsonl_interval: float | None
+    isolation: str = "coroutine"
+    max_concurrent_sessions: int = 50
 
     def agent_pool_kwargs(self) -> dict[str, Any]:
-        return agent_provider_kwargs(
-            self.default_stt,
-            self.default_llm,
-            self.default_tts,
-            self.default_greeting,
-        )
+        return {
+            **agent_provider_kwargs(
+                self.default_stt,
+                self.default_llm,
+                self.default_tts,
+                self.default_greeting,
+            ),
+            **agent_pool_runtime_kwargs(
+                isolation=self.isolation,
+                max_concurrent_sessions=self.max_concurrent_sessions,
+            ),
+        }
 
     @classmethod
     def from_cli(
@@ -73,6 +93,8 @@ class SharedLiveKitWorkerOptions:
         metrics_json_file: Path | None = None,
         metrics_jsonl: Path | None = None,
         metrics_jsonl_interval: float | None = None,
+        isolation: str = "coroutine",
+        max_concurrent_sessions: int = 50,
     ) -> SharedLiveKitWorkerOptions:
         return cls(
             agents_dir=agents_dir,
@@ -89,6 +111,8 @@ class SharedLiveKitWorkerOptions:
             metrics_json_file=metrics_json_file,
             metrics_jsonl=metrics_jsonl,
             metrics_jsonl_interval=metrics_jsonl_interval,
+            isolation=isolation,
+            max_concurrent_sessions=max_concurrent_sessions,
         )
 
     @classmethod

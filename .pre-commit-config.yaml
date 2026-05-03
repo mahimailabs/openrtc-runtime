@@ -20,6 +20,34 @@ repos:
         args:
         - --fix
     -   id: ruff-format
+-   repo: local
+    hooks:
+    -   id: mypy
+        name: mypy --strict (src)
+        entry: uv run mypy src/
+        language: system
+        # Run once per commit, not once per matching file: mypy --strict
+        # needs the full source tree to resolve cross-module types.
+        pass_filenames: false
+        types_or: [python, toml]
+        files: ^(src/.*\.py|pyproject\.toml)$
+-   repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+    -   id: actionlint
+-   repo: https://github.com/codespell-project/codespell
+    rev: v2.4.2
+    hooks:
+    -   id: codespell
+        # Skip auto-generated lockfiles and binary asset directories. The
+        # `devlop` false-positive in package-lock.json is the canonical
+        # package name on npm — keep the file out of the spell pass.
+        # `IST` is the Indian Standard Time abbreviation used in cron
+        # comments and journal entries; `devlop` is a real npm package name
+        # that surfaces in the package-lock.json discussion. Both whitelisted.
+        args:
+        -   --skip=*.lock,package-lock.json,assets,htmlcov,dist,build,.mypy_cache,.ruff_cache
+        -   --ignore-words-list=ist,devlop
 
 ci:
     autofix_commit_msg: 🎨 [pre-commit.ci] Auto format from pre-commit.com hooks

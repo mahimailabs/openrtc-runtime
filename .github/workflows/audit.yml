@@ -1,0 +1,66 @@
+# Dependency vulnerability scan via pip-audit. Two triggers:
+#   1. Every PR: catches a contributor pulling in a dep with a known CVE
+#      before merge.
+#   2. Weekly schedule: catches CVEs disclosed *after* a PR was merged
+#      (the most common failure mode — a clean merge ages into a broken one
+#      when a new advisory drops).
+#
+# Security note: this workflow shells no untrusted event payloads. There is
+# no `${{ github.event.* }}` interpolation anywhere; the script-injection
+# class (CWE-94 in GitHub Actions) does not apply to this file.
+name: Audit
+
+on:
+  pull_request:
+  schedule:
+    # Monday 09:00 IST (= 03:30 UTC) — runs on the default branch.
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    # Informational: a CVE in a transitive dep (e.g. aiohttp via
+    # livekit-agents) shouldn't hard-block PRs we have no power to remediate.
+    # The job reports findings in the workflow output; the operator triages
+    # them and either bumps a direct pin or files an upstream issue.
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Install pip-audit into the project venv
+        # `uv run pip-audit` requires pip-audit to be installed in the active
+        # venv (not a separate `uv tool` env), because pip-audit introspects
+        # the Python prefix it's invoked from — that's the env we want
+        # audited.
+        run: uv pip install pip-audit
+
+      - name: Run pip-audit (informational)
+        # `--skip-editable` skips the `openrtc` package itself (it's installed
+        # editable by `uv sync` and isn't on PyPI for the dev version).
+        # The step always exits 0 so an unfixable transitive CVE does not
+        # turn the audit job red on every PR; instead, vulnerabilities surface
+        # as a yellow `::warning::` annotation in the run summary that the
+        # operator can triage on their own cadence (file upstream issues, pin
+        # a direct mitigation when warranted, etc.).
+        run: |
+          set +e
+          uv run pip-audit --skip-editable
+          status=$?
+          if [ $status -eq 0 ]; then
+            echo "::notice::pip-audit clean"
+          else
+            echo "::warning::pip-audit found vulnerabilities (see step output above)"
+          fi
+          exit 0
