@@ -142,6 +142,23 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 22:15 UTC — test(config): close core/config.py coverage gap (97% -> 100%)
+Files: tests/test_config.py (new, 6 tests, ~62 LOC).
+Tests: 285/285 pass + 2 skipped. Coverage: config.py 100%
+(was 97%); total 93.23% (was 93.12%). ruff: clean. mypy: clean.
+Notes: Tests exercise `_normalize_optional_name` through the
+public `@agent_config` decorator: non-string `name` raises
+RuntimeError "must be a string, got int"; non-string `greeting`
+raises "must be a string, got list"; blank/whitespace `name`
+and `greeting` raise "cannot be empty"; whitespace-around
+values are stripped; None passes through. The decorator is
+the only call site for `_normalize_optional_name`, so the
+direct decorator surface gives 100% coverage of both the
+helper and the validation surface. Pre-v0.1 module but locks
+the user-facing input validation in pure unit tests so a
+later refactor can't silently relax the contract (e.g.
+silently lowercasing or accepting None for name).
+
 ## 2026-05-03 22:00 UTC — test(turn-handling): close core/turn_handling.py coverage gap (88% -> 100%)
 Files: tests/test_turn_handling.py (new, 16 tests, ~140 LOC).
 Tests: 279/279 pass + 2 skipped. Coverage: turn_handling.py

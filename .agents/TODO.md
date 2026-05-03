@@ -298,6 +298,15 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `core/config.py` coverage gap (97% -> 100%):
+  6 tests in tests/test_config.py exercising
+  `_normalize_optional_name` validation through the public
+  `@agent_config` decorator (non-string name + greeting raise
+  RuntimeError "must be a string"; whitespace-only name +
+  greeting raise "cannot be empty"; whitespace stripping;
+  None passes through). Locks the user-facing input
+  validation in pure unit tests so a future refactor can't
+  silently relax the contract.
 - [x] Close `core/turn_handling.py` coverage gap (88% -> 100%):
   16 focused unit tests in tests/test_turn_handling.py for the
   per-key deprecated-kwarg translations
