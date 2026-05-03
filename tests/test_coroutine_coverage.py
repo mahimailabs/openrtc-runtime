@@ -247,6 +247,146 @@ def test_build_job_context_real_room_branch_runs_when_fake_job_is_false() -> Non
     assert isinstance(ctx._room, rtc.Room)
 
 
+def test_kill_does_not_flip_status_when_executor_is_not_running() -> None:
+    """Branch 231->233: kill() preserves a non-RUNNING terminal status."""
+    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+
+    executor = CoroutineJobExecutor()
+
+    async def _scenario() -> None:
+        loop = asyncio.get_running_loop()
+
+        async def _runs_forever() -> None:
+            await asyncio.sleep(60)
+
+        executor._task = loop.create_task(_runs_forever())
+        executor._status = JobStatus.FAILED  # set externally before kill
+        executor.kill()
+        await asyncio.sleep(0)
+
+    asyncio.run(_scenario())
+
+    assert executor.status is JobStatus.FAILED
+
+
+def test_run_entrypoint_success_does_not_flip_status_when_already_set() -> None:
+    """Branch 279->293: SUCCESS path skips the status flip when status was changed externally."""
+    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+
+    completed: list[bool] = []
+
+    async def _entrypoint(_ctx: Any) -> None:
+        completed.append(True)
+
+    executor = CoroutineJobExecutor(entrypoint_fnc=_entrypoint)
+
+    async def _scenario() -> None:
+        executor._status = JobStatus.SUCCESS  # external set before completion
+        await executor._run_entrypoint(SimpleNamespace())  # type: ignore[arg-type]
+
+    asyncio.run(_scenario())
+
+    assert completed == [True]
+    assert executor.status is JobStatus.SUCCESS  # unchanged
+
+
+def test_run_entrypoint_exception_does_not_flip_status_when_already_set() -> None:
+    """Branch 286->288: exception path skips the status flip when status was changed externally."""
+    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+
+    async def _entrypoint(_ctx: Any) -> None:
+        raise RuntimeError("expected")
+
+    executor = CoroutineJobExecutor(entrypoint_fnc=_entrypoint)
+
+    async def _scenario() -> None:
+        executor._status = JobStatus.SUCCESS  # external set before raise
+        await executor._run_entrypoint(SimpleNamespace())  # type: ignore[arg-type]
+
+    asyncio.run(_scenario())
+
+    assert executor.status is JobStatus.SUCCESS  # unchanged (defensive override)
+
+
+def test_pool_aclose_timeout_skips_executors_without_kill_method() -> None:
+    """Branch 528->526: aclose escalation tolerates executors that lack `kill`."""
+    pool = CoroutinePool(**_kwargs())
+    pool._close_timeout = 0.05  # force timeout fast
+
+    class _NoKillExecutor:
+        async def aclose(self) -> None:
+            await asyncio.sleep(60)  # never returns within close_timeout
+
+    no_kill = _NoKillExecutor()
+    pool._executors.append(no_kill)  # type: ignore[arg-type]
+
+    async def _scenario() -> None:
+        await pool.start()
+        await pool.aclose()
+
+    asyncio.run(_scenario())
+    # Branch covered: the `if callable(kill_method):` guard skipped no_kill.
+
+
+def test_pool_launch_job_skips_done_callback_when_executor_has_no_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Branch 571->578: launch_job emits process_job_launched even when the executor sets no _task."""
+    pool = CoroutinePool(**_kwargs())
+    pool._build_job_context = lambda info: SimpleNamespace(  # type: ignore[assignment]
+        proc=pool.shared_process, job=info.job, room=None
+    )
+
+    launched: list[Any] = []
+    pool.on("process_job_launched", lambda ex: launched.append(ex))
+
+    async def _scenario() -> None:
+        await pool.start()
+
+        original_build = pool._build_executor
+
+        def _build_no_task() -> Any:
+            ex = original_build()
+
+            async def _no_task(_info: Any) -> None:
+                ex._task = None  # explicitly leave task None
+
+            ex.launch_job = _no_task  # type: ignore[method-assign]
+            return ex
+
+        pool._build_executor = _build_no_task  # type: ignore[assignment]
+
+        info = SimpleNamespace(job=SimpleNamespace(id="no-task"), fake_job=True)
+        await pool.launch_job(info)
+        await pool.aclose()
+
+    asyncio.run(_scenario())
+    assert len(launched) == 1
+
+
+def test_pool_consecutive_failure_limit_with_no_callback_does_not_raise() -> None:
+    """Branch 679->exit: the failure-limit branch tolerates a None callback."""
+    from openrtc.execution.coroutine import JobStatus
+
+    kwargs = _kwargs()
+    pool = CoroutinePool(
+        **kwargs,
+        consecutive_failure_limit=2,
+        on_consecutive_failure_limit=None,
+    )
+
+    failed_executor_a = SimpleNamespace(running_job=None, status=JobStatus.FAILED)
+    failed_executor_b = SimpleNamespace(running_job=None, status=JobStatus.FAILED)
+    pool._executors.append(failed_executor_a)  # type: ignore[arg-type]
+    pool._executors.append(failed_executor_b)  # type: ignore[arg-type]
+
+    pool._on_executor_done(failed_executor_a)  # type: ignore[arg-type]
+    pool._on_executor_done(failed_executor_b)  # type: ignore[arg-type]
+
+    assert pool.consecutive_failures == 2
+    assert pool._failure_limit_fired is True
+
+
 def test_launch_job_re_raises_when_executor_launch_job_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

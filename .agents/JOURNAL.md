@@ -142,6 +142,36 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 02:00 UTC — test(branches): close batch 3 — all 6 execution/coroutine.py branches (99.57% -> 99.83%)
+Files: tests/test_coroutine_coverage.py (+6 tests, ~135 LOC).
+Tests: 370/370 pass + 2 skipped. Combined coverage: 99.83%
+(was 99.57%); 4 branches remaining (was 10). ruff: clean.
+mypy: clean.
+Notes: Closed branches:
+(231->233) `kill()` skips the status flip when the executor
+is already in a terminal non-RUNNING state — kill should
+preserve whatever terminal status the executor reached.
+(279->293) `_run_entrypoint` SUCCESS path skips the implicit
+RUNNING -> SUCCESS flip when status was set externally before
+the entrypoint completed (defensive — coroutine mode lets a
+caller manipulate status directly during dev/testing).
+(286->288) `_run_entrypoint` exception path skips the implicit
+RUNNING -> FAILED flip under the same external-set scenario.
+(528->526) Pool aclose-timeout escalation tolerates executors
+that don't expose a `kill` method (the production
+CoroutineJobExecutor does, but a stub may not — covered with
+a no-kill stub appended directly to `_executors`).
+(571->578) Pool launch_job still emits `process_job_launched`
+even if the inner executor leaves `_task` as None (defensive —
+production executors always set _task, but a stub may not).
+(679->exit) The consecutive_failure_limit branch in
+`_observe_executor_status` tolerates a None callback —
+matches the documented contract that
+`on_consecutive_failure_limit` is optional.
+Remaining branches: cli/__init__.py 32->36 needs importlib.reload
++ monkeypatch trickery; tui/app.py x3 need a Textual app
+fixture. Both deferred to follow-up iterations.
+
 ## 2026-05-04 01:45 UTC — test(branches): close batch 2 of 4 branch gaps (99.40% -> 99.57%)
 Files: tests/test_metrics_stream.py (+2 tests:
 test_runtime_reporter_periodic_tick_runs_when_live_is_none,

@@ -261,11 +261,18 @@ Tasks:
   (close on never-opened sink); observability/metrics.py
   364->361 (VmRSS line with no value); core/discovery.py
   24->27 (existing module file differs from resolved path).
-  (99.40% -> 99.57%) Remaining 10 branches: cli/__init__.py
-  32->36 (needs importlib.reload + monkeypatch); execution/
-  coroutine.py 231->233, 279->293, 286->288, 528->526,
-  571->578, 679->exit (race-edge defenses); tui/app.py
-  125->117, 127->117, 149->154 (Textual stream-parsing).
+  (99.40% -> 99.57%)
+  **Batch 3 closed (6 branches):** execution/coroutine.py
+  231->233 (kill on non-RUNNING preserves status);
+  279->293 (success path skips status flip when externally
+  set); 286->288 (exception path skips same flip); 528->526
+  (aclose timeout skips executors without kill method);
+  571->578 (launch_job emits process_job_launched even when
+  executor sets no _task); 679->exit (failure-limit branch
+  tolerates None callback). (99.57% -> 99.83%)
+  Remaining 4 branches: cli/__init__.py 32->36
+  (needs importlib.reload + monkeypatch); tui/app.py 125->117,
+  127->117, 149->154 (Textual stream-parsing).
 
 ## Old discovered work
 
