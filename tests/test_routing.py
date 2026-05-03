@@ -161,6 +161,63 @@ def test_resolve_agent_raises_for_unknown_metadata_agent(pool: AgentPool) -> Non
         _resolve_agent_config(pool._agents, ctx)
 
 
+def test_resolve_agent_raises_when_no_agents_registered() -> None:
+    ctx = FakeJobContext()
+
+    with pytest.raises(RuntimeError, match="No agents are registered"):
+        _resolve_agent_config({}, ctx)
+
+
+def test_resolve_agent_uses_room_metadata_when_job_metadata_absent(
+    pool: AgentPool,
+) -> None:
+    ctx = FakeJobContext(room_metadata={"agent": "dental"})
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_parses_json_string_metadata(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata='{"agent": "dental"}')
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_ignores_non_json_string_metadata(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata="not-json", room_name="dental-room")
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_ignores_blank_string_metadata(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata="   ")
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "restaurant"
+
+
+def test_resolve_agent_ignores_json_scalar_metadata(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata="42")
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "restaurant"
+
+
+def test_resolve_agent_ignores_empty_metadata_value(pool: AgentPool) -> None:
+    ctx = FakeJobContext(job_metadata={"agent": "   "})
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "restaurant"
+
+
 def test_remove_changes_default_fallback_order(pool: AgentPool) -> None:
     pool.remove("restaurant")
     ctx = FakeJobContext(room_name="general-room")

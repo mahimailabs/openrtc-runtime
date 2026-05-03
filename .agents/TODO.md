@@ -298,3 +298,11 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `core/routing.py` coverage gap (76% -> 100%):
+  empty-agents guard (line 25), room-metadata branch (line 33),
+  string-JSON metadata parse path (lines 56-67), blank/scalar/
+  empty-value mapping returns None (lines 60, 63, 77). All
+  pre-v0.1 code paths but reachable via real LiveKit metadata
+  (which arrives as JSON strings). Strengthens the §8.2
+  spirit ("≥80% coverage of new code") by also raising the
+  pre-existing routing surface to 100% before tagging.

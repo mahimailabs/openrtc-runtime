@@ -142,6 +142,34 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 21:45 UTC — test(routing): close core/routing.py coverage gap (76% -> 100%)
+Files: tests/test_routing.py (+7 tests, ~50 LOC):
+       - test_resolve_agent_raises_when_no_agents_registered
+         (line 25 RuntimeError guard)
+       - test_resolve_agent_uses_room_metadata_when_job_metadata_absent
+         (line 33 room-metadata branch)
+       - test_resolve_agent_parses_json_string_metadata
+         (lines 60-66 JSON-string -> mapping path)
+       - test_resolve_agent_ignores_non_json_string_metadata
+         (line 63 JSONDecodeError swallow)
+       - test_resolve_agent_ignores_blank_string_metadata
+         (line 58 empty stripped string returns None)
+       - test_resolve_agent_ignores_json_scalar_metadata
+         (line 66 decoded non-Mapping returns None)
+       - test_resolve_agent_ignores_empty_metadata_value
+         (line 77 _agent_name_from_mapping empty-value branch)
+Tests: 263/263 pass + 2 skipped. Coverage: routing.py 100%
+(was 76%); total 92.58% (was 91.82%). ruff: clean. mypy: clean.
+Notes: Pre-v0.1 code paths but reachable in production via real
+LiveKit metadata, which arrives as a JSON string (not a dict).
+The string-JSON branch was the highest-risk uncovered path
+because it's the canonical metadata transport — silently failing
+to parse it would route every session to the default fallback
+agent. Discovered while auditing remaining coverage holes after
+the §8.12 release blocker; not v0.1-blocking but strengthens
+the §8.2 spirit ("≥80% coverage of new code") by lifting the
+pre-existing routing surface to 100% before tagging.
+
 ## 2026-05-03 21:30 UTC — feat(execution): implement CoroutineJobExecutor.start (last NotImplementedError)
 Files: src/openrtc/execution/coroutine.py:
        - Module docstring: dropped the now-stale "Lifecycle
