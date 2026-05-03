@@ -24,7 +24,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from openrtc.observability.metrics import PoolRuntimeSnapshot
+from openrtc.observability.snapshot import PoolRuntimeSnapshot
 
 METRICS_STREAM_SCHEMA_VERSION = 1
 KIND_SNAPSHOT = "snapshot"

@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 09:20 UTC — refactor: extract observability/snapshot.py from metrics.py
+Files: src/openrtc/observability/snapshot.py (new, 80 LOC:
+       ProcessResidentSetInfo, SavingsEstimate, PoolRuntimeSnapshot
+       and its to_dict),
+       src/openrtc/observability/metrics.py (~75 LOC removed; added
+       a re-import of the snapshot trio to keep
+       openrtc.observability.metrics.PoolRuntimeSnapshot resolvable
+       for any external user that already imports it from there),
+       4 src import sites updated to the canonical
+       openrtc.observability.snapshot path (cli_dashboard.py,
+       core/pool.py, observability/stream.py — the latter previously
+       imported from metrics, now from snapshot directly),
+       5 tests rewired (conftest.py, test_cli.py,
+       test_metrics_stream.py, test_resources.py, test_tui_app.py).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: Subtask 3 of 3 from the observability split. The split was
+not strictly required by tests (metrics.py still re-exports the
+snapshot types) but updating internal users to the canonical path
+matches the Phase 0 refactor rule "Update all imports in one pass
+per moved file." Public API unchanged.
+
 ## 2026-05-03 09:05 UTC — refactor: rename metrics_stream.py to observability/stream.py
 Files: git mv src/openrtc/metrics_stream.py ->
        src/openrtc/observability/stream.py,

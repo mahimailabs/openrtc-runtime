@@ -81,7 +81,7 @@ Tasks:
   `observability/metrics.py`. Update all import sites.
 - [x] Rename `metrics_stream.py` → `observability/stream.py`.
   Update all import sites.
-- [ ] Extract `PoolRuntimeSnapshot` (and the
+- [x] Extract `PoolRuntimeSnapshot` (and the
   `ProcessResidentSetInfo` / `SavingsEstimate` payload dataclasses
   it embeds) from `observability/metrics.py` to
   `observability/snapshot.py`. `metrics.py` imports the snapshot

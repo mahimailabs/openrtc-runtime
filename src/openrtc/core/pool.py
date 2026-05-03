@@ -23,9 +23,9 @@ from openrtc.core.routing import _resolve_agent_config
 from openrtc.core.turn_handling import _build_session_kwargs
 from openrtc.observability.metrics import (
     MetricsStreamEvent,
-    PoolRuntimeSnapshot,
     RuntimeMetricsStore,
 )
+from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.types import ProviderValue
 
 __all__ = [

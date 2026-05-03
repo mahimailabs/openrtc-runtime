@@ -9,13 +9,13 @@ from livekit.agents import Agent
 import openrtc.observability.metrics as resources_module
 from openrtc.core.pool import AgentPool
 from openrtc.observability.metrics import (
-    ProcessResidentSetInfo,
     agent_disk_footprints,
     file_size_bytes,
     format_byte_size,
     get_process_resident_set_info,
     process_resident_set_bytes,
 )
+from openrtc.observability.snapshot import ProcessResidentSetInfo
 
 
 class TinyAgent(Agent):

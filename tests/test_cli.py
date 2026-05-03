@@ -16,8 +16,8 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from openrtc.cli import app, main
-from openrtc.observability.metrics import (
-    MetricsStreamEvent,
+from openrtc.observability.metrics import MetricsStreamEvent
+from openrtc.observability.snapshot import (
     PoolRuntimeSnapshot,
     ProcessResidentSetInfo,
     SavingsEstimate,

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from openrtc.observability.metrics import PoolRuntimeSnapshot
+from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.observability.stream import snapshot_envelope
 
 pytest.importorskip("textual")
