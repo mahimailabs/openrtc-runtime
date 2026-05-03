@@ -200,8 +200,7 @@ class CoroutineJobExecutor:
                 await task
             except asyncio.CancelledError:
                 pass
-            except Exception:
-                # The launch_job wrapper will already have set status to FAILED.
+            except Exception:  # noqa: BLE001 — wrapper has already set FAILED + logged
                 pass
             if self._status is JobStatus.RUNNING:
                 self._status = JobStatus.FAILED

@@ -142,6 +142,34 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 04:00 UTC — chore(lint): enable ruff `BLE`+`A` rulesets
+Files: pyproject.toml (`select` += `BLE`, `A`);
+src/openrtc/execution/coroutine.py (added the same noqa
+comment to aclose's `except Exception:` that join already
+had); tests/test_pool.py (added noqa to the
+`globals` / `locals` parameter names in
+`_import_without_silero` since they intentionally match
+__import__'s signature).
+Tests: 374/374 pass + 2 skipped. Coverage: 100.00%. ruff:
+clean. mypy --strict: clean.
+Notes: Considered ASYNC, TRY, ERA in the same batch but
+backed off:
+- ASYNC110 fires 12 times in test polling loops where
+  `while not condition: await asyncio.sleep(...)` is the
+  intent (observing pool state from outside without making
+  the pool expose Events). The rule's suggestion is wrong
+  for that pattern.
+- TRY003 fires 77 times on inline error messages. Refactoring
+  to custom exception classes is a major design choice
+  that's out of v0.1 scope.
+- TRY400 fires 6 times suggesting `logging.exception` over
+  `logging.error` — but those callers want clean operator
+  messages without stack traces, so the rule is wrong here.
+BLE and A both surfaced 3 real-but-intentional cases that
+fit cleanly under inline noqa comments. The noqas document
+intent at the call site so future contributors know the
+rule was deliberately overridden.
+
 ## 2026-05-04 03:45 UTC — chore(lint): enable ruff `RET`+`PERF`+`PIE`+`ICN`+`TID` rulesets
 Files: pyproject.toml (`select` += 5 codes);
 src/openrtc/execution/coroutine.py (drop `return None` from

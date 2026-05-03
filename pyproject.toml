@@ -81,6 +81,8 @@ select = [
     "PIE",
     "ICN",
     "TID",
+    "BLE",
+    "A",
 ]
 ignore = [
     "E501",

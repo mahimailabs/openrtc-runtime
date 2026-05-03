@@ -869,8 +869,8 @@ def test_load_shared_runtime_dependencies_raises_when_plugin_missing(
 
     def _import_without_silero(
         name: str,
-        globals: object = None,
-        locals: object = None,
+        globals: object = None,  # noqa: A002 — must match __import__ signature
+        locals: object = None,  # noqa: A002 — must match __import__ signature
         fromlist: object = (),
         level: int = 0,
     ) -> object:

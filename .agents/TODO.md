@@ -250,7 +250,18 @@ Tasks:
 
 ## Discovered work
 
-- [x] Enable ruff's `RET`, `PERF`, `PIE`, `ICN`, `TID` rulesets in
+- [x] Enable ruff's `BLE` (blind-except) and `A` (builtin shadow)
+  rulesets. 3 issues, all already-intentional, fixed with
+  inline noqa + explanation:
+  - `execution/coroutine.py:203` — `aclose`'s defensive
+    `except Exception:` swallow now mirrors `join`'s
+    `# noqa: BLE001 — wrapper has already set FAILED + logged`
+    annotation that was already there.
+  - `tests/test_pool.py:872, 873` — `globals` / `locals`
+    parameter names in the `_import_without_silero` stub
+    must match `__import__`'s real signature so the stub
+    forwards positionally; added `# noqa: A002 — must match
+    __import__ signature` on each line.
   one batch (only 1 violation surfaced across all five). Removed
   the redundant `return None` at the end of
   `CoroutineJobExecutor.initialize` (RET501) — function returns
