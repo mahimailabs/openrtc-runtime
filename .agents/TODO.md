@@ -107,7 +107,7 @@ Goal: prove the density win. Stop and reassess if we can't hit 50
 sessions in 4 GB.
 
 Tasks:
-- [ ] Pin `livekit-agents~=1.5` exactly in `pyproject.toml`.
+- [x] Pin `livekit-agents~=1.5` exactly in `pyproject.toml`.
 - [ ] Read `livekit/agents/ipc/job_executor.py` at the pinned
   version. Document the `JobExecutor` Protocol surface in
   `docs/design/job-executor-protocol.md`.

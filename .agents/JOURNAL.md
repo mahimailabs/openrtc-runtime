@@ -142,6 +142,20 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 10:55 UTC — chore: pin livekit-agents~=1.5 (Phase 1 task 1)
+Files: pyproject.toml (~=1.4 -> ~=1.5 on the
+       livekit-agents[openai,silero,turn-detector] dependency),
+       uv.lock (refreshed via `uv lock`; livekit-agents stays
+       resolved at 1.5.0, the version we already had installed).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: Per docs/design/v0.1.md §9.1 we are about to subclass and
+patch internal-ish parts of livekit-agents (_proc_pool field and
+the JobExecutor Protocol), so the floor needs to match the version
+we are actually building against. ~=1.5 still allows the 1.5.x
+patch line and any future 1.6+ minors up to <2.0; the design also
+calls for a CI canary job (separate task) that runs against the
+latest livekit-agents release.
+
 ## 2026-05-03 10:42 UTC — verify: full test suite + coverage gate (Phase 0 complete)
 Files: none changed (verification-only iteration).
 Tests: `uv run pytest --cov=openrtc --cov-report=term-missing

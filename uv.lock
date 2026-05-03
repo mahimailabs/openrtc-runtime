@@ -1376,7 +1376,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "livekit-agents", extras = ["openai", "silero", "turn-detector"], specifier = "~=1.4" },
+    { name = "livekit-agents", extras = ["openai", "silero", "turn-detector"], specifier = "~=1.5" },
     { name = "rich", marker = "extra == 'cli'", specifier = ">=13" },
     { name = "rich", marker = "extra == 'tui'", specifier = ">=13" },
     { name = "textual", marker = "extra == 'tui'", specifier = ">=0.47,<2" },
