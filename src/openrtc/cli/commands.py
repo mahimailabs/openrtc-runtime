@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
@@ -172,7 +173,7 @@ _STANDARD_LIVEKIT_WORKER_SPECS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _make_standard_livekit_worker_handler(subcommand: str):
+def _make_standard_livekit_worker_handler(subcommand: str) -> Callable[..., None]:
     """Build a Typer command that shares one option signature for start/dev/console."""
 
     def handler(

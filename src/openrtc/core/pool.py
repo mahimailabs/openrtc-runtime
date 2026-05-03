@@ -70,7 +70,7 @@ async def _run_universal_session(
         raise RuntimeError("No agents are registered in the pool.")
     config = _resolve_agent_config(runtime_state.agents, ctx)
     session_kwargs = _build_session_kwargs(config.session_kwargs, ctx.proc)
-    session: AgentSession = AgentSession(
+    session: AgentSession[None] = AgentSession(
         stt=config.stt,
         llm=config.llm,
         tts=config.tts,

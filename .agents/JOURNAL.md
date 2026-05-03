@@ -142,6 +142,33 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 03:00 UTC — chore(typecheck): enable mypy `strict = true`
+Files: pyproject.toml ([tool.mypy]: drop the individual
+warn_return_any/warn_unused_configs flags, replace with
+`strict = true`; ignore_missing_imports stays for the
+livekit/textual/etc. third-party surface),
+src/openrtc/core/pool.py:73 (`AgentSession` ->
+`AgentSession[None]` to satisfy `Generic[Userdata_T]`),
+src/openrtc/cli/commands.py (+1 import
+`from collections.abc import Callable`; line 175 declares
+`-> Callable[..., None]` on
+`_make_standard_livekit_worker_handler`).
+Tests: 374/374 pass + 2 skipped. Coverage: 100.00%. ruff:
+clean (auto-reordered the new import in commands.py).
+mypy --strict: clean across all 26 source files.
+Notes: Strict mode bundles disallow_untyped_defs,
+disallow_incomplete_defs, check_untyped_defs,
+no_implicit_optional, warn_redundant_casts,
+warn_unused_ignores, strict_equality,
+disallow_any_generics, disallow_subclassing_any,
+disallow_untyped_calls, disallow_untyped_decorators,
+warn_return_any, warn_unused_configs. Only two source
+issues surfaced — both small and contained. From here, any
+new untyped def or implicit Any in source is a hard CI
+failure, matching the same ratcheting story we ran on
+test coverage. Tests remain unchecked by mypy
+(out of scope for src/-only typecheck).
+
 ## 2026-05-04 02:45 UTC — chore(ci): ratchet coverage gate from 95% to 99%
 Files: Makefile (`--cov-fail-under=95` -> `=99`),
 .github/workflows/test.yml (same flag in the matrix job),

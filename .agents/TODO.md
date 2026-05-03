@@ -250,6 +250,16 @@ Tasks:
 
 ## Discovered work
 
+- [x] Enable mypy `strict = true` for the source tree. Fixed
+  the only two issues that surfaced:
+  `src/openrtc/core/pool.py:73` (`AgentSession` -> `AgentSession[None]`
+  to satisfy the generic Userdata_T parameter) and
+  `src/openrtc/cli/commands.py:175`
+  (`_make_standard_livekit_worker_handler` now declares
+  `-> Callable[..., None]`). Strict mode bundles ~10 additional
+  checks (disallow_untyped_defs, no_implicit_optional,
+  strict_equality, disallow_any_generics, etc.) so future
+  contributions can't silently regress type safety.
 - [x] Ratchet the v0.1 coverage gate from 95% to 99% (was bumped
   from 80% to 95% earlier in this loop; now that line + branch
   is at 100.00% the floor moves up again). 1pp cushion is
