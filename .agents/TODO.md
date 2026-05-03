@@ -250,6 +250,15 @@ Tasks:
 
 ## Discovered work
 
+- [x] Add `.github/PULL_REQUEST_TEMPLATE.md`. GitHub auto-populates
+  the PR description with this template; the checklist nudges
+  contributors to confirm `make ci` passes, that tests are
+  updated, that docs/changelog reflect public-surface changes,
+  and to pick a "type of change" classifier so the reviewer
+  knows what shape of review to apply (bug fix / breaking /
+  refactor / docs / CI). Short on purpose - not a checklist
+  bureaucracy, just the four things that catch the most common
+  PR-rejection reasons.
 - [x] Refresh CONTRIBUTING.md to reflect the v0.1 dev-workflow
   improvements landed across this loop. New sections:
   - Mention that `mypy` runs in `strict = true` mode (so

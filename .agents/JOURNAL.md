@@ -142,6 +142,26 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 05:30 UTC — docs(github): add PR template
+Files: .github/PULL_REQUEST_TEMPLATE.md (new, ~28 LOC).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Notes: GitHub auto-populates new PR descriptions with this
+template. The checklist is intentionally short:
+- "type of change" classifier so the reviewer knows what
+  shape of review to apply (a CI tooling PR gets a different
+  review than a breaking-change PR);
+- four verification checkboxes hitting the most common
+  PR-rejection reasons (no `make ci`, no tests, no docs
+  update, no changelog entry);
+- a "notes for the reviewer" section so contributors can
+  flag tradeoffs / deferred follow-ups without it feeling
+  like a separate document.
+Avoided "checklist bureaucracy" (no force-push policy
+sections, no labeling rules, no contributor-license
+agreements) since this is a small project and that overhead
+discourages drive-by contributions.
+
 ## 2026-05-04 05:15 UTC — docs(contributing): refresh for v0.1 dev workflow
 Files: CONTRIBUTING.md (~25 LOC added inside the "Common
 development commands" section).
