@@ -1,11 +1,9 @@
-"""Coroutine-mode worker executor and pool (skeleton).
+"""Coroutine-mode worker executor and pool.
 
 Implements the structural surface that ``livekit.agents.AgentServer`` and
 ``livekit.agents.ipc.proc_pool.ProcPool`` expose, so a future
-``isolation="coroutine"`` AgentPool can swap our types in. Every real
-behavior (job dispatch, drain, prewarm) is left as ``NotImplementedError``;
-this iteration only locks down the Protocol shape so subsequent iterations
-can fill methods one at a time without churning the surface.
+``isolation="coroutine"`` AgentPool can swap our types in. Lifecycle methods
+land one iteration at a time; remaining stubs raise ``NotImplementedError``.
 
 Contracts derived from:
 
@@ -17,6 +15,7 @@ Contracts derived from:
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from multiprocessing.context import BaseContext
@@ -29,6 +28,8 @@ from livekit.agents.job import RunningJobInfo
 
 if TYPE_CHECKING:
     from livekit.agents.ipc.job_executor import JobExecutor
+
+logger = logging.getLogger("openrtc.execution.coroutine")
 
 EventTypes = Literal[
     "process_created",
@@ -44,18 +45,42 @@ _SKELETON_HINT = "v0.1 coroutine runtime is not implemented yet (skeleton)."
 class CoroutineJobExecutor:
     """Per-session executor satisfying the ``JobExecutor`` Protocol.
 
-    All real behavior is deferred. This object is structurally compatible
-    with ``livekit.agents.ipc.job_executor.JobExecutor`` so a downstream
-    ``CoroutinePool`` can hand it back to ``AgentServer`` without type errors.
+    Construction takes its dependencies as keyword args so the executor can
+    run in isolation (tests) without being wired through a CoroutinePool.
+
+    Args:
+        entrypoint_fnc: The user-defined ``Callable[[JobContext],
+            Awaitable[None]]`` that runs the actual session. Required to
+            call :meth:`launch_job`.
+        session_end_fnc: Optional callback awaited after the entrypoint
+            returns or raises (mirrors ``ProcPool``'s ``session_end_fnc``).
+        context_factory: Builder that turns the ``RunningJobInfo`` payload
+            into a JobContext referencing the shared JobProcess. Required to
+            call :meth:`launch_job`. Owning this as a callable lets the
+            CoroutinePool inject a real factory while tests substitute a
+            stub.
+        loop: Event loop the entrypoint task is scheduled on. Defaults to
+            ``asyncio.get_event_loop()`` at launch time.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        entrypoint_fnc: Callable[[JobContext], Awaitable[None]] | None = None,
+        session_end_fnc: Callable[[JobContext], Awaitable[None]] | None = None,
+        context_factory: Callable[[RunningJobInfo], JobContext] | None = None,
+        loop: asyncio.AbstractEventLoop | None = None,
+    ) -> None:
         self._id = uuid.uuid4().hex
         self._user_arguments: Any | None = None
         self._running_job: RunningJobInfo | None = None
         self._status: JobStatus = JobStatus.RUNNING
         self._started = False
         self._task: asyncio.Task[None] | None = None
+        self._entrypoint_fnc = entrypoint_fnc
+        self._session_end_fnc = session_end_fnc
+        self._context_factory = context_factory
+        self._loop = loop
 
     @property
     def id(self) -> str:
@@ -121,7 +146,71 @@ class CoroutineJobExecutor:
         self._started = False
 
     async def launch_job(self, info: RunningJobInfo) -> None:
-        raise NotImplementedError(_SKELETON_HINT)
+        """Schedule the user entrypoint as an ``asyncio.Task`` and return.
+
+        Constructs a ``JobContext`` via ``context_factory`` (referencing the
+        shared ``JobProcess`` the factory closes over), schedules the
+        entrypoint coroutine on this executor's loop, and stores the task on
+        ``self._task`` so :meth:`aclose` can cancel it.
+
+        The entrypoint runs inside :meth:`_run_entrypoint`, which:
+        - flips ``status`` to :class:`JobStatus.SUCCESS` on clean completion,
+        - flips ``status`` to :class:`JobStatus.FAILED` on any exception or
+          cancellation, and **suppresses** the exception so a sibling job in
+          the same worker is unaffected,
+        - awaits ``session_end_fnc(ctx)`` in a ``finally`` block (success or
+          failure), suppressing any exception from that callback.
+
+        Returns once the task is **scheduled**, not after it completes, so
+        the pool can issue the next ``launch_job`` immediately.
+        """
+        if self._entrypoint_fnc is None:
+            raise RuntimeError(
+                "CoroutineJobExecutor requires entrypoint_fnc to launch a job."
+            )
+        if self._context_factory is None:
+            raise RuntimeError(
+                "CoroutineJobExecutor requires context_factory to launch a job."
+            )
+        if self._task is not None and not self._task.done():
+            raise RuntimeError(
+                "CoroutineJobExecutor already has an in-flight job; "
+                "construct a new executor for each session."
+            )
+
+        self._running_job = info
+        self._status = JobStatus.RUNNING
+
+        ctx = self._context_factory(info)
+        loop = self._loop or asyncio.get_event_loop()
+        self._task = loop.create_task(self._run_entrypoint(ctx))
+
+    async def _run_entrypoint(self, ctx: JobContext) -> None:
+        assert self._entrypoint_fnc is not None  # checked in launch_job
+        try:
+            await self._entrypoint_fnc(ctx)
+            if self._status is JobStatus.RUNNING:
+                self._status = JobStatus.SUCCESS
+        except asyncio.CancelledError:
+            if self._status is JobStatus.RUNNING:
+                self._status = JobStatus.FAILED
+            raise
+        except Exception:
+            if self._status is JobStatus.RUNNING:
+                self._status = JobStatus.FAILED
+            logger.exception(
+                "entrypoint raised in CoroutineJobExecutor",
+                extra=self.logging_extra(),
+            )
+        finally:
+            if self._session_end_fnc is not None:
+                try:
+                    await self._session_end_fnc(ctx)
+                except Exception:
+                    logger.exception(
+                        "session_end_fnc raised in CoroutineJobExecutor",
+                        extra=self.logging_extra(),
+                    )
 
     def logging_extra(self) -> dict[str, Any]:
         return {"executor_id": self._id}

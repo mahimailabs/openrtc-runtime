@@ -125,10 +125,13 @@ Tasks:
   `JobExecutor` Protocol but raising `NotImplementedError` in all
   methods. Add basic unit tests verifying the Protocol shape.
 - [x] Implement `CoroutineJobExecutor.initialize()` and `aclose()`.
-- [ ] Implement `CoroutineJobExecutor.launch_job(info)`: construct
+- [x] Implement `CoroutineJobExecutor.launch_job(info)`: construct
   `JobContext` referencing the shared `JobProcess` singleton;
   schedule the entrypoint as `asyncio.Task`; wrap exceptions to
-  prevent escape.
+  prevent escape. (Note: actual `JobContext` construction is
+  delegated to a `context_factory` callable injected at executor
+  construction time. The CoroutinePool will own the real factory
+  once it's wired up; tests inject stubs.)
 - [ ] Implement `CoroutineJobExecutor.kill()` and status reporting.
 - [ ] Implement `CoroutinePool.start()`: invoke `setup_fnc` once,
   populate the singleton `JobProcess.userdata` with shared models.

@@ -85,10 +85,191 @@ def test_coroutine_job_executor_lifecycle_methods_are_unimplemented(
         asyncio.run(method())
 
 
-def test_coroutine_job_executor_launch_job_is_unimplemented() -> None:
-    ex = CoroutineJobExecutor()
-    with pytest.raises(NotImplementedError, match="skeleton"):
+def test_coroutine_job_executor_launch_job_requires_entrypoint() -> None:
+    ex = CoroutineJobExecutor(context_factory=lambda info: object())  # type: ignore[arg-type, return-value]
+    with pytest.raises(RuntimeError, match="entrypoint_fnc"):
         asyncio.run(ex.launch_job(info=None))  # type: ignore[arg-type]
+
+
+def test_coroutine_job_executor_launch_job_requires_context_factory() -> None:
+    async def _entry(_ctx: Any) -> None:
+        return None
+
+    ex = CoroutineJobExecutor(entrypoint_fnc=_entry)
+    with pytest.raises(RuntimeError, match="context_factory"):
+        asyncio.run(ex.launch_job(info=None))  # type: ignore[arg-type]
+
+
+def _stub_info(job_id: str = "job-1") -> Any:
+    """Minimal RunningJobInfo stand-in (only `.job.id` is touched downstream)."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(job=SimpleNamespace(id=job_id))
+
+
+def test_coroutine_job_executor_launch_job_marks_success_on_clean_completion() -> None:
+    seen: list[Any] = []
+
+    async def _entry(ctx: Any) -> None:
+        seen.append(ctx)
+
+    ex = CoroutineJobExecutor(
+        entrypoint_fnc=_entry,
+        context_factory=lambda info: f"ctx-for-{info.job.id}",  # type: ignore[return-value]
+    )
+
+    async def _scenario() -> None:
+        await ex.launch_job(_stub_info())
+        assert ex._task is not None
+        await ex._task
+
+    asyncio.run(_scenario())
+
+    assert seen == ["ctx-for-job-1"]
+    assert ex.status is JobStatus.SUCCESS
+    assert ex.running_job is not None
+    assert ex.running_job.job.id == "job-1"
+
+
+def test_coroutine_job_executor_launch_job_marks_failed_without_propagating() -> None:
+    async def _entry(_ctx: Any) -> None:
+        raise RuntimeError("boom inside entrypoint")
+
+    ex = CoroutineJobExecutor(
+        entrypoint_fnc=_entry,
+        context_factory=lambda info: "ctx",  # type: ignore[return-value]
+    )
+
+    async def _scenario() -> None:
+        await ex.launch_job(_stub_info())
+        assert ex._task is not None
+        # The task must not propagate the exception out of the wrapper.
+        await ex._task
+
+    asyncio.run(_scenario())
+
+    assert ex.status is JobStatus.FAILED
+
+
+def test_coroutine_job_executor_launch_job_calls_session_end_fnc_on_success() -> None:
+    end_calls: list[Any] = []
+
+    async def _entry(_ctx: Any) -> None:
+        return None
+
+    async def _end(ctx: Any) -> None:
+        end_calls.append(ctx)
+
+    ex = CoroutineJobExecutor(
+        entrypoint_fnc=_entry,
+        session_end_fnc=_end,
+        context_factory=lambda info: "ctx-success",  # type: ignore[return-value]
+    )
+
+    async def _scenario() -> None:
+        await ex.launch_job(_stub_info())
+        assert ex._task is not None
+        await ex._task
+
+    asyncio.run(_scenario())
+
+    assert end_calls == ["ctx-success"]
+    assert ex.status is JobStatus.SUCCESS
+
+
+def test_coroutine_job_executor_launch_job_calls_session_end_fnc_on_failure() -> None:
+    end_calls: list[Any] = []
+
+    async def _entry(_ctx: Any) -> None:
+        raise RuntimeError("boom")
+
+    async def _end(ctx: Any) -> None:
+        end_calls.append(ctx)
+
+    ex = CoroutineJobExecutor(
+        entrypoint_fnc=_entry,
+        session_end_fnc=_end,
+        context_factory=lambda info: "ctx-failure",  # type: ignore[return-value]
+    )
+
+    async def _scenario() -> None:
+        await ex.launch_job(_stub_info())
+        assert ex._task is not None
+        await ex._task
+
+    asyncio.run(_scenario())
+
+    assert end_calls == ["ctx-failure"]
+    assert ex.status is JobStatus.FAILED
+
+
+def test_coroutine_job_executor_session_end_fnc_exception_is_suppressed() -> None:
+    async def _entry(_ctx: Any) -> None:
+        return None
+
+    async def _end(_ctx: Any) -> None:
+        raise RuntimeError("session_end boom")
+
+    ex = CoroutineJobExecutor(
+        entrypoint_fnc=_entry,
+        session_end_fnc=_end,
+        context_factory=lambda info: "ctx",  # type: ignore[return-value]
+    )
+
+    async def _scenario() -> None:
+        await ex.launch_job(_stub_info())
+        assert ex._task is not None
+        await ex._task
+
+    asyncio.run(_scenario())
+
+    # Entrypoint succeeded; session_end_fnc exception must not flip status.
+    assert ex.status is JobStatus.SUCCESS
+
+
+def test_coroutine_job_executor_launch_job_rejects_concurrent_launch() -> None:
+    async def _entry(_ctx: Any) -> None:
+        await asyncio.sleep(60)
+
+    ex = CoroutineJobExecutor(
+        entrypoint_fnc=_entry,
+        context_factory=lambda info: "ctx",  # type: ignore[return-value]
+    )
+
+    async def _scenario() -> None:
+        await ex.launch_job(_stub_info("first"))
+        try:
+            with pytest.raises(RuntimeError, match="in-flight job"):
+                await ex.launch_job(_stub_info("second"))
+        finally:
+            await ex.aclose()
+
+    asyncio.run(_scenario())
+
+    assert ex.running_job is not None
+    assert ex.running_job.job.id == "first"
+
+
+def test_coroutine_job_executor_aclose_cancels_in_flight_launch_job() -> None:
+    async def _entry(_ctx: Any) -> None:
+        await asyncio.sleep(60)
+
+    ex = CoroutineJobExecutor(
+        entrypoint_fnc=_entry,
+        context_factory=lambda info: "ctx",  # type: ignore[return-value]
+    )
+
+    async def _scenario() -> None:
+        await ex.launch_job(_stub_info())
+        # Yield once so the entrypoint task starts.
+        await asyncio.sleep(0)
+        await ex.aclose()
+
+    asyncio.run(_scenario())
+
+    assert ex.status is JobStatus.FAILED
+    assert ex.started is False
+    assert ex._task is not None and ex._task.done()
 
 
 def test_coroutine_job_executor_initialize_is_noop_and_idempotent() -> None:

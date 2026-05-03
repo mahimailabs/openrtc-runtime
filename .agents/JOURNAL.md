@@ -142,6 +142,38 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 12:55 UTC — feat(execution): implement CoroutineJobExecutor.launch_job
+Files: src/openrtc/execution/coroutine.py (CoroutineJobExecutor
+       __init__ now takes 4 optional kwargs: entrypoint_fnc,
+       session_end_fnc, context_factory, loop. launch_job
+       validates entrypoint_fnc + context_factory + no in-flight
+       task, builds the JobContext via context_factory, schedules
+       the entrypoint via loop.create_task, returns immediately.
+       New private _run_entrypoint wrapper sets status to
+       SUCCESS/FAILED, suppresses Exception (sibling sessions
+       must keep running), re-raises CancelledError, and runs
+       session_end_fnc(ctx) in a finally block with its own
+       suppression).
+       tests/test_coroutine_skeleton.py (replaced the "launch_job
+       still raises" test with 9 new tests: missing entrypoint
+       raises, missing context_factory raises, success path marks
+       SUCCESS + populates running_job, exception path marks
+       FAILED without propagating, session_end_fnc invoked on
+       both success and failure, session_end_fnc exception is
+       suppressed and does not overwrite SUCCESS, concurrent
+       launch_job raises RuntimeError, aclose cancels an
+       in-flight launch_job task end-to-end via the public API).
+Tests: 164/164 pass (+8 net). ruff: clean. mypy: clean.
+Notes: The delegation to a `context_factory` callable instead of
+constructing JobContext inline is deliberate (see TODO note):
+JobContext requires a real rtc.Room and InferenceExecutor that
+the executor cannot synthesize on its own. The CoroutinePool will
+own the real factory in a follow-up iteration; tests inject
+stubs. _run_entrypoint logs unhandled exceptions through the
+new module logger so failures are visible without escaping. The
+"in-flight" check rejects concurrent launches on the same
+executor instance — pools allocate one executor per session.
+
 ## 2026-05-03 12:38 UTC — feat(execution): implement CoroutineJobExecutor.initialize + aclose
 Files: src/openrtc/execution/coroutine.py (added _task attribute on
        __init__; initialize() now no-ops with idempotent return None;
