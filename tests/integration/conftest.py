@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import os
 import socket
-from collections.abc import Iterator
 from dataclasses import dataclass
 
 import pytest
@@ -42,8 +41,8 @@ def _probe(host: str, port: int, timeout: float = 0.5) -> bool:
 
 
 @pytest.fixture(scope="session")
-def livekit_dev_server() -> Iterator[LiveKitDevServer]:
-    """Yield a :class:`LiveKitDevServer` if reachable, else skip the test.
+def livekit_dev_server() -> LiveKitDevServer:
+    """Return a :class:`LiveKitDevServer` if reachable, else skip the test.
 
     Reads ``LIVEKIT_URL``/``LIVEKIT_API_KEY``/``LIVEKIT_API_SECRET`` from
     the environment. Defaults match the credentials baked into
@@ -75,7 +74,7 @@ def livekit_dev_server() -> Iterator[LiveKitDevServer]:
             "`docker compose -f docker-compose.test.yml up -d`"
         )
 
-    yield LiveKitDevServer(
+    return LiveKitDevServer(
         url=url,
         api_key=api_key,
         api_secret=api_secret,

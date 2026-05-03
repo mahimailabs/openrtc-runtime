@@ -50,7 +50,8 @@ def _build_pool() -> CoroutinePool:
 def test_coroutine_job_executor_exposes_protocol_properties() -> None:
     ex = CoroutineJobExecutor()
 
-    assert isinstance(ex.id, str) and len(ex.id) > 0
+    assert isinstance(ex.id, str)
+    assert len(ex.id) > 0
     assert ex.started is False
     assert ex.user_arguments is None
     assert ex.running_job is None
@@ -297,7 +298,8 @@ def test_coroutine_job_executor_kill_returns_immediately_and_marks_failed() -> N
     assert ex.status is JobStatus.FAILED
     assert ex.started is False
     # The task object exists and (after the loop yielded) is done.
-    assert task is not None and task.done()
+    assert task is not None
+    assert task.done()
     # The kill() call itself returned before awaiting cancellation.
     assert was_done_at_kill_return is False
 
@@ -345,7 +347,8 @@ def test_coroutine_job_executor_aclose_cancels_in_flight_launch_job() -> None:
 
     assert ex.status is JobStatus.FAILED
     assert ex.started is False
-    assert ex._task is not None and ex._task.done()
+    assert ex._task is not None
+    assert ex._task.done()
 
 
 def test_coroutine_job_executor_initialize_is_noop_and_idempotent() -> None:
@@ -400,7 +403,8 @@ def test_coroutine_job_executor_aclose_cancels_pending_task_and_marks_failed() -
 
     assert ex.status is JobStatus.FAILED
     assert ex.started is False
-    assert ex._task is not None and ex._task.done()
+    assert ex._task is not None
+    assert ex._task.done()
 
 
 def test_coroutine_job_executor_aclose_preserves_success_when_task_finished() -> None:

@@ -180,7 +180,7 @@ def test_add_duplicate_name_raises() -> None:
     pool = AgentPool()
     pool.add("test", DemoAgent)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already registered"):
         pool.add("test", DemoAgent)
 
 

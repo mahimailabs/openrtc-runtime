@@ -75,6 +75,7 @@ select = [
     "C4",
     "UP",
     "SIM",
+    "PT",
 ]
 ignore = [
     "E501",

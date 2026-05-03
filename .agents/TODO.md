@@ -250,7 +250,22 @@ Tasks:
 
 ## Discovered work
 
-- [x] Enable ruff's `SIM` (flake8-simplify) ruleset. Replaced
+- [x] Enable ruff's `PT` (flake8-pytest-style) ruleset. Fixed
+  the 7 reported issues:
+  - PT022 in tests/integration/conftest.py: the
+    `livekit_dev_server` fixture had no teardown; switched
+    `yield` -> `return` and dropped the `Iterator[...]`
+    return annotation.
+  - PT011 (tests/test_coroutine_server.py:62): `pytest.raises(Exception)`
+    was deliberately broad; added `match=".*"` and `# noqa: PT011`
+    so the intent is documented inline.
+  - PT011 (tests/test_pool.py:183): `pytest.raises(ValueError)`
+    around `pool.add` duplicate name; added the proper
+    `match="already registered"`.
+  - PT018 in 4 places (tests/test_coroutine_skeleton.py): split
+    composite asserts (`assert isinstance(x, str) and len(x) > 0`,
+    `assert task is not None and task.done()`) into separate
+    statements so failure messages pinpoint which clause broke. Replaced
   3 `try/except/pass` blocks with `contextlib.suppress(...)`
   in tests/benchmarks/density.py,
   tests/integration/test_concurrent_real_calls.py, and

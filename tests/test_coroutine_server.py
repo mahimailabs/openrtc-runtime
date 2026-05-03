@@ -58,8 +58,9 @@ def test_coroutine_server_run_patches_and_restores_proc_pool() -> None:
     original = _proc_pool_mod.ProcPool
 
     # Force super().run() to fail fast with a deterministic error path so we
-    # don't need a configured LiveKit URL.
-    with pytest.raises(Exception):  # noqa: B017 — any failure path is fine
+    # don't need a configured LiveKit URL. Any failure path is fine — what
+    # we're verifying is the ProcPool-restoration finally clause.
+    with pytest.raises(Exception, match=".*"):  # noqa: B017, PT011
         asyncio.run(server.run(devmode=True))
 
     assert _proc_pool_mod.ProcPool is original

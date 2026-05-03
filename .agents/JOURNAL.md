@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 03:30 UTC — chore(lint): enable ruff `PT` (pytest-style) ruleset
+Files: pyproject.toml (`select` += `PT`);
+tests/integration/conftest.py (PT022: `yield` -> `return` in
+`livekit_dev_server`; dropped now-unused `Iterator` import +
+return annotation);
+tests/test_coroutine_server.py (PT011: added `match=".*"` and
+`# noqa: PT011` to the deliberately broad `pytest.raises(Exception)`);
+tests/test_pool.py (PT011: added `match="already registered"`
+to the duplicate-add raise);
+tests/test_coroutine_skeleton.py (PT018: split 4 composite
+`assert ... and ...` statements into separate asserts so
+failure messages pinpoint the broken clause).
+Tests: 374/374 pass + 2 skipped. Coverage: 100.00%. ruff:
+clean. mypy --strict: clean.
+Notes: PT022 fix is the only behavior change worth flagging:
+the fixture used to be a generator with no teardown work,
+so converting to a plain function value matches what the
+fixture really is. The `match=".*"` workaround for the
+unavoidable broad raise (PT011) is the documented escape
+hatch when the test intent is "any failure path is fine."
+
 ## 2026-05-04 03:15 UTC — chore(lint): enable ruff `SIM` ruleset (nested `with` excepted)
 Files: pyproject.toml (`select` += `SIM`; `ignore` += `SIM117`
 with inline comment explaining why);
