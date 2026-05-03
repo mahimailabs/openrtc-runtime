@@ -557,10 +557,162 @@ def test_coroutine_pool_shared_process_propagates_http_proxy() -> None:
     assert pool.shared_process.http_proxy == "http://proxy.example"
 
 
-def test_coroutine_pool_launch_job_is_unimplemented() -> None:
+def test_coroutine_pool_launch_job_requires_start_first() -> None:
     pool = _build_pool()
-    with pytest.raises(NotImplementedError, match="skeleton"):
+    with pytest.raises(RuntimeError, match="start.. must complete"):
         asyncio.run(pool.launch_job(info=None))  # type: ignore[arg-type]
+
+
+def _build_started_pool(
+    *,
+    entrypoint: Any,
+    session_end: Any = None,
+) -> CoroutinePool:
+    pool = CoroutinePool(
+        initialize_process_fnc=lambda _proc: None,
+        job_entrypoint_fnc=entrypoint,
+        session_end_fnc=session_end,
+        num_idle_processes=0,
+        initialize_timeout=5.0,
+        close_timeout=10.0,
+        inference_executor=None,
+        job_executor_type=JobExecutorType.PROCESS,
+        mp_ctx=mp.get_context(),
+        memory_warn_mb=0.0,
+        memory_limit_mb=0.0,
+        http_proxy=None,
+        loop=asyncio.new_event_loop(),
+    )
+    asyncio.run(pool.start())
+    return pool
+
+
+def _stub_running_job_info(job_id: str = "job-1") -> Any:
+    from types import SimpleNamespace
+
+    return SimpleNamespace(job=SimpleNamespace(id=job_id), fake_job=True)
+
+
+def test_coroutine_pool_launch_job_creates_executor_and_emits_events() -> None:
+    seen_ctxs: list[Any] = []
+
+    async def _entry(ctx: Any) -> None:
+        seen_ctxs.append(ctx)
+
+    pool = _build_started_pool(entrypoint=_entry)
+    pool._build_job_context = lambda info: f"ctx-{info.job.id}"  # type: ignore[assignment, return-value]
+
+    events: list[tuple[str, Any]] = []
+    for name in (
+        "process_created",
+        "process_started",
+        "process_ready",
+        "process_job_launched",
+        "process_closed",
+    ):
+        pool.on(name, lambda proc, _name=name: events.append((_name, proc)))  # type: ignore[misc]
+
+    async def _scenario() -> None:
+        await pool.launch_job(_stub_running_job_info())
+        # Drain the entrypoint task so process_closed fires.
+        assert pool.processes, "executor should be tracked while running"
+        executor = pool.processes[0]
+        await executor._task  # type: ignore[attr-defined]
+
+    asyncio.run(_scenario())
+
+    event_names = [name for name, _ in events]
+    assert event_names[:4] == [
+        "process_created",
+        "process_started",
+        "process_ready",
+        "process_job_launched",
+    ]
+    assert event_names[-1] == "process_closed"
+    assert seen_ctxs == ["ctx-job-1"]
+    # After completion, executor is removed from processes.
+    assert pool.processes == []
+
+
+def test_coroutine_pool_launch_job_supports_concurrent_executors() -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _entry(_ctx: Any) -> None:
+        started.set()
+        await release.wait()
+
+    pool = _build_started_pool(entrypoint=_entry)
+    pool._build_job_context = lambda info: f"ctx-{info.job.id}"  # type: ignore[assignment, return-value]
+
+    async def _scenario() -> int:
+        await pool.launch_job(_stub_running_job_info("a"))
+        await pool.launch_job(_stub_running_job_info("b"))
+        await pool.launch_job(_stub_running_job_info("c"))
+        active_count = len(pool.processes)
+        # Let all entrypoints exit so we drain cleanly.
+        release.set()
+        await asyncio.gather(
+            *(ex._task for ex in pool.processes if ex._task is not None)  # type: ignore[attr-defined]
+        )
+        return active_count
+
+    active_count = asyncio.run(_scenario())
+
+    assert active_count == 3
+    assert pool.processes == []
+
+
+def test_coroutine_pool_get_by_job_id_finds_running_executor() -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _entry(_ctx: Any) -> None:
+        started.set()
+        await release.wait()
+
+    pool = _build_started_pool(entrypoint=_entry)
+    pool._build_job_context = lambda info: f"ctx-{info.job.id}"  # type: ignore[assignment, return-value]
+
+    async def _scenario() -> Any:
+        info = _stub_running_job_info("job-x")
+        await pool.launch_job(info)
+        # Yield once so the entrypoint task is scheduled.
+        await asyncio.sleep(0)
+        found = pool.get_by_job_id("job-x")
+        release.set()
+        for ex in pool.processes:
+            if ex._task is not None:  # type: ignore[attr-defined]
+                await ex._task  # type: ignore[attr-defined]
+        return found
+
+    found = asyncio.run(_scenario())
+
+    assert found is not None
+    assert found.running_job is not None
+    assert found.running_job.job.id == "job-x"
+
+
+def test_coroutine_pool_emits_process_closed_on_executor_failure() -> None:
+    async def _entry(_ctx: Any) -> None:
+        raise RuntimeError("boom")
+
+    pool = _build_started_pool(entrypoint=_entry)
+    pool._build_job_context = lambda info: f"ctx-{info.job.id}"  # type: ignore[assignment, return-value]
+
+    closed: list[Any] = []
+    pool.on("process_closed", lambda proc: closed.append(proc))
+
+    async def _scenario() -> None:
+        await pool.launch_job(_stub_running_job_info())
+        for ex in list(pool.processes):
+            if ex._task is not None:  # type: ignore[attr-defined]
+                await ex._task  # type: ignore[attr-defined]
+
+    asyncio.run(_scenario())
+
+    assert len(closed) == 1
+    assert pool.processes == []
 
 
 def test_coroutine_pool_emits_event_emitter_protocol() -> None:

@@ -20,8 +20,9 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from multiprocessing.context import BaseContext
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
+from livekit import rtc
 from livekit.agents import JobContext, JobExecutorType, JobProcess, utils
 from livekit.agents.ipc import inference_executor as inference_executor_mod
 from livekit.agents.ipc.job_executor import JobStatus
@@ -29,6 +30,26 @@ from livekit.agents.job import RunningJobInfo
 
 if TYPE_CHECKING:
     from livekit.agents.ipc.job_executor import JobExecutor
+
+
+class _NoOpInferenceExecutor:
+    """Minimal :class:`InferenceExecutor` Protocol stub.
+
+    JobContext requires a non-None ``inference_executor`` even when the worker
+    has no inference runners registered. ProcPool side-steps this by piping a
+    real IPC client; coroutine mode passes this no-op when no real executor
+    is configured. Calling :meth:`do_inference` raises so a misconfigured
+    plugin fails loudly instead of silently returning ``None``.
+    """
+
+    async def do_inference(self, method: str, data: bytes) -> bytes | None:
+        raise RuntimeError(
+            "CoroutinePool was constructed without an inference_executor; "
+            f"plugin requested inference method {method!r}."
+        )
+
+
+_NOOP_INFERENCE_EXECUTOR = _NoOpInferenceExecutor()
 
 logger = logging.getLogger("openrtc.execution.coroutine")
 
@@ -221,7 +242,7 @@ class CoroutineJobExecutor:
         self._status = JobStatus.RUNNING
 
         ctx = self._context_factory(info)
-        loop = self._loop or asyncio.get_event_loop()
+        loop = self._loop or asyncio.get_running_loop()
         self._task = loop.create_task(self._run_entrypoint(ctx))
 
     async def _run_entrypoint(self, ctx: JobContext) -> None:
@@ -371,7 +392,117 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         raise NotImplementedError(_SKELETON_HINT)
 
     async def launch_job(self, info: RunningJobInfo) -> None:
-        raise NotImplementedError(_SKELETON_HINT)
+        """Allocate a per-session executor and schedule its entrypoint.
+
+        Builds a :class:`CoroutineJobExecutor` wired with the pool's
+        callbacks and a ``context_factory`` that produces a real
+        :class:`JobContext` referencing the singleton ``JobProcess``. Tracks
+        the executor in :attr:`processes` and emits the standard
+        ``process_*`` events in the order documented in
+        ``docs/design/proc-pool-surface.md``.
+
+        Order: ``process_created`` -> ``process_started`` ->
+        ``process_ready`` -> entrypoint task scheduled ->
+        ``process_job_launched``. ``process_closed`` fires later from the
+        task's done callback once the entrypoint coroutine exits (success or
+        failure), at which point the executor is removed from
+        :attr:`processes`.
+        """
+        if not self._started:
+            raise RuntimeError("CoroutinePool.start() must complete before launch_job.")
+
+        executor = self._build_executor()
+        self._executors.append(executor)
+        self.emit("process_created", executor)
+        self.emit("process_started", executor)
+        self.emit("process_ready", executor)
+
+        try:
+            await executor.launch_job(info)
+        except Exception:
+            # If the executor refuses (missing factory, in-flight, etc.) treat
+            # the slot as never-occupied and emit process_closed so worker
+            # accounting stays balanced.
+            self._on_executor_done(executor)
+            raise
+
+        task = executor._task
+        if task is not None:
+
+            def _done(_t: asyncio.Task[None], ex: JobExecutor = executor) -> None:
+                self._on_executor_done(ex)
+
+            task.add_done_callback(_done)
+
+        self.emit("process_job_launched", executor)
+
+    def _build_executor(self) -> CoroutineJobExecutor:
+        """Construct a per-session executor wired with this pool's callbacks.
+
+        ``loop`` is intentionally not forwarded to the executor: the
+        executor schedules its task at launch time, so it must use the
+        loop that is running ``launch_job`` (``asyncio.get_running_loop()``).
+        Forwarding the constructor-time loop would couple the executor to
+        whatever loop existed when ``ProcPool`` was instantiated, which
+        in tests (and in some real scenarios) does not match the loop
+        running ``AgentServer.run()``.
+        """
+        return CoroutineJobExecutor(
+            entrypoint_fnc=self._job_entrypoint_fnc,
+            session_end_fnc=self._session_end_fnc,
+            context_factory=self._build_job_context,
+        )
+
+    def _build_job_context(self, info: RunningJobInfo) -> JobContext:
+        """Construct a fresh :class:`JobContext` for one session.
+
+        Mirrors the construction in
+        ``livekit/agents/ipc/job_proc_lazy_main.py:_start_job`` so the
+        coroutine path matches process-mode semantics: real ``rtc.Room`` for
+        live jobs, ``create_mock_room`` for ``info.fake_job`` (which
+        ``simulate_job`` and the density benchmark use).
+
+        Tests override this method to return a stub instead of constructing
+        a real Room (which loads native libraries).
+        """
+        if self._shared_proc is None:
+            raise RuntimeError(
+                "CoroutinePool.start() must complete before _build_job_context."
+            )
+
+        if info.fake_job:
+            from livekit.agents.ipc.mock_room import create_mock_room
+
+            room = cast("rtc.Room", create_mock_room())
+        else:
+            room = rtc.Room()
+
+        def _on_connect() -> None:
+            pass
+
+        def _on_shutdown(_reason: str) -> None:
+            pass
+
+        return JobContext(
+            proc=self._shared_proc,
+            info=info,
+            room=room,
+            on_connect=_on_connect,
+            on_shutdown=_on_shutdown,
+            inference_executor=self._inference_executor or _NOOP_INFERENCE_EXECUTOR,
+        )
+
+    def _on_executor_done(self, executor: JobExecutor) -> None:
+        """Remove a finished executor and emit ``process_closed``.
+
+        Idempotent — a second call (or a call on an executor that was never
+        tracked) is a no-op except for the event emission, which is
+        suppressed on the second call.
+        """
+        if executor not in self._executors:
+            return
+        self._executors.remove(executor)
+        self.emit("process_closed", executor)
 
     def set_target_idle_processes(self, num_idle_processes: int) -> None:
         self._target_idle_processes = num_idle_processes

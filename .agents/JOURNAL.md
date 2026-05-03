@@ -142,6 +142,47 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 13:50 UTC — feat(execution): implement CoroutinePool.launch_job
+Files: src/openrtc/execution/coroutine.py:
+       - new module-level _NoOpInferenceExecutor stub (and shared
+         _NOOP_INFERENCE_EXECUTOR instance) so JobContext gets a
+         non-None inference_executor when none is configured;
+         do_inference() raises with a clear message,
+       - CoroutinePool.launch_job() validates _started, builds an
+         executor via _build_executor(), tracks it in
+         _executors, emits process_created/started/ready, awaits
+         executor.launch_job(info), attaches a done_callback that
+         emits process_closed and removes the executor, then
+         emits process_job_launched. If executor.launch_job
+         raises, _on_executor_done fires and we re-raise so the
+         worker accounting stays balanced,
+       - new _build_executor() factory (does NOT forward loop —
+         executor picks the running loop at launch time so tests
+         and AgentServer scenarios work the same way),
+       - new _build_job_context(info) method mirroring
+         job_proc_lazy_main._start_job: real rtc.Room for live
+         jobs, mock_room.create_mock_room for info.fake_job;
+         falls back to _NOOP_INFERENCE_EXECUTOR when none is
+         wired,
+       - new _on_executor_done(executor) cleanup hook that
+         removes the executor and emits process_closed (idempotent),
+       - executor.launch_job() now uses asyncio.get_running_loop()
+         instead of the deprecated get_event_loop().
+       tests/test_coroutine_skeleton.py:
+       - removed `start` and `launch_job` from the parametrized
+         "still raises" set,
+       - 5 new tests: launch_job before start raises, full event
+         sequence (process_created/started/ready -> task scheduled
+         -> process_job_launched -> process_closed), 3 concurrent
+         executors tracked simultaneously, get_by_job_id finds a
+         running executor by job.id, process_closed fires on
+         entrypoint exception.
+Tests: 176/176 pass (4 added net). ruff: clean. mypy: clean.
+Notes: Tests override _build_job_context to return a string
+sentinel so they don't touch rtc.Room. The real path is
+exercised once we land an integration test against a LiveKit
+server in Phase 2 (TODO under §8.4).
+
 ## 2026-05-03 13:25 UTC — feat(execution): implement CoroutinePool.start
 Files: src/openrtc/execution/coroutine.py (added `inspect` import;
        new _started flag + _shared_proc on CoroutinePool.__init__;

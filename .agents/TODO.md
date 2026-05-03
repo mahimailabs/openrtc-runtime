@@ -140,7 +140,7 @@ Tasks:
   semantics under kill.)
 - [x] Implement `CoroutinePool.start()`: invoke `setup_fnc` once,
   populate the singleton `JobProcess.userdata` with shared models.
-- [ ] Implement `CoroutinePool.launch_job()`: instantiate a
+- [x] Implement `CoroutinePool.launch_job()`: instantiate a
   `CoroutineJobExecutor`, track it, return.
 - [ ] Implement `CoroutinePool.current_load()`:
   `len(active) / max_concurrent_sessions`.
