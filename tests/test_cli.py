@@ -1016,6 +1016,35 @@ def test_cli_package_getattr_unknown_attribute_raises_attribute_error() -> None:
         cli_pkg.__getattr__("totally_made_up")
 
 
+def test_main_with_argv_none_skips_inject_when_sys_argv_has_only_program_name(
+    monkeypatch: pytest.MonkeyPatch,
+    original_argv: list[str],
+) -> None:
+    """Branch: ``main()`` with ``sys.argv = [argv0]`` skips the inject_cli_positional_paths block."""
+
+    class _StubCommand:
+        def main(self, **_kwargs: Any) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "typer.main.get_command", lambda _app: _StubCommand(), raising=True
+    )
+    monkeypatch.setattr(sys, "argv", [original_argv[0]])
+
+    exit_code = main()
+
+    assert exit_code == 0
+
+
+def test_strip_openrtc_only_flags_handles_flag_without_following_value() -> None:
+    """Branch: ``--agents-dir`` at the end of argv (no value follows) still consumed safely."""
+    from openrtc.cli.livekit import _strip_openrtc_only_flags_for_livekit
+
+    assert _strip_openrtc_only_flags_for_livekit(["--reload", "--agents-dir"]) == [
+        "--reload"
+    ]
+
+
 def test_openrtc_version_falls_back_when_metadata_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

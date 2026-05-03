@@ -250,18 +250,18 @@ Tasks:
 
 ## Discovered work
 
-- [ ] Close the 22 missing branches surfaced once
-  `[tool.coverage.run] branch = true` landed. Most are "false
-  case of a conditional" edges in modules that are already at
-  100% line coverage. The current report (combined 99.06%):
-  cli/__init__.py 32->36; cli/commands.py 351->354;
+- [~] Close the 22 missing branches surfaced once
+  `[tool.coverage.run] branch = true` landed. **First batch
+  closed (8 branches):** cli/commands.py 351->354;
   cli/dashboard.py 240->249, 257->284; cli/livekit.py 74->76;
-  cli/reporter.py 97->99; core/discovery.py 24->27;
   core/pool.py 430->432; core/routing.py 36->46, 56->67;
-  core/turn_handling.py 69->71;
-  execution/coroutine.py 231->233, 279->293, 286->288, 528->526,
-  571->578, 679->exit; observability/metrics.py 364->361;
-  observability/stream.py 137->exit;
+  core/turn_handling.py 69->71. Combined coverage 99.06% ->
+  99.40%. Remaining 14 branches deferred to per-file
+  follow-ups: cli/__init__.py 32->36 (needs reload);
+  cli/reporter.py 97->99; core/discovery.py 24->27;
+  execution/coroutine.py 231->233, 279->293, 286->288,
+  528->526, 571->578, 679->exit; observability/metrics.py
+  364->361; observability/stream.py 137->exit;
   tui/app.py 125->117, 127->117, 149->154.
 
 ## Old discovered work

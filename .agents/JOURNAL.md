@@ -142,6 +142,39 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 01:30 UTC — test(branches): close first batch of 8 branch gaps (combined 99.06% -> 99.40%)
+Files: tests/test_pool.py (+1 test:
+test_merge_session_kwargs_skips_direct_when_none),
+tests/test_routing.py (+2 tests:
+test_agent_name_from_metadata_returns_none_for_non_string_non_mapping,
+test_resolve_agent_falls_back_when_room_name_is_not_a_string),
+tests/test_turn_handling.py (+1 test:
+test_default_turn_handling_omits_turn_detection_key_when_factory_returns_none),
+tests/test_dashboard.py (+1 test:
+test_build_list_json_payload_omits_resource_keys_when_resources_disabled),
+tests/test_cli.py (+2 tests:
+test_main_with_argv_none_skips_inject_when_sys_argv_has_only_program_name,
+test_strip_openrtc_only_flags_handles_flag_without_following_value).
+Tests: 360/360 pass + 2 skipped. Combined line+branch coverage:
+99.40% (was 99.06%); 14 branches remaining (was 22). ruff:
+clean. mypy: clean.
+Notes: Closed branches: cli/commands.py 351->354
+(`if len(sys.argv) >= 2:` skip when sys.argv is just [argv0]);
+cli/dashboard.py 240->249 + 257->284 (`if include_resources:`
+skip in build_list_json_payload — both per-agent + summary
+branches covered by one test); cli/livekit.py 74->76
+(`if i < len(argv_tail): i += 1` skip when --flag is at end of
+argv); core/pool.py 430->432 (`if direct_session_kwargs is not
+None:` skip); core/routing.py 36->46 (`if isinstance(room_name,
+str):` skip when room.name is None) + 56->67 (`if isinstance(
+metadata, str):` skip for int/list metadata);
+core/turn_handling.py 69->71 (`if turn_detection is not None:`
+skip when factory returns None). Remaining 14 branches are
+mostly defensive `for: ... else` exits (`X->exit` notation),
+the cli/__init__.py reload-required branch, and finer
+execution/coroutine.py race edges — left for per-file
+follow-up iterations.
+
 ## 2026-05-04 01:15 UTC — chore(coverage): enable branch coverage as the v0.1 hardness gate
 Files: pyproject.toml (+5 LOC: new `[tool.coverage.run]`
 section with `branch = true` + a comment explaining the

@@ -127,6 +127,26 @@ def test_print_resource_summary_plain_handles_unavailable_rss(
     assert "Resident memory metric unavailable" in out
 
 
+def test_build_list_json_payload_omits_resource_keys_when_resources_disabled() -> None:
+    """Branch: ``include_resources=False`` skips both per-agent and summary resource keys."""
+    from openrtc.cli.dashboard import build_list_json_payload
+
+    pool = AgentPool()
+    pool.add("a", TinyAgent)
+
+    payload = build_list_json_payload([pool.get("a")], include_resources=False)
+
+    assert payload["agents"][0].keys() == {
+        "name",
+        "class",
+        "stt",
+        "llm",
+        "tts",
+        "greeting",
+    }
+    assert "resource_summary" not in payload
+
+
 def test_print_resource_summary_rich_handles_unavailable_rss(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

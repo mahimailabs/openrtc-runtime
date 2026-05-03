@@ -884,6 +884,15 @@ def test_load_shared_runtime_dependencies_raises_when_plugin_missing(
         pool_module._load_shared_runtime_dependencies()
 
 
+def test_merge_session_kwargs_skips_direct_when_none() -> None:
+    """Branch: when ``direct_session_kwargs`` is None, only the base mapping wins."""
+    pool = AgentPool()
+
+    merged = pool._merge_session_kwargs({"a": 1, "b": 2}, direct_session_kwargs=None)
+
+    assert merged == {"a": 1, "b": 2}
+
+
 def test_load_shared_runtime_dependencies_returns_silero_and_turn_detector() -> None:
     """Happy path returns the live silero module and the multilingual turn detector."""
     pytest.importorskip("livekit.plugins.silero")

@@ -145,3 +145,20 @@ def test_explicit_turn_handling_non_mapping_is_passed_through() -> None:
     result = _build_session_kwargs({"turn_handling": sentinel}, _proc())
 
     assert result["turn_handling"] is sentinel
+
+
+def test_default_turn_handling_omits_turn_detection_key_when_factory_returns_none() -> (
+    None
+):
+    """Branch: a factory that returns None means no ``turn_detection`` key in the dict."""
+    from openrtc.core.turn_handling import _default_turn_handling
+
+    proc = SimpleNamespace(
+        userdata={"vad": object(), "turn_detection_factory": lambda: None},
+        inference_executor="present",
+    )
+
+    result = _default_turn_handling(proc)
+
+    assert "turn_detection" not in result
+    assert result == {"interruption": {"mode": "vad"}}

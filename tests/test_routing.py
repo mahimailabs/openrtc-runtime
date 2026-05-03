@@ -218,6 +218,26 @@ def test_resolve_agent_ignores_empty_metadata_value(pool: AgentPool) -> None:
     assert resolved.name == "restaurant"
 
 
+def test_agent_name_from_metadata_returns_none_for_non_string_non_mapping() -> None:
+    """Branch: an int (or list) metadata value bypasses both string and mapping paths."""
+    from openrtc.core.routing import _agent_name_from_metadata
+
+    assert _agent_name_from_metadata(42) is None
+    assert _agent_name_from_metadata([1, 2, 3]) is None
+
+
+def test_resolve_agent_falls_back_when_room_name_is_not_a_string(
+    pool: AgentPool,
+) -> None:
+    """Branch: ``room.name`` of None skips the prefix-match loop entirely."""
+    ctx = FakeJobContext()
+    ctx.room.name = None  # type: ignore[assignment]
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "restaurant"
+
+
 def test_remove_changes_default_fallback_order(pool: AgentPool) -> None:
     pool.remove("restaurant")
     ctx = FakeJobContext(room_name="general-room")
