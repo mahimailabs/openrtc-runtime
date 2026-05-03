@@ -111,7 +111,7 @@ Tasks:
 - [x] Read `livekit/agents/ipc/job_executor.py` at the pinned
   version. Document the `JobExecutor` Protocol surface in
   `docs/design/job-executor-protocol.md`.
-- [ ] Read `livekit/agents/ipc/proc_pool.py`. Document the
+- [x] Read `livekit/agents/ipc/proc_pool.py`. Document the
   `ProcPool` surface that `AgentServer` calls.
 - [ ] Read `livekit/agents/worker.py`. Document where
   `AgentServer` instantiates and uses `_proc_pool`.

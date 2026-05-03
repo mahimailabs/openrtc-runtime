@@ -142,6 +142,28 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 11:25 UTC — docs: capture ProcPool surface AgentServer uses
+Files: docs/design/proc-pool-surface.md (new, ~120 LOC).
+Tests: not run (docs-only).
+Notes: Read the full proc_pool.py (256 LOC) and grepped
+worker.py for every _proc_pool.X access. Documented:
+  - the verbatim ProcPool(__init__ ...) keyword shape AgentServer
+    uses at worker.py:587-601 (so CoroutinePool can swap in),
+  - per-arg coroutine-mode treatment (which kwargs become no-ops),
+  - the 6 methods AgentServer actually calls (start, aclose,
+    launch_job, set_target_idle_processes, processes,
+    get_by_job_id) plus the .running_job iteration pattern,
+  - the 5 EventTypes; only 3 have live worker.py subscribers today
+    (process_started, process_closed, process_job_launched) but
+    we'll emit all 5 for forward compatibility,
+  - lifecycle invariants (idempotent start/aclose, MAX_ATTEMPTS=3
+    retry in launch_job, target_idle_processes math), and
+  - the consequences for our CoroutinePool (singleton JobProcess,
+    one setup_fnc invocation, event ordering).
+Complements docs/design/job-executor-protocol.md from the previous
+iteration; the two together form the contract for the upcoming
+implementation work.
+
 ## 2026-05-03 11:08 UTC — docs: capture JobExecutor Protocol surface
 Files: docs/design/job-executor-protocol.md (new, ~120 LOC).
 Tests: not run (docs-only).
