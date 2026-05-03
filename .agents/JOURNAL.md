@@ -142,6 +142,24 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 01:00 UTC — chore(ci): lock the v0.1 coverage ratchet at 95%
+Files: Makefile (`--cov-fail-under=80` -> `=95`),
+.github/workflows/test.yml (same flag in the matrix job),
+codecov.yml (project target 80% -> 95%, patch target
+80% -> 95%, range `70...100` -> `85...100`, header comment
+mentions the new floor).
+Tests: 353/353 pass + 2 skipped. Required coverage now 95%;
+actual 100.00%. ruff: clean. mypy: clean.
+Notes: Project sits at 100% line coverage today, so 95% gives
+contributors a 5pp cushion (and ~10pp from the v0.0.x floor)
+for legitimate `# pragma: no cover` defensive code without
+letting the numbers slide back. Bumped all three places
+that enforce the floor in one pass so the local Makefile,
+the CI matrix, and the Codecov status check stay in sync.
+Codecov range nudged from `70...100` to `85...100` so the
+colored bar in PR comments visually anchors at the new
+minimum instead of the old one.
+
 ## 2026-05-04 00:45 UTC — test(coroutine): close execution/coroutine.py gap (97% -> 100%) — project at 100%
 Files: tests/test_coroutine_coverage.py (+5 tests, ~100 LOC).
 Tests: 353/353 pass + 2 skipped. Coverage: coroutine.py 100%

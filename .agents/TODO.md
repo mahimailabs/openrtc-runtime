@@ -298,6 +298,14 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Lock the v0.1 coverage ratchet at 95% (was 80%) across the
+  Makefile, test.yml CI workflow, and codecov.yml project +
+  patch targets. The current project sits at 100%, so 95% gives
+  contributors ~10pp of headroom for legitimate
+  `# pragma: no cover`-able defensive code without letting the
+  numbers slide back into v0.0.x territory. Codecov range
+  bumped from `70...100` to `85...100` so the colored bar
+  visually anchors at the new minimum.
 - [x] Close `execution/coroutine.py` coverage gap (97% -> 100%):
   5 tests in tests/test_coroutine_coverage.py covering the
   last defensive branches: `_consume_cancelled_task_exception`
