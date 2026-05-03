@@ -298,6 +298,19 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `core/pool.py` coverage gap (93% -> 100%):
+  7 tests in tests/test_pool.py covering: empty/whitespace
+  agent name rejection in `add()`; `run()` raises when zero
+  agents are registered; `run()` hands the configured server
+  to LiveKit's `cli.run_app` (covers the success path on
+  the run() side); `_prewarm_worker` defends against an
+  empty runtime state; `_run_universal_session` raises
+  early when no agents are registered;
+  `_load_shared_runtime_dependencies` raises a clear
+  RuntimeError when livekit silero is missing (via
+  builtins.__import__ monkey-patch) AND happy-path
+  returns the silero module + MultilingualModel class
+  when the plugins are installed.
 - [x] Close `observability/metrics.py` coverage gap (84% -> 100%):
   18 tests in tests/test_resources.py covering: negative
   byte clamp in `format_byte_size`; `file_size_bytes`

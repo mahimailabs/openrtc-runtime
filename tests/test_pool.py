@@ -802,3 +802,94 @@ def test_no_warning_for_modern_session_kwargs(
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
         asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))
+
+
+def test_add_rejects_empty_name() -> None:
+    """An empty (or whitespace-only) name is rejected at registration."""
+    pool = AgentPool()
+
+    with pytest.raises(ValueError, match="non-empty string"):
+        pool.add("   ", DemoAgent)
+
+
+def test_run_raises_when_no_agents_registered() -> None:
+    """``run()`` requires at least one agent before LiveKit handoff."""
+    pool = AgentPool()
+
+    with pytest.raises(RuntimeError, match="Register at least one agent"):
+        pool.run()
+
+
+def test_run_invokes_cli_run_app_when_agents_are_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``run()`` hands the configured server to LiveKit's ``cli.run_app``."""
+    captured: list[object] = []
+
+    monkeypatch.setattr(
+        "openrtc.core.pool.cli.run_app", lambda server: captured.append(server)
+    )
+    pool = AgentPool()
+    pool.add("a", DemoAgent)
+
+    pool.run()
+
+    assert captured == [pool._server]
+
+
+def test_prewarm_worker_raises_when_runtime_state_has_no_agents() -> None:
+    """``_prewarm_worker`` defends against the worker spawning with zero agents."""
+    pool = AgentPool()
+    proc = SimpleNamespace(userdata={})
+
+    with pytest.raises(RuntimeError, match="Register at least one agent"):
+        pool_module._prewarm_worker(pool._runtime_state, proc)
+
+
+def test_run_universal_session_raises_when_no_agents_registered() -> None:
+    """The session entrypoint raises before agent resolution if registry is empty."""
+    pool = AgentPool()
+    ctx = SimpleNamespace(
+        job=SimpleNamespace(metadata=None),
+        room=SimpleNamespace(metadata=None, name="x"),
+        proc=SimpleNamespace(userdata={}),
+    )
+
+    with pytest.raises(RuntimeError, match="No agents are registered"):
+        asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))
+
+
+def test_load_shared_runtime_dependencies_raises_when_plugin_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing LiveKit plugin surfaces as a clear RuntimeError, not ImportError."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _import_without_silero(
+        name: str,
+        globals: object = None,
+        locals: object = None,
+        fromlist: object = (),
+        level: int = 0,
+    ) -> object:
+        if name == "livekit.plugins" and "silero" in tuple(fromlist or ()):
+            raise ModuleNotFoundError("No module named 'livekit.plugins.silero'")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _import_without_silero)
+
+    with pytest.raises(RuntimeError, match="silero"):
+        pool_module._load_shared_runtime_dependencies()
+
+
+def test_load_shared_runtime_dependencies_returns_silero_and_turn_detector() -> None:
+    """Happy path returns the live silero module and the multilingual turn detector."""
+    pytest.importorskip("livekit.plugins.silero")
+    pytest.importorskip("livekit.plugins.turn_detector.multilingual")
+
+    silero, multilingual = pool_module._load_shared_runtime_dependencies()
+
+    assert hasattr(silero, "VAD")
+    assert multilingual.__name__ == "MultilingualModel"

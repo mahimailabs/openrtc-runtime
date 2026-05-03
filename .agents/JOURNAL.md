@@ -142,6 +142,25 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 23:45 UTC — test(pool): close core/pool.py coverage gap (93% -> 100%)
+Files: tests/test_pool.py (+7 tests, ~95 LOC at end of file).
+Tests: 332/332 pass + 2 skipped. Coverage: core/pool.py 100%
+(was 93%); total 97.62% (was 97.07%). ruff: clean. mypy: clean.
+Notes: New tests cover (a) `add("   ", DemoAgent)` rejecting
+empty/whitespace names; (b) `pool.run()` raising RuntimeError
+when zero agents are registered; (c) `pool.run()` handing the
+configured `_server` to LiveKit's `cli.run_app` via
+monkey-patched stub (covers the actual handoff line); (d)
+`_prewarm_worker` raising when the runtime state has no agents
+(defensive guard against worker-start with empty registry); (e)
+`_run_universal_session` raising the same guard early before
+agent resolution; (f) `_load_shared_runtime_dependencies`
+raising a clear RuntimeError when livekit silero import fails
+(builtins.__import__ monkey-patch); (g) the same function's
+happy-path return of the silero module + MultilingualModel
+class (gated on plugin availability via importorskip). Locks
+the pool's startup contract before tagging.
+
 ## 2026-05-03 23:30 UTC — test(metrics): close observability/metrics.py coverage gap (84% -> 100%)
 Files: tests/test_resources.py (+18 tests, ~180 LOC),
 src/openrtc/observability/metrics.py (1 LOC: replace
