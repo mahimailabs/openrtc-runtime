@@ -24,7 +24,6 @@ jobs:
     # livekit-agents) shouldn't hard-block PRs we have no power to remediate.
     # The job reports findings in the workflow output; the operator triages
     # them and either bumps a direct pin or files an upstream issue.
-    continue-on-error: true
 
     steps:
       - name: Check out repository
@@ -47,13 +46,21 @@ jobs:
         # audited.
         run: uv pip install pip-audit
 
-      - name: Run pip-audit
+      - name: Run pip-audit (informational)
         # `--skip-editable` skips the `openrtc` package itself (it's installed
         # editable by `uv sync` and isn't on PyPI for the dev version).
-        # `--strict` is intentionally NOT set: many transitive advisories
-        # (e.g. requests / transformers via livekit-agents) cannot be
-        # remediated without upstream movement. We want visibility into them
-        # in the workflow output — not a permanently red CI. Operator action:
-        # review the weekly run, file upstream issues, and pin direct
-        # mitigations only when a vuln directly affects a code path we own.
-        run: uv run pip-audit --skip-editable
+        # The step always exits 0 so an unfixable transitive CVE does not
+        # turn the audit job red on every PR; instead, vulnerabilities surface
+        # as a yellow `::warning::` annotation in the run summary that the
+        # operator can triage on their own cadence (file upstream issues, pin
+        # a direct mitigation when warranted, etc.).
+        run: |
+          set +e
+          uv run pip-audit --skip-editable
+          status=$?
+          if [ $status -eq 0 ]; then
+            echo "::notice::pip-audit clean"
+          else
+            echo "::warning::pip-audit found vulnerabilities (see step output above)"
+          fi
+          exit 0
