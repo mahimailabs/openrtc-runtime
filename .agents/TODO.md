@@ -284,3 +284,9 @@ priority.)
   the v0.1 density gate. `make bench` now runs
   `tests/benchmarks/density.py --sessions 50 --rss-budget-mb
   4096`, matching the CI gate exit-code contract.)
+- [x] VitePress sidebar links the new density benchmark page.
+  (Added `Density benchmark (v0.1)` entry under Reference so
+  users evaluating OpenRTC from the docs site find the v0.1
+  numbers without having to open the GitHub repo. The release
+  runbook intentionally stays repo-only — operator-facing,
+  not user-facing.)

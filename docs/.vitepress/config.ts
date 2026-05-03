@@ -46,6 +46,7 @@ export default defineConfig({
             { text: 'AgentPool API', link: '/api/pool' },
             { text: 'CLI', link: '/cli' },
             { text: 'Examples', link: '/examples' },
+            { text: 'Density benchmark (v0.1)', link: '/benchmarks/density-v0.1' },
             { text: 'Changelog', link: '/changelog' },
             { text: 'GitHub Pages Deployment', link: '/deployment/github-pages' },
           ],

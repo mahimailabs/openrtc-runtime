@@ -142,6 +142,26 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 21:15 UTC — docs(site): link density benchmark in sidebar
+Files: docs/.vitepress/config.ts: added a new
+       "Density benchmark (v0.1)" entry under the Reference
+       sidebar group, linking to /benchmarks/density-v0.1.
+Tests: 256/256 pass + 2 skipped (config-only change). No
+direct rendering test in this repo; deploy-docs.yml will pick
+the change up on the next push to main.
+Notes: Audited the public docs sidebar against the v0.1
+artifacts and found density-v0.1.md was unlinked. Users
+evaluating OpenRTC from the public docs site would have had
+to open the GitHub repo to find the §7 success-gate numbers.
+Now reachable in two clicks.
+Intentionally NOT added to the sidebar:
+  - docs/release-v0.1.md — operator runbook, not user-facing;
+    discoverable via CONTRIBUTING.md.
+  - docs/design/v0.1.md and the three job-executor / proc-pool
+    / agent-server-integration design notes — internal
+    contributor reference, not part of the user contract.
+  - docs/audit-2026-05-02.md — historical snapshot.
+
 ## 2026-05-03 21:05 UTC — chore(make): add `make bench` target
 Files: Makefile: extended .PHONY with `bench`; new target runs
        `uv run python tests/benchmarks/density.py --sessions 50
