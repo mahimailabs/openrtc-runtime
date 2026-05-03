@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 from livekit.agents import Agent
 
+import openrtc.core.discovery as discovery_module
 import openrtc.core.pool as pool_module
 from openrtc import AgentPool
 
@@ -133,7 +134,7 @@ def test_add_rejects_main_module_agent_without_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(DemoAgent, "__module__", "__main__")
-    monkeypatch.setattr(pool_module.inspect, "getsourcefile", lambda _value: None)
+    monkeypatch.setattr(discovery_module.inspect, "getsourcefile", lambda _value: None)
 
     pool = AgentPool()
 
@@ -149,9 +150,9 @@ def test_try_get_module_path_returns_none_when_inspect_fails(
     def raise_error(_value: object) -> str:
         raise error_type("boom")
 
-    monkeypatch.setattr(pool_module.inspect, "getsourcefile", raise_error)
+    monkeypatch.setattr(discovery_module.inspect, "getsourcefile", raise_error)
 
-    assert pool_module._try_get_module_path(DemoAgent) is None
+    assert discovery_module._try_get_module_path(DemoAgent) is None
 
 
 def test_resolve_agent_class_reuses_loaded_discovered_module(tmp_path: Path) -> None:
@@ -164,8 +165,8 @@ def test_resolve_agent_class_reuses_loaded_discovered_module(tmp_path: Path) -> 
         encoding="utf-8",
     )
 
-    module_name = pool_module._discovered_module_name(module_path)
-    module = pool_module._load_module_from_path(module_name, module_path)
+    module_name = discovery_module._discovered_module_name(module_path)
+    module = discovery_module._load_module_from_path(module_name, module_path)
     agent_ref = pool_module._build_agent_class_ref(module.SampleAgent)
 
     resolved = pool_module._resolve_agent_class(agent_ref)
@@ -228,8 +229,8 @@ def test_load_module_from_path_reuses_existing_module(tmp_path: Path) -> None:
     module_path.write_text("VALUE = 1\n", encoding="utf-8")
 
     module_name = "openrtc_test_reused_module"
-    first_module = pool_module._load_module_from_path(module_name, module_path)
-    second_module = pool_module._load_module_from_path(module_name, module_path)
+    first_module = discovery_module._load_module_from_path(module_name, module_path)
+    second_module = discovery_module._load_module_from_path(module_name, module_path)
 
     assert second_module is first_module
 
@@ -240,7 +241,7 @@ def test_load_module_from_path_cleans_up_sys_modules_on_failure(tmp_path: Path) 
 
     module_name = "openrtc_test_broken_module"
     with pytest.raises(RuntimeError, match="boom"):
-        pool_module._load_module_from_path(module_name, module_path)
+        discovery_module._load_module_from_path(module_name, module_path)
 
     assert module_name not in sys.modules
 

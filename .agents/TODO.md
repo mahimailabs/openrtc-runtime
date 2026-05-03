@@ -69,7 +69,7 @@ Tasks:
   `AgentDiscoveryConfig`, `agent_config` decorator.
 - [x] Extract `core/routing.py` from `pool.py`: `_resolve_agent_config`
   and routing helpers (currently `pool.py:781-853`).
-- [ ] Extract `core/discovery.py` from `pool.py`: `discover()`
+- [x] Extract `core/discovery.py` from `pool.py`: `discover()`
   module loading helpers (currently `pool.py:378-431`).
 - [ ] Extract `core/serialization.py` from `pool.py`: `_ProviderRef`,
   `_PROVIDER_REF_KEYS`, `_try_build_provider_ref`,

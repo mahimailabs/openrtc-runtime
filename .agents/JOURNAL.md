@@ -86,3 +86,24 @@ Notes: routing.py imports AgentConfig from core.config (no cycle)
 and JobContext from livekit.agents. _run_universal_session in
 pool.py keeps using _resolve_agent_config via the new import.
 Public API unchanged.
+
+## 2026-05-03 07:50 UTC — refactor: extract core/discovery.py from pool.py
+Files: src/openrtc/core/discovery.py (new, 89 LOC: _load_module_from_path,
+       _discovered_module_name, _try_get_module_path,
+       _load_agent_module, _find_local_agent_subclass,
+       _resolve_discovery_metadata),
+       src/openrtc/core/pool.py (-86 LOC: removed three module-level
+       loaders and three former AgentPool methods; added imports from
+       .discovery; AgentPool.discover() now calls free functions.
+       ruff auto-removed inspect, sys, hashlib.sha1, typing.cast,
+       _AGENT_METADATA_ATTR, _discovered_module_name unused imports),
+       tests/test_pool.py (added `import openrtc.core.discovery as
+       discovery_module`; rewrote 5 references from pool_module.X to
+       discovery_module.X for the moved symbols).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: The three former AgentPool instance methods
+(_resolve_discovery_metadata, _load_agent_module,
+_find_local_agent_subclass) are now free functions — none of them
+used `self`, so the conversion is mechanical and behavior-preserving.
+_resolve_discovery_metadata dropped the unused `module` parameter
+along the way (only agent_cls is read). Public API unchanged.
