@@ -1,0 +1,44 @@
+# Dependency vulnerability scan via pip-audit. Two triggers:
+#   1. Every PR: catches a contributor pulling in a dep with a known CVE
+#      before merge.
+#   2. Weekly schedule: catches CVEs disclosed *after* a PR was merged
+#      (the most common failure mode — a clean merge ages into a broken one
+#      when a new advisory drops).
+#
+# Security note: this workflow shells no untrusted event payloads. There is
+# no `${{ github.event.* }}` interpolation anywhere; the script-injection
+# class (CWE-94 in GitHub Actions) does not apply to this file.
+name: Audit
+
+on:
+  pull_request:
+  schedule:
+    # Monday 09:00 IST (= 03:30 UTC) — runs on the default branch.
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run pip-audit (strict — fail on any vulnerability)
+        # The active uv venv has the production + dev deps installed; auditing
+        # the current Python prefix matches what production wheels would carry
+        # plus the contributor toolchain. `--strict` means warnings (e.g.
+        # "advisory has no fix yet") still fail the run; the alternative is
+        # silent rot.
+        run: uv run pip-audit --strict

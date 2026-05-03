@@ -142,6 +142,29 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 06:45 UTC — ci(audit): add `pip-audit --strict` workflow (per-PR + weekly)
+Files: .github/workflows/audit.yml (new, 47 LOC).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Local validation: `uv tool run pip-audit --strict` against
+the active `.venv` reports "No known vulnerabilities found".
+Notes: Two triggers cover two real failure modes:
+1. Pull request: catches a contributor pulling in a dep with
+   a known CVE before merge.
+2. Schedule (Monday 09:00 IST = 03:30 UTC): catches CVEs
+   disclosed *after* a clean merge — when an old advisory
+   drops or a transitive dep updates and inherits the issue.
+   The most common failure mode in practice; weekly cadence
+   matches Dependabot's PR rhythm.
+`--strict` flag means warnings (e.g. "advisory has no fix
+yet") fail the run instead of being ignored. The alternative
+is silent rot: a CVE without a fix sits in the dep tree
+indefinitely. Strict + Dependabot + a person watching the
+weekly run is the right combination.
+The workflow has no `${{ github.event.* }}` interpolation,
+so the script-injection class (CWE-94 in GitHub Actions)
+doesn't apply — noted inline at the top of the file.
+
 ## 2026-05-04 06:30 UTC — ci(build): add wheel smoke-install step
 Files: .github/workflows/build.yml (+1 step, ~17 LOC).
 Tests: 374/374 pass + 2 skipped (no-op for tests).

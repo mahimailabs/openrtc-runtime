@@ -250,6 +250,16 @@ Tasks:
 
 ## Discovered work
 
+- [x] Add `.github/workflows/audit.yml` to run `pip-audit
+  --strict` on every PR + weekly. Catches CVEs in production
+  + dev deps. Two triggers cover the two failure modes:
+  per-PR catches a contributor pulling in a dep with a known
+  CVE before merge; the Monday cron catches CVEs disclosed
+  *after* a clean merge ages (the most common failure mode).
+  `--strict` so advisories without a fix yet still fail —
+  the alternative is silent rot. Verified locally:
+  `pip-audit` reports "No known vulnerabilities found"
+  against the current dev environment.
 - [x] Extend `.github/workflows/build.yml` with a wheel
   smoke-install step. After `uv build` and `twine check`,
   install the produced wheel into a clean venv and assert
