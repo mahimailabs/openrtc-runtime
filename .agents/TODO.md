@@ -298,6 +298,22 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `observability/metrics.py` coverage gap (84% -> 100%):
+  18 tests in tests/test_resources.py covering: negative
+  byte clamp in `format_byte_size`; `file_size_bytes`
+  OSError fallback; `estimate_shared_worker_savings`
+  short-circuits (agent_count=0 and shared_worker_bytes=None);
+  `get_process_resident_set_info` Linux + Windows-style
+  unavailable branches via monkey-patched `sys.platform`;
+  `_linux_rss_bytes` happy-path proc-status parsing,
+  unreadable-procfs OSError, and missing-VmRSS-line; the
+  `_macos_rss_bytes` OSError-from-getrusage and
+  zero-ru_maxrss branches; `record_session_finished`
+  keep-positive count; parametrized `__setstate__` type
+  validation across 6 typed fields. Also replaces an
+  unreachable defensive `return` in `format_byte_size`
+  with `raise AssertionError(...)  # pragma: no cover`
+  so the dead line stops eating coverage.
 - [x] Close `cli/livekit.py` coverage gap (86% -> 100%):
   11 tests in tests/test_cli.py exercising the LiveKit CLI
   handoff edges: `--` separator + `=`-form pass-through in

@@ -225,7 +225,7 @@ def format_byte_size(num_bytes: int) -> str:
                 return f"{int(value)} B"
             return f"{value:.1f} {unit}"
         value /= 1024.0
-    return f"{int(num_bytes)} B"
+    raise AssertionError("unreachable: last unit always matches")  # pragma: no cover
 
 
 def file_size_bytes(path: Path) -> int:

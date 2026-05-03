@@ -142,6 +142,35 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 23:30 UTC — test(metrics): close observability/metrics.py coverage gap (84% -> 100%)
+Files: tests/test_resources.py (+18 tests, ~180 LOC),
+src/openrtc/observability/metrics.py (1 LOC: replace
+unreachable defensive `return f"{int(num_bytes)} B"` with
+`raise AssertionError(...)  # pragma: no cover` to stop the
+dead line from eating coverage).
+Tests: 325/325 pass + 2 skipped. Coverage: metrics.py 100%
+(was 84%); total 97.07% (was 95.56%). ruff: clean. mypy: clean.
+Notes: New coverage spans (a) defensive helper edges:
+`format_byte_size(-100) == "0 B"` for negative input;
+`file_size_bytes(missing_path) == 0` for OSError;
+`estimate_shared_worker_savings` short-circuits for
+agent_count=0 and shared_worker_bytes=None; (b)
+platform-specific branches in `get_process_resident_set_info`
+that the Darwin runner can't naturally reach: a Linux-branch
+test monkey-patches `sys.platform` and stubs `_linux_rss_bytes`;
+a Windows-style "unavailable" test monkey-patches
+`sys.platform = "win32"`; (c) `_linux_rss_bytes` itself
+exercised on Darwin via `Path.read_text` monkey-patch with
+fake /proc/self/status content (happy path, OSError, no
+VmRSS line); (d) `_macos_rss_bytes` rejecting OSError from
+getrusage and zero `ru_maxrss`; (e) `record_session_finished`
+keep-positive count branch (start two sessions, finish one);
+(f) parametrized `__setstate__` type validation across 6
+typed fields. Locks the runtime metrics layer in pure unit
+tests so a later refactor (e.g. adding a Windows
+implementation, swapping the Linux source from procfs to
+psutil) can't silently change the per-platform contract.
+
 ## 2026-05-03 23:15 UTC — test(livekit-cli): close cli/livekit.py coverage gap (86% -> 100%)
 Files: tests/test_cli.py (+11 tests, +1 import (`typer`),
 ~140 LOC). The new tests live next to the existing livekit
