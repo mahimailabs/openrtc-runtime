@@ -150,7 +150,7 @@ Tasks:
   executors, await them.
 - [x] Create `execution/coroutine_server.py`: `_CoroutineAgentServer`
   subclass that swaps `_proc_pool` for our `CoroutinePool`.
-- [ ] Wire `AgentPool` to choose between `AgentServer()` and
+- [x] Wire `AgentPool` to choose between `AgentServer()` and
   `_CoroutineAgentServer(...)` based on `isolation` parameter.
 - [ ] First end-to-end smoke test: `AgentPool(isolation="coroutine")`
   registers, accepts one simulated job, runs it to completion.

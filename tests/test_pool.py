@@ -76,6 +76,44 @@ def test_max_concurrent_sessions_rejects_bool() -> None:
         AgentPool(max_concurrent_sessions=True)  # type: ignore[arg-type]
 
 
+def test_isolation_coroutine_constructs_coroutine_agent_server() -> None:
+    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+
+    pool = AgentPool()  # default isolation="coroutine"
+
+    assert isinstance(pool.server, _CoroutineAgentServer)
+
+
+def test_isolation_process_constructs_vanilla_agent_server() -> None:
+    from livekit.agents import AgentServer
+
+    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+
+    pool = AgentPool(isolation="process")
+
+    assert isinstance(pool.server, AgentServer)
+    assert not isinstance(pool.server, _CoroutineAgentServer)
+
+
+def test_isolation_coroutine_passes_max_concurrent_sessions_to_server() -> None:
+    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+
+    pool = AgentPool(max_concurrent_sessions=12)
+
+    assert isinstance(pool.server, _CoroutineAgentServer)
+    assert pool.server._max_concurrent_sessions == 12
+
+
+def test_isolation_process_does_not_carry_max_concurrent_sessions() -> None:
+    """Process-mode AgentServer never sees the OpenRTC-only kwarg."""
+    pool = AgentPool(isolation="process", max_concurrent_sessions=7)
+
+    # The setting still lives on the pool for documentation/inspection,
+    # but the server is the vanilla AgentServer that knows nothing of it.
+    assert pool.max_concurrent_sessions == 7
+    assert not hasattr(pool.server, "_max_concurrent_sessions")
+
+
 def test_max_concurrent_sessions_rejects_zero_or_negative() -> None:
     with pytest.raises(ValueError, match="must be >= 1"):
         AgentPool(max_concurrent_sessions=0)

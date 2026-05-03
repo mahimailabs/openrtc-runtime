@@ -155,7 +155,7 @@ class AgentPool:
             )
         self._isolation: IsolationMode = isolation
         self._max_concurrent_sessions: int = max_concurrent_sessions
-        self._server = AgentServer()
+        self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(agents=self._agents)
         self._default_stt = default_stt
@@ -164,6 +164,25 @@ class AgentPool:
         self._default_greeting = default_greeting
         self._server.setup_fnc = partial(_prewarm_worker, self._runtime_state)
         self._server.rtc_session()(partial(_run_universal_session, self._runtime_state))
+
+    def _build_server(self) -> AgentServer:
+        """Construct the underlying LiveKit server matching ``isolation``.
+
+        Coroutine mode returns an :class:`_CoroutineAgentServer` that
+        monkey-patches ``ipc.proc_pool.ProcPool`` with our
+        :class:`CoroutinePool` for the duration of ``run()``. Process mode
+        returns a vanilla :class:`AgentServer` (the v0.0.x default).
+
+        The coroutine import is deferred so process-only callers do not
+        load ``execution/coroutine_server.py`` at module import time.
+        """
+        if self._isolation == "coroutine":
+            from openrtc.execution.coroutine_server import _CoroutineAgentServer
+
+            return _CoroutineAgentServer(
+                max_concurrent_sessions=self._max_concurrent_sessions,
+            )
+        return AgentServer()
 
     @property
     def isolation(self) -> IsolationMode:

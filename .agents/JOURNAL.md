@@ -142,6 +142,33 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 14:48 UTC — feat(pool): wire isolation -> server class
+Files: src/openrtc/core/pool.py:
+       - AgentPool.__init__ now calls self._build_server() to pick
+         the right server class.
+       - new private _build_server() method: late-imports
+         _CoroutineAgentServer when isolation="coroutine" (so
+         process-only callers don't load coroutine_server at
+         module-import time) and constructs it with
+         max_concurrent_sessions; falls back to vanilla
+         AgentServer() for isolation="process".
+       tests/test_pool.py: 4 new tests verifying:
+       - default (coroutine) constructs _CoroutineAgentServer,
+       - isolation="process" constructs vanilla AgentServer
+         (and is NOT a _CoroutineAgentServer subclass instance),
+       - max_concurrent_sessions propagates into the coroutine
+         server's _max_concurrent_sessions field,
+       - process mode does NOT push max_concurrent_sessions into
+         the vanilla AgentServer (the kwarg lives only on the pool).
+Tests: 199/199 pass (4 added). ruff: clean. mypy: clean.
+Notes: With this commit and the previous _CoroutineAgentServer +
+CoroutinePool work, AgentPool().run() now dispatches into the
+coroutine path end-to-end. The next pieces are the Phase 1
+end-to-end smoke test (one simulated job through coroutine mode)
+and the density benchmark (50 simulated jobs concurrently).
+Existing test_pool.py tests that touch pool.server keep working
+because _CoroutineAgentServer subclasses AgentServer.
+
 ## 2026-05-03 14:35 UTC — feat(execution): _CoroutineAgentServer swap shim
 Files: src/openrtc/execution/coroutine_server.py (new, ~105 LOC):
        _CoroutineAgentServer(AgentServer) accepts an optional
