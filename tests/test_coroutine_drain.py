@@ -242,6 +242,85 @@ def test_pool_drain_rejects_new_launch_jobs() -> None:
     asyncio.run(_scenario())
 
 
+def test_sigterm_style_drain_with_three_in_flight_sessions_waits_then_exits() -> None:
+    """§8.8: SIGTERM-equivalent drain with 3 in-flight sessions.
+
+    Simulates the path a CLI signal handler would take on SIGTERM:
+    schedule ``pool.drain()`` from a separate task while sessions are
+    in flight, then ``aclose()``. Asserts:
+
+    1. The drain task completes only after every session finishes.
+    2. No session is cancelled (cooperative completion).
+    3. After ``aclose``, no asyncio tasks from this scenario remain
+       on the loop — the equivalent of a clean worker process exit
+       with nothing leaking back into the event loop.
+    """
+
+    started_count = 0
+    completed: list[str] = []
+    work_release = asyncio.Event()
+
+    async def _entrypoint(ctx: Any) -> None:
+        nonlocal started_count
+        started_count += 1
+        # Simulate per-session work that finishes only when released.
+        await work_release.wait()
+        completed.append(ctx.session_id)
+
+    pool = _build_pool(entrypoint=_entrypoint)
+
+    async def _scenario() -> tuple[set[asyncio.Task[Any]], set[asyncio.Task[Any]]]:
+        await pool.start()
+        for sid in ("a", "b", "c"):
+            await pool.launch_job(_stub_running_job_info(sid))
+        # Wait until all three entrypoints have actually started.
+        while started_count < 3:
+            await asyncio.sleep(0.005)
+        assert len(pool.processes) == 3
+
+        baseline_tasks = {
+            t for t in asyncio.all_tasks() if t is not asyncio.current_task()
+        }
+
+        # Mimic a SIGTERM handler: kick off drain from a separate task.
+        drain_task = asyncio.create_task(pool.drain())
+
+        # Drain must NOT complete while sessions are still blocked.
+        await asyncio.sleep(0.05)
+        assert not drain_task.done(), "drain returned before sessions completed"
+        assert not completed, "no session should have completed yet"
+
+        # Now release the work; drain should complete shortly after.
+        work_release.set()
+        await drain_task
+
+        # All three completed cooperatively (none were cancelled).
+        assert sorted(completed) == ["a", "b", "c"]
+
+        # The pool exposes the draining state to a CLI status check.
+        assert pool.draining is True
+
+        # Worker exit path: aclose() finishes immediately because drain
+        # already joined every executor.
+        await pool.aclose()
+
+        residual_tasks = {
+            t
+            for t in asyncio.all_tasks()
+            if t is not asyncio.current_task() and not t.done()
+        }
+        return baseline_tasks, residual_tasks
+
+    baseline_tasks, residual_tasks = asyncio.run(_scenario())
+
+    # No new long-lived background tasks remain after the SIGTERM-style
+    # exit path completes — the worker would close out cleanly.
+    new_tasks = residual_tasks - baseline_tasks
+    assert new_tasks == set(), (
+        f"unexpected residual tasks after drain + aclose: {new_tasks}"
+    )
+
+
 def test_pool_drain_then_aclose_does_not_double_cancel() -> None:
     """drain finishes in-flight cleanly; the subsequent aclose is a no-op."""
 

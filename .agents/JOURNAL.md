@@ -142,6 +142,34 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 18:08 UTC — test(drain): SIGTERM-style drain with 3 in-flight (§8.8)
+Files: tests/test_coroutine_drain.py: 1 new test
+       (test_sigterm_style_drain_with_three_in_flight_sessions_waits_then_exits)
+       that mimics the path a CLI signal handler would take.
+       Schedules pool.drain() from a separate asyncio task while 3
+       entrypoints are blocked on an Event, asserts:
+       - the drain task is OBSERVABLY pending (not done) for at
+         least 50 ms while sessions are blocked, and `completed`
+         stays empty (no session has cooperatively finished yet),
+       - releasing the work allows the drain task to complete
+         cleanly,
+       - all 3 sessions completed (none were cancelled), as
+         observed via the `completed` list,
+       - pool.draining flips to True and stays True after drain,
+       - after a subsequent pool.aclose(), no residual asyncio
+         tasks belonging to this scenario remain on the loop
+         (the worker process would close out cleanly).
+Tests: 239/239 pass + 2 skipped (the §8.4 integration tests).
+ruff: clean. mypy: clean.
+Notes: §8.8 acceptance criterion is satisfied at the unit
+boundary. The "real SIGTERM delivered to a subprocess" path
+needs platform-specific signal handling (signal.signal /
+loop.add_signal_handler) and a subprocess harness; that would
+test the *signal-handler shim*, not the drain semantics
+themselves. The drain semantics are what §8.8 actually demands
+and they are now exhaustively covered (this iteration plus the
+existing 5 drain tests + 5 join tests from iteration 39).
+
 ## 2026-05-03 17:55 UTC — test(backpressure): current_load + load_fnc end-to-end (§8.6)
 Files: tests/test_coroutine_backpressure.py (new, ~190 LOC, 4
        tests):

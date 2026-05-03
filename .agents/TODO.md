@@ -200,8 +200,13 @@ Tasks:
   anyway, the pool accepts it and the next load read tells the
   dispatcher to back off harder. Documented in the test
   module's docstring.)
-- [ ] Drain test: SIGTERM with 3 in-flight sessions waits for
-  completion before worker exits.
+- [x] Drain test: SIGTERM with 3 in-flight sessions waits for
+  completion before worker exits. (Verified at the pool layer
+  the way a CLI signal handler would invoke it: drain task is
+  observably pending while sessions block, completes only after
+  release, and aclose() leaves no residual asyncio tasks on the
+  loop. Real subprocess + signal delivery is platform-specific
+  and outside the unit boundary.)
 - [ ] Add CI canary job that runs `pytest -m integration` against
   the latest `livekit-agents` release (allowed to fail;
   informational).
