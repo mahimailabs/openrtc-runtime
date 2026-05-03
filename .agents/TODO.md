@@ -250,6 +250,13 @@ Tasks:
 
 ## Discovered work
 
+- [x] Add `actionlint` pre-commit hook (rhysd/actionlint v1.7.7)
+  to validate GitHub Actions workflow YAML syntax + semantics
+  (action inputs/outputs, expressions, shell-script `run:`
+  bodies via shellcheck, security-relevant patterns). Catches
+  workflow syntax errors at commit time instead of "the
+  workflow runs once on `push` and then fails for some opaque
+  reason." All 8 existing workflows pass on first run.
 - [x] Add `codespell` pre-commit hook to catch spelling
   typos in source, docs, and journal entries. Pinned at
   v2.4.2. Skip-list excludes auto-generated lockfiles

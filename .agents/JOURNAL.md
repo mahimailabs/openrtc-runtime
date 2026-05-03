@@ -142,6 +142,29 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 07:15 UTC — chore(pre-commit): add `actionlint` hook (v1.7.7)
+Files: .pre-commit-config.yaml (+1 hook block, ahead of the
+codespell block).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+actionlint: clean against all 8 workflows
+(audit, bench, build, canary, deploy-docs, docs, lint,
+publish, test).
+Notes: actionlint validates GitHub Actions workflow YAML
+syntax + semantics (action inputs/outputs, expressions,
+shell-script `run:` bodies via shellcheck, security-relevant
+patterns like the script-injection class). The pre-commit
+hook from rhysd/actionlint runs the upstream Go binary, so
+no Docker dependency. v1.7.7 matches the latest stable
+upstream tag at the time of writing.
+Pinning: rev is exact, not a moving tag, so pre-commit
+caches the binary deterministically.
+Why now: this loop has touched every workflow file at least
+once (audit, build, the existing test/lint workflows for
+coverage-gate bumps); a typo in the YAML would only surface
+on the next push to main and might fail in confusing ways.
+The hook now catches that locally before commit.
+
 ## 2026-05-04 07:00 UTC — chore(pre-commit): add `codespell` hook
 Files: .pre-commit-config.yaml (+1 hook block).
 Tests: 374/374 pass + 2 skipped (no-op for tests).
