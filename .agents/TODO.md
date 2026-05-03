@@ -250,6 +250,22 @@ Tasks:
 
 ## Discovered work
 
+- [ ] Close the 22 missing branches surfaced once
+  `[tool.coverage.run] branch = true` landed. Most are "false
+  case of a conditional" edges in modules that are already at
+  100% line coverage. The current report (combined 99.06%):
+  cli/__init__.py 32->36; cli/commands.py 351->354;
+  cli/dashboard.py 240->249, 257->284; cli/livekit.py 74->76;
+  cli/reporter.py 97->99; core/discovery.py 24->27;
+  core/pool.py 430->432; core/routing.py 36->46, 56->67;
+  core/turn_handling.py 69->71;
+  execution/coroutine.py 231->233, 279->293, 286->288, 528->526,
+  571->578, 679->exit; observability/metrics.py 364->361;
+  observability/stream.py 137->exit;
+  tui/app.py 125->117, 127->117, 149->154.
+
+## Old discovered work
+
 (Add new tasks here as they come up. Keep this section ordered by
 priority.)
 
@@ -298,6 +314,15 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Enable branch coverage as the v0.1 hardness gate. Adds
+  `[tool.coverage.run] branch = true` to pyproject.toml so
+  `make test` and the CI matrix both report combined
+  line+branch coverage by default. Combined % drops from
+  100% (line-only) to 99.06% (line+branch) - 22 missing
+  branches surface across 13 files (mostly "false case of a
+  conditional" edges). Still well above the 95% fail-under
+  floor. Leaves the per-branch gap-closing as discovered
+  work for follow-up iterations.
 - [x] Lock the v0.1 coverage ratchet at 95% (was 80%) across the
   Makefile, test.yml CI workflow, and codecov.yml project +
   patch targets. The current project sits at 100%, so 95% gives

@@ -96,6 +96,13 @@ markers = [
     "integration: slower tests; some require a LiveKit dev server (see docker-compose.test.yml)",
 ]
 
+[tool.coverage.run]
+# Branch coverage is the v0.1 hardness gate. Line-only coverage hides
+# half-tested conditionals (e.g. an `if x and y:` exercised with x=True/y=True
+# but never x=True/y=False). The Makefile and CI fail-under threshold is the
+# combined line+branch percentage.
+branch = true
+
 [dependency-groups]
 dev = [
     "mypy>=1.19.1",

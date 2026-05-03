@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 01:15 UTC — chore(coverage): enable branch coverage as the v0.1 hardness gate
+Files: pyproject.toml (+5 LOC: new `[tool.coverage.run]`
+section with `branch = true` + a comment explaining the
+choice).
+Tests: 353/353 pass + 2 skipped. Required: 95%; actual
+combined (line+branch): 99.06% (line-only is 100%).
+ruff: clean. mypy: clean.
+Notes: Line-only coverage hides half-tested conditionals
+(`if x and y:` exercised with x=True/y=True but never
+x=True/y=False). Branch coverage reports each "edge"
+(line N -> line M) and surfaces 22 missing branches across
+13 files: most are simple "the false case of this
+conditional was never run" edges. The combined metric is
+99.06% — well above the 95% fail-under floor that landed
+last iteration — so this is a no-op for CI green/red but
+a real strictening of what "covered" means going forward.
+The 22 individual branch gaps are deferred as discovered
+work for future iterations; closing each one is small but
+they accumulate (some are in already-100%-line-coverage
+modules, e.g. cli/__init__.py 32->36).
+
 ## 2026-05-04 01:00 UTC — chore(ci): lock the v0.1 coverage ratchet at 95%
 Files: Makefile (`--cov-fail-under=80` -> `=95`),
 .github/workflows/test.yml (same flag in the matrix job),
