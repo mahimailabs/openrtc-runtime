@@ -250,6 +250,15 @@ Tasks:
 
 ## Discovered work
 
+- [x] Add `.github/dependabot.yml` for weekly Python +
+  GitHub-Actions dep updates. Two ecosystems pinned (pip via
+  pyproject.toml; github-actions for the workflow files). Bundles
+  dev-tooling bumps (ruff/mypy/pytest/pre-commit/typer/rich) so
+  a typical week is one PR not many. `livekit-agents` is
+  explicitly ignored — the `~=1.5` pin is deliberate (design
+  §9.1: we hook internal-ish surfaces and the canary job
+  watches the next minor for early warning). Schedule is
+  Monday 08:00 IST so PRs land at the start of the work week.
 - [x] Add a `make ci` aggregate target that runs every gate the
   CI workflow runs in the same order: `lint`, `format-check`,
   `typecheck`, `test` (with the 99% coverage gate). One command

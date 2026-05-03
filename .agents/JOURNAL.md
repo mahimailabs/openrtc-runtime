@@ -142,6 +142,26 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 04:45 UTC — chore(deps): add Dependabot config (weekly pip + github-actions)
+Files: .github/dependabot.yml (new, 53 LOC).
+Tests: 374/374 pass + 2 skipped (no-op for the test suite).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Notes: Two ecosystems configured:
+- pip (covers uv-managed deps via pyproject.toml): bundles
+  dev-tooling bumps (ruff/mypy/pytest/pytest-* / pre-commit
+  / rich / typer) so the typical week is one PR not many;
+  open-pull-requests-limit=5 caps the noise.
+- github-actions: bumps pinned action versions (e.g.
+  actions/checkout@v4) when upstream cuts a release;
+  open-pull-requests-limit=3.
+Both run Monday 08:00 IST so PRs land at week start.
+`livekit-agents` is explicitly ignored — design §9.1 calls
+out that we hook internal-ish surfaces (ProcPool,
+JobExecutor protocol) and the upstream pin must move
+deliberately, not auto-bump. The existing canary CI job
+already watches the next minor and surfaces breakage as
+informational.
+
 ## 2026-05-04 04:30 UTC — chore(make): add aggregate `make ci` target
 Files: Makefile (+1 target, +`ci` in the .PHONY list).
 Tests: 374/374 pass + 2 skipped via the new aggregate target.
