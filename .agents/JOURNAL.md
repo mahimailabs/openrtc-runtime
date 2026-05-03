@@ -142,6 +142,32 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 03:15 UTC — chore(lint): enable ruff `SIM` ruleset (nested `with` excepted)
+Files: pyproject.toml (`select` += `SIM`; `ignore` += `SIM117`
+with inline comment explaining why);
+tests/benchmarks/density.py (+1 `import contextlib`; replaces
+`try: ... except TimeoutError: pass` around the RSS sampler's
+wait_for with `contextlib.suppress(TimeoutError)`);
+tests/integration/test_concurrent_real_calls.py (+1
+`import contextlib`; replaces the same pattern around the
+runner cleanup with `contextlib.suppress(...)`);
+tests/test_coroutine_coverage.py (+1 `import contextlib`;
+replaces the cancellation cleanup pattern in
+test_consume_cancelled_task_exception_swallows_invalid_state_error).
+Tests: 374/374 pass + 2 skipped. Coverage: 100.00%. ruff:
+clean. mypy --strict: clean.
+Notes: Considered enabling RET, PT, PERF as well but the
+mismatch is minor (1 RET501, 4 PT018 spread across tests)
+and the readability of split asserts isn't an obvious win
+for the existing test style. SIM117 was the only SIM rule
+deliberately ignored — collapsing nested `with` blocks
+(monkeypatch + `app.run_test() as pilot:` etc.) reads worse
+than the nested form. The kept rules (SIM105 / SIM110 /
+SIM118 / etc.) catch common Python anti-patterns without
+forcing stylistic flips. Tests now exclusively use
+`contextlib.suppress` for the swallow-and-continue pattern,
+which is the documented modern idiom.
+
 ## 2026-05-04 03:00 UTC — chore(typecheck): enable mypy `strict = true`
 Files: pyproject.toml ([tool.mypy]: drop the individual
 warn_return_any/warn_unused_configs flags, replace with

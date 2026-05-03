@@ -250,6 +250,14 @@ Tasks:
 
 ## Discovered work
 
+- [x] Enable ruff's `SIM` (flake8-simplify) ruleset. Replaced
+  3 `try/except/pass` blocks with `contextlib.suppress(...)`
+  in tests/benchmarks/density.py,
+  tests/integration/test_concurrent_real_calls.py, and
+  tests/test_coroutine_coverage.py. Ignored `SIM117`
+  (nested `with` collapsing) because it consistently hurts
+  readability for monkey-patch + `pilot` setups in the test
+  suite; documented the ignore inline.
 - [x] Enable mypy `strict = true` for the source tree. Fixed
   the only two issues that surfaced:
   `src/openrtc/core/pool.py:73` (`AgentSession` -> `AgentSession[None]`

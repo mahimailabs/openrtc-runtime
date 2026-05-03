@@ -74,12 +74,16 @@ select = [
     "B",
     "C4",
     "UP",
+    "SIM",
 ]
 ignore = [
     "E501",
     "B008",
     "C901",
     "W191",
+    # SIM117 (single `with` for nested contexts) hurts readability for tests
+    # that arrange complex monkey-patches plus run_test() pilots; skip it.
+    "SIM117",
 ]
 
 [tool.ruff.lint.per-file-ignores]

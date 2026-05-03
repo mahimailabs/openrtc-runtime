@@ -9,6 +9,7 @@ inference executor, direct CoroutinePool validation, the real
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import multiprocessing as mp
 from types import SimpleNamespace
 from typing import Any
@@ -144,10 +145,8 @@ def test_consume_cancelled_task_exception_swallows_invalid_state_error() -> None
             _consume_cancelled_task_exception(task)
         finally:
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
     asyncio.run(_scenario())
 

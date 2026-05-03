@@ -19,6 +19,7 @@ TTS providers — the property §8.4 demands.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 
 import pytest
@@ -115,10 +116,8 @@ async def test_five_concurrent_sessions_complete_in_one_coroutine_worker(
     finally:
         await server.aclose()
         # Surface any background errors instead of silently dropping.
-        try:
+        with contextlib.suppress(TimeoutError, asyncio.CancelledError, Exception):
             await asyncio.wait_for(runner, timeout=10.0)
-        except (TimeoutError, asyncio.CancelledError, Exception):
-            pass
 
 
 @pytest.mark.integration

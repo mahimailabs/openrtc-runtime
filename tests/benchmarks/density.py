@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import multiprocessing as mp
 import sys
@@ -124,10 +125,8 @@ async def _sample_rss(stop: asyncio.Event, samples: list[int]) -> None:
         rss = process_resident_set_bytes()
         if rss is not None:
             samples.append(rss)
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(stop.wait(), timeout=_RSS_SAMPLE_INTERVAL_SECONDS)
-        except TimeoutError:
-            pass
 
 
 async def run_density_benchmark(
