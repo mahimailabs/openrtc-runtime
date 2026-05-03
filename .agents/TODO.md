@@ -250,6 +250,20 @@ Tasks:
 
 ## Discovered work
 
+- [x] Extend `.github/workflows/build.yml` with a wheel
+  smoke-install step. After `uv build` and `twine check`,
+  install the produced wheel into a clean venv and assert
+  `import openrtc; openrtc.AgentPool / openrtc.agent_config`
+  resolve and `__version__` is a string. `twine check`
+  validates metadata only; this validates the runtime file
+  layout — catches "wheel built but missed a package" /
+  "module-load-time import broke" classes of bug. Tried
+  `--no-deps` first to avoid pulling livekit-agents over
+  the network; doesn't work because `openrtc/__init__.py`
+  imports `Agent` from `livekit.agents` at load time, so
+  a clean install of `openrtc` cannot succeed without its
+  runtime deps. Verified locally: install + import + version
+  print all succeed in a throwaway uv venv.
 - [x] Add `.github/workflows/build.yml` build-sanity CI step.
   Runs `uv build` (wheel + sdist) and `twine check dist/*`
   on every PR + push to main. Uploads the artifacts so a

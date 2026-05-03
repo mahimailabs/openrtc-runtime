@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 06:30 UTC — ci(build): add wheel smoke-install step
+Files: .github/workflows/build.yml (+1 step, ~17 LOC).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Local validation: built the wheel, installed it into
+`/tmp/openrtc-smoke` (uv venv), and ran `python -c "import
+openrtc; print(openrtc.__version__)"` -> prints
+`0.1.0.dev246+g78a5c7919.d20260503` and the live AgentPool /
+agent_config refs. All four assertions in the embedded
+heredoc pass.
+Notes: `twine check` (already in the workflow) validates
+metadata only; this new step validates the runtime file
+layout — catches "wheel built but missed a package",
+"module-load-time `from livekit.agents import Agent` couldn't
+resolve" and similar bugs. Tried `--no-deps` first to avoid
+pulling livekit-agents transitively over the network; that
+doesn't work because `openrtc/__init__.py` imports `Agent`
+from livekit.agents at load time, so a clean install
+cannot succeed without runtime deps. The full-deps install
+adds ~30s to the workflow, well below the ~5min CI budget.
+
 ## 2026-05-04 06:15 UTC — ci(build): add per-PR build-sanity workflow
 Files: .github/workflows/build.yml (new, 47 LOC).
 Tests: 374/374 pass + 2 skipped (no-op for tests).
