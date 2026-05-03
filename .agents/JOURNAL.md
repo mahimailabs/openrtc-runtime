@@ -142,6 +142,26 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 02:30 UTC — test(branches): close last branch — cli/__init__.py 32->36 (99.96% -> 100.00%)
+Files: tests/test_cli.py (+1 test, ~22 LOC).
+Tests: 374/374 pass + 2 skipped. Combined line+branch
+coverage: 100.00% (was 99.96%); all 22 branches closed.
+ruff: clean. mypy: clean.
+Notes: The last surviving branch (the eager
+`from openrtc.cli.commands import app` skip when typer/rich
+are "missing") needed an `importlib.reload(cli_pkg)` after
+monkey-patching `entry_module._optional_typer_rich_missing`
+to return True. The reload re-executes the module body so
+the `if not _optional_typer_rich_missing():` check
+re-evaluates with the stub, taking the False branch and
+jumping past the eager-bind line. The test asserts the stub
+was called (the side effect of the captured list) rather
+than checking module-namespace cleanliness, since reload
+doesn't strip pre-existing attributes from the namespace.
+Cleanup undoes the monkey-patch and reloads again to
+restore the real eager-bind state for downstream tests.
+**Project at 100.00% combined line + branch coverage.**
+
 ## 2026-05-04 02:15 UTC — test(branches): close batch 4 — all 3 tui/app.py branches (99.83% -> 99.96%)
 Files: tests/test_tui_app.py (+3 tests, ~70 LOC).
 Tests: 373/373 pass + 2 skipped. Combined coverage: 99.96%

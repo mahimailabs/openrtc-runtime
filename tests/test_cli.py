@@ -1045,6 +1045,31 @@ def test_strip_openrtc_only_flags_handles_flag_without_following_value() -> None
     ]
 
 
+def test_cli_package_skips_eager_app_bind_when_optional_extra_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Branch 32->36: ``_optional_typer_rich_missing`` True skips the eager `from ... import app`."""
+    import importlib
+
+    import openrtc.cli as cli_pkg
+    import openrtc.cli.entry as entry_module
+
+    captured: list[bool] = []
+
+    def _stub_missing() -> bool:
+        captured.append(True)
+        return True
+
+    monkeypatch.setattr(entry_module, "_optional_typer_rich_missing", _stub_missing)
+    try:
+        importlib.reload(cli_pkg)
+    finally:
+        monkeypatch.undo()
+        importlib.reload(cli_pkg)
+
+    assert captured == [True]
+
+
 def test_openrtc_version_falls_back_when_metadata_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

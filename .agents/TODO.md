@@ -250,8 +250,10 @@ Tasks:
 
 ## Discovered work
 
-- [~] Close the 22 missing branches surfaced once
+- [x] Close the 22 missing branches surfaced once
   `[tool.coverage.run] branch = true` landed.
+  **All 22 closed across 4 batches; project sits at 100.00%
+  combined line + branch coverage.**
   **Batch 1 closed (8 branches):** cli/commands.py 351->354;
   cli/dashboard.py 240->249, 257->284; cli/livekit.py 74->76;
   core/pool.py 430->432; core/routing.py 36->46, 56->67;
@@ -275,8 +277,12 @@ Tasks:
   with unknown `kind` skipped via parser monkeypatch);
   127->117 (EVENT record with non-dict payload skipped via
   parser monkeypatch). (99.83% -> 99.96%)
-  Remaining 1 branch: cli/__init__.py 32->36
-  (needs importlib.reload + monkeypatch).
+  **Batch 5 closed (1 branch):** cli/__init__.py 32->36
+  (eager `from openrtc.cli.commands import app` skipped when
+  `_optional_typer_rich_missing()` returns True — exercised by
+  monkey-patching the helper and `importlib.reload(cli_pkg)`,
+  with cleanup that restores the helper and reloads again).
+  (99.96% -> 100.00%)
 
 ## Old discovered work
 
