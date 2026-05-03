@@ -76,6 +76,11 @@ select = [
     "UP",
     "SIM",
     "PT",
+    "RET",
+    "PERF",
+    "PIE",
+    "ICN",
+    "TID",
 ]
 ignore = [
     "E501",

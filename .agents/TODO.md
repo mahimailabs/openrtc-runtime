@@ -250,6 +250,14 @@ Tasks:
 
 ## Discovered work
 
+- [x] Enable ruff's `RET`, `PERF`, `PIE`, `ICN`, `TID` rulesets in
+  one batch (only 1 violation surfaced across all five). Removed
+  the redundant `return None` at the end of
+  `CoroutineJobExecutor.initialize` (RET501) — function returns
+  None implicitly, the explicit return read as more code than
+  it was. The other 4 rulesets came in clean and now lock down
+  performance anti-patterns (PERF), style cleanups (PIE),
+  import-name conventions (ICN), and import banishments (TID).
 - [x] Enable ruff's `PT` (flake8-pytest-style) ruleset. Fixed
   the 7 reported issues:
   - PT022 in tests/integration/conftest.py: the

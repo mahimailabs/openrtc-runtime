@@ -142,6 +142,23 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 03:45 UTC — chore(lint): enable ruff `RET`+`PERF`+`PIE`+`ICN`+`TID` rulesets
+Files: pyproject.toml (`select` += 5 codes);
+src/openrtc/execution/coroutine.py (drop `return None` from
+`CoroutineJobExecutor.initialize`).
+Tests: 374/374 pass + 2 skipped. Coverage: 100.00%. ruff:
+clean. mypy --strict: clean.
+Notes: Total churn was 1 line of source change (RET501 in
+initialize). The other 4 rulesets came in clean — meaning
+the codebase already followed the conventions they enforce.
+PERF flags performance anti-patterns (e.g. `list(map(...))`
+inside hot loops); PIE catches small style mistakes
+(unnecessary placeholder, duplicate union members); ICN
+enforces standard import aliases (`numpy as np` etc., not a
+factor here); TID guards against banned imports / relative
+import overuse. Enabling them now is cheap insurance against
+regressions in future PRs without paying any cleanup cost.
+
 ## 2026-05-04 03:30 UTC — chore(lint): enable ruff `PT` (pytest-style) ruleset
 Files: pyproject.toml (`select` += `PT`);
 tests/integration/conftest.py (PT022: `yield` -> `return` in

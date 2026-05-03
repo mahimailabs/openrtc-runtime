@@ -183,7 +183,6 @@ class CoroutineJobExecutor:
         and safe to call multiple times so ``ProcPool.start()``-style callers
         work unchanged.
         """
-        return None
 
     async def aclose(self) -> None:
         """Cancel any in-flight ``launch_job`` task and clear ``started``.
