@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 
@@ -32,10 +32,13 @@ __all__ = [
     "AgentConfig",
     "AgentDiscoveryConfig",
     "AgentPool",
+    "IsolationMode",
     "agent_config",
 ]
 
 logger = logging.getLogger("openrtc")
+
+IsolationMode = Literal["coroutine", "process"]
 
 
 @dataclass(slots=True)
@@ -107,6 +110,7 @@ class AgentPool:
         default_llm: ProviderValue | None = None,
         default_tts: ProviderValue | None = None,
         default_greeting: str | None = None,
+        isolation: IsolationMode = "coroutine",
     ) -> None:
         """Create a pool with shared defaults, prewarm, and a universal entrypoint.
 
@@ -119,7 +123,19 @@ class AgentPool:
                 it during ``add()`` or ``discover()``.
             default_greeting: Default greeting used when an agent does not override
                 it during ``add()`` or ``discover()``.
+            isolation: Worker isolation mode. ``"coroutine"`` (the v0.1 default)
+                runs every session as an ``asyncio.Task`` inside one worker
+                process for high density. ``"process"`` preserves the v0.0.x
+                behavior of one OS process per session via livekit-agents'
+                default ``ProcPool``. The setting is plumbed but not yet acted
+                on; the actual coroutine runtime arrives in a follow-up
+                iteration.
         """
+        if isolation not in ("coroutine", "process"):
+            raise ValueError(
+                f"isolation must be 'coroutine' or 'process', got {isolation!r}."
+            )
+        self._isolation: IsolationMode = isolation
         self._server = AgentServer()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(agents=self._agents)
@@ -129,6 +145,11 @@ class AgentPool:
         self._default_greeting = default_greeting
         self._server.setup_fnc = partial(_prewarm_worker, self._runtime_state)
         self._server.rtc_session()(partial(_run_universal_session, self._runtime_state))
+
+    @property
+    def isolation(self) -> IsolationMode:
+        """Return the configured worker isolation mode (``"coroutine"`` or ``"process"``)."""
+        return self._isolation
 
     @property
     def server(self) -> AgentServer:

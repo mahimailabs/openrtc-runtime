@@ -142,6 +142,24 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 11:55 UTC — feat(pool): plumb `isolation` parameter (no behavior yet)
+Files: src/openrtc/core/pool.py (+ Literal import; new module-level
+       IsolationMode = Literal["coroutine", "process"]; new isolation
+       kwarg on AgentPool.__init__ defaulting to "coroutine";
+       validation that rejects unknown values; new `isolation`
+       property; __all__ extended with IsolationMode),
+       tests/test_pool.py (3 new tests: default is coroutine,
+       process accepted, unknown raises ValueError).
+Tests: 133/133 pass (3 new). ruff: clean. mypy: clean.
+Notes: Pure plumbing per the TODO. The setting is stored and
+exposed via `pool.isolation` but nothing in the runtime branches
+on it yet — that arrives when CoroutinePool lands. Default flips
+the v0.0.x behavior (process) to v0.1's coroutine, matching design
+§5.4. Public surface intentionally NOT extended in __init__.py
+since users only pass strings; the IsolationMode type alias is
+available via `from openrtc.core.pool import IsolationMode` for
+type-aware callers but not promoted to the package level.
+
 ## 2026-05-03 11:42 UTC — docs: capture AgentServer integration points
 Files: docs/design/agent-server-integration.md (new, ~150 LOC).
 Tests: not run (docs-only).

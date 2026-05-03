@@ -36,6 +36,24 @@ def test_add_registers_agent() -> None:
     assert pool.list_agents() == ["test"]
 
 
+def test_isolation_defaults_to_coroutine() -> None:
+    """v0.1 default is coroutine mode; the setting is plumbed but not yet acted on."""
+    pool = AgentPool()
+
+    assert pool.isolation == "coroutine"
+
+
+def test_isolation_accepts_process_mode() -> None:
+    pool = AgentPool(isolation="process")
+
+    assert pool.isolation == "process"
+
+
+def test_isolation_rejects_unknown_mode() -> None:
+    with pytest.raises(ValueError, match="isolation must be 'coroutine' or 'process'"):
+        AgentPool(isolation="threaded")  # type: ignore[arg-type]
+
+
 def test_add_uses_pool_defaults_when_agent_values_are_omitted() -> None:
     pool = AgentPool(
         default_stt="openai/gpt-4o-mini-transcribe",

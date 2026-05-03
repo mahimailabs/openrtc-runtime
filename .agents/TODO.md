@@ -115,7 +115,7 @@ Tasks:
   `ProcPool` surface that `AgentServer` calls.
 - [x] Read `livekit/agents/worker.py`. Document where
   `AgentServer` instantiates and uses `_proc_pool`.
-- [ ] Add `isolation: Literal["coroutine", "process"]` parameter to
+- [x] Add `isolation: Literal["coroutine", "process"]` parameter to
   `AgentPool.__init__`, default `"coroutine"`. Thread through but
   don't act on it yet — just plumbing.
 - [ ] Add `max_concurrent_sessions: int = 50` parameter to
