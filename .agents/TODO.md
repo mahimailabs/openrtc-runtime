@@ -152,7 +152,7 @@ Tasks:
   subclass that swaps `_proc_pool` for our `CoroutinePool`.
 - [x] Wire `AgentPool` to choose between `AgentServer()` and
   `_CoroutineAgentServer(...)` based on `isolation` parameter.
-- [ ] First end-to-end smoke test: `AgentPool(isolation="coroutine")`
+- [x] First end-to-end smoke test: `AgentPool(isolation="coroutine")`
   registers, accepts one simulated job, runs it to completion.
 - [ ] Density benchmark script `tests/benchmarks/density.py`: spawn
   50 simulated jobs concurrently in one worker; record peak RSS.

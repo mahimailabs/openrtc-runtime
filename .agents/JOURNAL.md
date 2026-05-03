@@ -142,6 +142,36 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 15:00 UTC — test: end-to-end smoke for coroutine path
+Files: tests/test_coroutine_smoke.py (new, ~110 LOC, 1 test).
+Tests: 200/200 pass (1 added). ruff: clean. mypy: clean.
+Notes: Wires the full stack the way AgentServer.run() +
+simulate_job(fake_job=True) would: AgentPool(isolation=coroutine,
+max_concurrent_sessions=4) -> _CoroutineAgentServer (built by
+AgentPool.__init__) -> CoroutinePool (constructed inline with
+the same setup_fnc + _entrypoint_fnc + _session_end_fnc the real
+run() would pass) -> _run_universal_session -> registered agent
+class -> stub AgentSession.
+
+What's stubbed: AgentSession (records start kwargs and
+generate_reply), _prewarm_worker (writes "vad-stub" + a turn
+detector factory into proc.userdata so we don't load Silero or
+the multilingual turn detector models), _build_job_context (so
+we don't construct a real rtc.Room).
+
+What's verified end-to-end: prewarm runs into the singleton
+JobProcess; routing resolves the registered agent from room
+metadata; AgentSession is constructed with the prewarmed vad;
+the greeting flows through to generate_reply after ctx.connect;
+the executor leaves processes after task completion;
+pool.aclose() drains cleanly.
+
+This satisfies the design §7 Phase 1 "one sanity-check
+integration test" gate without standing up a LiveKit server.
+The "real LiveKit integration test" (5 concurrent calls with
+real STT/LLM/TTS, design §8.4) is a Phase 2 task that needs the
+containerized dev server.
+
 ## 2026-05-03 14:48 UTC — feat(pool): wire isolation -> server class
 Files: src/openrtc/core/pool.py:
        - AgentPool.__init__ now calls self._build_server() to pick
