@@ -142,6 +142,30 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 14:18 UTC — feat(execution): implement CoroutinePool.aclose
+Files: src/openrtc/execution/coroutine.py: CoroutinePool.aclose
+       (was NotImplementedError) now is idempotent before/after
+       start, snapshots self._executors, runs aclose() on each
+       in parallel via asyncio.gather(return_exceptions=True),
+       wraps in asyncio.wait_for with self._close_timeout, and
+       on TimeoutError logs a warning and falls back to
+       executor.kill() for stragglers.
+       tests/test_coroutine_skeleton.py: removed the parametrized
+       "still raises" test for aclose; added 6 tests
+       (before-start safe, no-active safe, idempotent across 3
+       calls, drains 3 stuck entrypoints, escalates to kill on
+       timeout — verifies the entrypoint actually saw a
+       CancelledError before the kill, absorbs an executor whose
+       aclose itself raises).
+Tests: 187/187 pass (5 added net). ruff: clean. mypy: clean.
+Notes: Snapshot of _executors before draining is required because
+each executor's _on_executor_done done-callback removes itself
+from the live list as its task settles; iterating the live list
+would skip entries. asyncio.wait_for + per-executor kill matches
+ProcPool's drain pattern (cancel main task -> close every
+executor -> await close tasks). Individual aclose failures use
+return_exceptions so one bad executor cannot block the rest.
+
 ## 2026-05-03 14:05 UTC — feat(execution): CoroutinePool.current_load + max_concurrent_sessions
 Files: src/openrtc/execution/coroutine.py:
        - new optional `max_concurrent_sessions: int = 50` kwarg

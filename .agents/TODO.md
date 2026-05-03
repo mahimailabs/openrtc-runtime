@@ -146,7 +146,7 @@ Tasks:
   `len(active) / max_concurrent_sessions`. (Note: not part of the
   upstream ProcPool surface; AgentPool will register the pool's
   current_load as a custom load_fnc when the wiring lands.)
-- [ ] Implement `CoroutinePool.aclose()`: drain — cancel all
+- [x] Implement `CoroutinePool.aclose()`: drain — cancel all
   executors, await them.
 - [ ] Create `execution/coroutine_server.py`: `_CoroutineAgentServer`
   subclass that swaps `_proc_pool` for our `CoroutinePool`.

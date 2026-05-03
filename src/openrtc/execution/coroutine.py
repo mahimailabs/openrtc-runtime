@@ -406,7 +406,49 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         return self._started
 
     async def aclose(self) -> None:
-        raise NotImplementedError(_SKELETON_HINT)
+        """Drain the pool: cancel every active executor and wait for cleanup.
+
+        Idempotent: a call before :meth:`start` (or a second call after a
+        prior aclose) returns immediately. Snapshots :attr:`processes` so
+        each executor's ``_on_executor_done`` callback can safely remove
+        itself from the live list while we iterate.
+
+        Wraps the parallel cancellation in :func:`asyncio.wait_for` with
+        the configured ``close_timeout``. On timeout we fall back to the
+        per-executor :meth:`CoroutineJobExecutor.kill` escalation so the
+        worker can finish shutting down even if a user entrypoint refuses
+        to honor cancellation.
+
+        Individual ``aclose`` failures are absorbed (``return_exceptions``)
+        so one bad executor cannot prevent the rest from being cleaned up.
+        """
+        if not self._started:
+            return
+        self._started = False
+
+        executors = list(self._executors)
+        if not executors:
+            return
+
+        async def _close_all() -> None:
+            await asyncio.gather(
+                *(ex.aclose() for ex in executors),
+                return_exceptions=True,
+            )
+
+        try:
+            await asyncio.wait_for(_close_all(), timeout=self._close_timeout)
+        except TimeoutError:
+            logger.warning(
+                "CoroutinePool aclose timed out after %.1fs; "
+                "escalating to kill for %d executor(s)",
+                self._close_timeout,
+                len(executors),
+            )
+            for ex in executors:
+                kill_method = getattr(ex, "kill", None)
+                if callable(kill_method):
+                    kill_method()
 
     async def launch_job(self, info: RunningJobInfo) -> None:
         """Allocate a per-session executor and schedule its entrypoint.

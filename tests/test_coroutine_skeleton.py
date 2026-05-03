@@ -442,13 +442,131 @@ def test_coroutine_pool_get_by_job_id_returns_none_for_empty_pool() -> None:
     assert pool.get_by_job_id("nonexistent") is None
 
 
-@pytest.mark.parametrize("method_name", ["aclose"])
-def test_coroutine_pool_lifecycle_methods_are_unimplemented(method_name: str) -> None:
+def test_coroutine_pool_aclose_before_start_is_safe() -> None:
     pool = _build_pool()
-    method = getattr(pool, method_name)
-    assert inspect.iscoroutinefunction(method)
-    with pytest.raises(NotImplementedError, match="skeleton"):
-        asyncio.run(method())
+
+    asyncio.run(pool.aclose())  # must not raise
+
+    assert pool.started is False
+
+
+def test_coroutine_pool_aclose_with_no_active_executors_is_safe() -> None:
+    pool = _build_pool_with_setup(lambda _proc: None)
+
+    async def _scenario() -> None:
+        await pool.start()
+        assert pool.started is True
+        await pool.aclose()
+
+    asyncio.run(_scenario())
+
+    assert pool.started is False
+    assert pool.processes == []
+
+
+def test_coroutine_pool_aclose_is_idempotent() -> None:
+    pool = _build_pool_with_setup(lambda _proc: None)
+
+    async def _scenario() -> None:
+        await pool.start()
+        await pool.aclose()
+        await pool.aclose()
+        await pool.aclose()
+
+    asyncio.run(_scenario())
+
+    assert pool.started is False
+
+
+def test_coroutine_pool_aclose_drains_active_executors() -> None:
+    started_count = 0
+
+    async def _entry(_ctx: Any) -> None:
+        nonlocal started_count
+        started_count += 1
+        await asyncio.sleep(60)  # would block forever absent cancellation
+
+    pool = _build_started_pool(entrypoint=_entry)
+    pool._build_job_context = lambda info: f"ctx-{info.job.id}"  # type: ignore[assignment, return-value]
+
+    async def _scenario() -> None:
+        await pool.launch_job(_stub_running_job_info("a"))
+        await pool.launch_job(_stub_running_job_info("b"))
+        await pool.launch_job(_stub_running_job_info("c"))
+        await asyncio.sleep(0)  # let entrypoints actually start
+        assert started_count == 3
+        await pool.aclose()
+
+    asyncio.run(_scenario())
+
+    assert pool.started is False
+    assert pool.processes == []
+
+
+def test_coroutine_pool_aclose_escalates_to_kill_on_timeout() -> None:
+    cancel_seen: list[bool] = []
+
+    async def _stubborn(_ctx: Any) -> None:
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            cancel_seen.append(True)
+            # Refuse cancellation: swallow and continue sleeping.
+            await asyncio.sleep(60)
+
+    pool = CoroutinePool(
+        initialize_process_fnc=lambda _proc: None,
+        job_entrypoint_fnc=_stubborn,
+        session_end_fnc=None,
+        num_idle_processes=0,
+        initialize_timeout=5.0,
+        close_timeout=0.05,  # very short
+        inference_executor=None,
+        job_executor_type=JobExecutorType.PROCESS,
+        mp_ctx=mp.get_context(),
+        memory_warn_mb=0.0,
+        memory_limit_mb=0.0,
+        http_proxy=None,
+        loop=asyncio.new_event_loop(),
+    )
+    pool._build_job_context = lambda info: f"ctx-{info.job.id}"  # type: ignore[assignment, return-value]
+
+    async def _scenario() -> None:
+        await pool.start()
+        await pool.launch_job(_stub_running_job_info("stuck"))
+        await asyncio.sleep(0)
+        await pool.aclose()
+        # Yield once for the kill cancellation to settle.
+        await asyncio.sleep(0)
+
+    asyncio.run(_scenario())
+
+    assert cancel_seen == [True], "entrypoint should have seen its first cancellation"
+    assert pool.started is False
+
+
+def test_coroutine_pool_aclose_absorbs_individual_executor_failures() -> None:
+    class _BoomingExecutor:
+        running_job = None
+        _task: asyncio.Task[None] | None = None
+
+        async def aclose(self) -> None:
+            raise RuntimeError("aclose boom")
+
+        def kill(self) -> None:
+            pass
+
+    pool = _build_pool_with_setup(lambda _proc: None)
+
+    async def _scenario() -> None:
+        await pool.start()
+        # Inject a hostile executor directly so aclose has something to drain.
+        pool._executors.append(_BoomingExecutor())  # type: ignore[arg-type]
+        await pool.aclose()  # must not propagate the RuntimeError
+
+    asyncio.run(_scenario())
+
+    assert pool.started is False
 
 
 def _build_pool_with_setup(
