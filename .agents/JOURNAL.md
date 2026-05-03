@@ -142,6 +142,26 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 00:15 UTC — test(init): close cli/__init__.py (54%) and openrtc/__init__.py (80%) gaps
+Files: tests/test_cli.py (+4 tests, ~70 LOC).
+Tests: 347/347 pass + 2 skipped. Coverage: cli/__init__.py
+100% (was 54%); openrtc/__init__.py 100% (was 80%); total
+99.46% (was 99.02%). ruff: clean. mypy: clean.
+Notes: New tests cover (a) the package-level `__getattr__`
+fallback for `openrtc.cli.app`: raises ImportError with the
+`openrtc[cli]` hint when `_optional_typer_rich_missing()`
+returns True (monkey-patched), returns the real Typer app
+via lazy `from openrtc.cli.commands import app` when extras
+are present, and raises AttributeError for unknown attribute
+names; (b) `openrtc.__version__` reverts to `0.1.0.dev0`
+when `importlib.metadata.version` raises PackageNotFoundError
+(monkey-patch + importlib.reload, with cleanup that restores
+the real version function and reloads to undo the side
+effect). Both modules sit at the user-facing import boundary
+- a regression here would either break dev-checkout imports
+or silently strip the install-hint - so locking them in unit
+tests is the cheapest hedge.
+
 ## 2026-05-04 00:00 UTC — test(dashboard): close cli/dashboard.py coverage gap (82% -> 100%)
 Files: tests/test_dashboard.py (new, 11 tests, ~145 LOC).
 Tests: 343/343 pass + 2 skipped. Coverage: cli/dashboard.py

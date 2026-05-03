@@ -980,3 +980,61 @@ def test_discover_or_exit_when_permission_denied(
 
     assert exc.value.exit_code == 1
     assert "permission denied" in caplog.text.lower()
+
+
+def test_cli_package_getattr_app_raises_when_optional_extra_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``openrtc.cli.app`` access raises ImportError with the install hint."""
+    import openrtc.cli as cli_pkg
+
+    monkeypatch.setattr(cli_pkg, "_optional_typer_rich_missing", lambda: True)
+
+    with pytest.raises(ImportError, match=r"openrtc\[cli\]"):
+        cli_pkg.__getattr__("app")
+
+
+def test_cli_package_getattr_app_returns_typer_app_when_extra_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``openrtc.cli.app`` returns the live Typer app via the lazy fallback path."""
+    import openrtc.cli as cli_pkg
+
+    monkeypatch.setattr(cli_pkg, "_optional_typer_rich_missing", lambda: False)
+    typer_app = cli_pkg.__getattr__("app")
+
+    from openrtc.cli.commands import app as expected
+
+    assert typer_app is expected
+
+
+def test_cli_package_getattr_unknown_attribute_raises_attribute_error() -> None:
+    """Unknown attributes route to ``AttributeError`` (not ImportError)."""
+    import openrtc.cli as cli_pkg
+
+    with pytest.raises(AttributeError, match="totally_made_up"):
+        cli_pkg.__getattr__("totally_made_up")
+
+
+def test_openrtc_version_falls_back_when_metadata_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``__version__`` reverts to the dev sentinel when the package isn't installed."""
+    import importlib
+
+    import openrtc
+
+    real_version = importlib.metadata.version
+
+    def _raise_pnf(name: str) -> str:
+        from importlib.metadata import PackageNotFoundError
+
+        raise PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", _raise_pnf)
+    try:
+        reloaded = importlib.reload(openrtc)
+        assert reloaded.__version__ == "0.1.0.dev0"
+    finally:
+        monkeypatch.setattr(importlib.metadata, "version", real_version)
+        importlib.reload(openrtc)

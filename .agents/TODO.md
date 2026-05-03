@@ -298,6 +298,17 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `cli/__init__.py` (54% -> 100%) and `openrtc/__init__.py`
+  (80% -> 100%) coverage gaps. 4 tests in tests/test_cli.py:
+  the package-level `__getattr__("app")` raises ImportError
+  with the `openrtc[cli]` install hint when extras are missing,
+  returns the live Typer app via lazy import when extras are
+  present, and raises AttributeError for unknown attribute
+  names; `openrtc.__version__` reverts to the `0.1.0.dev0`
+  fallback sentinel when `importlib.metadata.version` raises
+  PackageNotFoundError (via importlib.reload). Locks the
+  install-hint contract and the dev-checkout version fallback
+  before tagging.
 - [x] Close `cli/dashboard.py` coverage gap (82% -> 100%):
   11 tests in tests/test_dashboard.py covering: pure-helper
   edges (`_format_percent` returning "—" for missing or
