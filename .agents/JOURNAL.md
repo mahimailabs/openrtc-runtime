@@ -142,6 +142,22 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 12:08 UTC — feat(pool): plumb max_concurrent_sessions (no behavior yet)
+Files: src/openrtc/core/pool.py (new keyword-only
+       max_concurrent_sessions: int = 50 on AgentPool.__init__;
+       eager type/value validation; new max_concurrent_sessions
+       property),
+       tests/test_pool.py (5 new tests: default 50, override,
+       rejects float, rejects bool, rejects 0/negative).
+Tests: 138/138 pass (5 new). ruff: clean. mypy: clean.
+Notes: Pure plumbing per the TODO. Stored in
+self._max_concurrent_sessions and exposed read-only via the
+property. Matches design §5.1's documented public knob; also
+notes in the docstring that it is a coroutine-mode concept and
+ignored in process mode (livekit-agents owns that load math).
+The bool guard rejects True/False because bool is a subclass of
+int and would otherwise sneak past isinstance(..., int).
+
 ## 2026-05-03 11:55 UTC — feat(pool): plumb `isolation` parameter (no behavior yet)
 Files: src/openrtc/core/pool.py (+ Literal import; new module-level
        IsolationMode = Literal["coroutine", "process"]; new isolation

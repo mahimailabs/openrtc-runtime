@@ -118,7 +118,7 @@ Tasks:
 - [x] Add `isolation: Literal["coroutine", "process"]` parameter to
   `AgentPool.__init__`, default `"coroutine"`. Thread through but
   don't act on it yet — just plumbing.
-- [ ] Add `max_concurrent_sessions: int = 50` parameter to
+- [x] Add `max_concurrent_sessions: int = 50` parameter to
   `AgentPool.__init__`. Plumbing only.
 - [ ] Create `execution/coroutine.py`: skeleton classes
   `CoroutineJobExecutor` and `CoroutinePool` satisfying the

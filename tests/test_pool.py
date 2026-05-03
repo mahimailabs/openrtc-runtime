@@ -54,6 +54,35 @@ def test_isolation_rejects_unknown_mode() -> None:
         AgentPool(isolation="threaded")  # type: ignore[arg-type]
 
 
+def test_max_concurrent_sessions_defaults_to_50() -> None:
+    pool = AgentPool()
+
+    assert pool.max_concurrent_sessions == 50
+
+
+def test_max_concurrent_sessions_accepts_override() -> None:
+    pool = AgentPool(max_concurrent_sessions=10)
+
+    assert pool.max_concurrent_sessions == 10
+
+
+def test_max_concurrent_sessions_rejects_non_int() -> None:
+    with pytest.raises(TypeError, match="must be an int"):
+        AgentPool(max_concurrent_sessions=10.0)  # type: ignore[arg-type]
+
+
+def test_max_concurrent_sessions_rejects_bool() -> None:
+    with pytest.raises(TypeError, match="must be an int"):
+        AgentPool(max_concurrent_sessions=True)  # type: ignore[arg-type]
+
+
+def test_max_concurrent_sessions_rejects_zero_or_negative() -> None:
+    with pytest.raises(ValueError, match="must be >= 1"):
+        AgentPool(max_concurrent_sessions=0)
+    with pytest.raises(ValueError, match="must be >= 1"):
+        AgentPool(max_concurrent_sessions=-3)
+
+
 def test_add_uses_pool_defaults_when_agent_values_are_omitted() -> None:
     pool = AgentPool(
         default_stt="openai/gpt-4o-mini-transcribe",

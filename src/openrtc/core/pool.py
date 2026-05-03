@@ -111,6 +111,7 @@ class AgentPool:
         default_tts: ProviderValue | None = None,
         default_greeting: str | None = None,
         isolation: IsolationMode = "coroutine",
+        max_concurrent_sessions: int = 50,
     ) -> None:
         """Create a pool with shared defaults, prewarm, and a universal entrypoint.
 
@@ -130,12 +131,30 @@ class AgentPool:
                 default ``ProcPool``. The setting is plumbed but not yet acted
                 on; the actual coroutine runtime arrives in a follow-up
                 iteration.
+            max_concurrent_sessions: Backpressure threshold for coroutine mode.
+                Once this many concurrent sessions are running, the worker
+                reports ``load >= 1.0`` to LiveKit dispatch and additional
+                jobs are routed elsewhere. Default ``50`` matches the design
+                target. Ignored in ``"process"`` mode (livekit-agents' own
+                load math applies). Plumbed but not yet enforced.
         """
         if isolation not in ("coroutine", "process"):
             raise ValueError(
                 f"isolation must be 'coroutine' or 'process', got {isolation!r}."
             )
+        if not isinstance(max_concurrent_sessions, int) or isinstance(
+            max_concurrent_sessions, bool
+        ):
+            raise TypeError(
+                "max_concurrent_sessions must be an int, "
+                f"got {type(max_concurrent_sessions).__name__}."
+            )
+        if max_concurrent_sessions < 1:
+            raise ValueError(
+                f"max_concurrent_sessions must be >= 1, got {max_concurrent_sessions}."
+            )
         self._isolation: IsolationMode = isolation
+        self._max_concurrent_sessions: int = max_concurrent_sessions
         self._server = AgentServer()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(agents=self._agents)
@@ -150,6 +169,11 @@ class AgentPool:
     def isolation(self) -> IsolationMode:
         """Return the configured worker isolation mode (``"coroutine"`` or ``"process"``)."""
         return self._isolation
+
+    @property
+    def max_concurrent_sessions(self) -> int:
+        """Return the coroutine-mode backpressure threshold."""
+        return self._max_concurrent_sessions
 
     @property
     def server(self) -> AgentServer:
