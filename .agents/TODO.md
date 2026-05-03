@@ -148,7 +148,7 @@ Tasks:
   current_load as a custom load_fnc when the wiring lands.)
 - [x] Implement `CoroutinePool.aclose()`: drain — cancel all
   executors, await them.
-- [ ] Create `execution/coroutine_server.py`: `_CoroutineAgentServer`
+- [x] Create `execution/coroutine_server.py`: `_CoroutineAgentServer`
   subclass that swaps `_proc_pool` for our `CoroutinePool`.
 - [ ] Wire `AgentPool` to choose between `AgentServer()` and
   `_CoroutineAgentServer(...)` based on `isolation` parameter.

@@ -142,6 +142,38 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 14:35 UTC — feat(execution): _CoroutineAgentServer swap shim
+Files: src/openrtc/execution/coroutine_server.py (new, ~105 LOC):
+       _CoroutineAgentServer(AgentServer) accepts an optional
+       max_concurrent_sessions kwarg with the same int/bool/<1
+       guards as AgentPool. Overrides run() to monkey-patch
+       livekit.agents.ipc.proc_pool.ProcPool to a factory closure
+       that constructs our CoroutinePool (passing the captured
+       max_concurrent_sessions), then registers a no-arg load_fnc
+       closure that reads pool.current_load(). The factory
+       captures the constructed pool so coroutine_pool property
+       exposes it after run() exits. Patch + load_fnc are both
+       restored in the finally block.
+       tests/test_coroutine_server.py (new, 8 tests): default
+       max=50, override, three rejection paths, isinstance check
+       against AgentServer, run() patches+restores ProcPool
+       (verified by inspecting the symbol after a fast-fail run),
+       load_fnc returns 0 before pool capture, load_fnc reflects
+       captured pool's current_load() at 0 / 0.5 / 1.0, factory
+       closure shape produces CoroutinePool with the right
+       max_concurrent_sessions.
+Tests: 195/195 pass (8 added). ruff: clean. mypy: clean
+       (with two type:ignore[assignment, misc] comments on the
+       module-attribute reassignment, unavoidable when we rewrite
+       a class binding inside another package).
+Notes: Strategy A from
+docs/design/agent-server-integration.md. Patch is scoped to one
+run() invocation so concurrent AgentServer instances inside the
+same process won't trip over each other (uncommon in our model
+but the bound is documented). The coroutine_pool property
+returns None until run() has actually built it (since
+construction happens inside super().run() at worker.py:587).
+
 ## 2026-05-03 14:18 UTC — feat(execution): implement CoroutinePool.aclose
 Files: src/openrtc/execution/coroutine.py: CoroutinePool.aclose
        (was NotImplementedError) now is idempotent before/after
