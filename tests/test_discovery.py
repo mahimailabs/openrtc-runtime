@@ -200,6 +200,32 @@ def test_discover_records_source_path_next_to_agent_module(tmp_path: Path) -> No
     assert discovered[0].source_path == (tmp_path / "zoo.py").resolve()
 
 
+def test_load_module_from_path_reloads_when_existing_module_points_elsewhere(
+    tmp_path: Path,
+) -> None:
+    """Branch: an existing sys.modules entry whose ``__file__`` differs is reloaded."""
+    from openrtc.core import discovery as discovery_module
+
+    target = tmp_path / "agent_branch.py"
+    target.write_text("# minimal\n", encoding="utf-8")
+
+    decoy = tmp_path / "decoy.py"
+    decoy.write_text("# decoy\n", encoding="utf-8")
+
+    module_name = "openrtc_test_existing_module_branch"
+
+    first = discovery_module._load_module_from_path(module_name, decoy)
+    assert first.__file__ is not None
+    assert Path(first.__file__).resolve() == decoy.resolve()
+
+    try:
+        second = discovery_module._load_module_from_path(module_name, target)
+        assert second.__file__ is not None
+        assert Path(second.__file__).resolve() == target.resolve()
+    finally:
+        sys.modules.pop(module_name, None)
+
+
 def test_load_module_from_path_raises_when_spec_cannot_be_built(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

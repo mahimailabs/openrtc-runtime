@@ -202,6 +202,20 @@ def test_linux_rss_bytes_returns_none_when_vmrss_absent(
     assert metrics_module._linux_rss_bytes() is None
 
 
+def test_linux_rss_bytes_continues_loop_when_vmrss_line_has_no_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Branch: a ``VmRSS:`` line without a value falls through to the next line."""
+    from openrtc.observability import metrics as metrics_module
+
+    def _malformed_then_good(_self: Path, *_args: object, **_kwargs: object) -> str:
+        return "VmRSS:\nName:\tagent\n"
+
+    monkeypatch.setattr(metrics_module.Path, "read_text", _malformed_then_good)
+
+    assert metrics_module._linux_rss_bytes() is None
+
+
 def test_macos_rss_bytes_returns_none_when_getrusage_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

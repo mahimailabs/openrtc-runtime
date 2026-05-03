@@ -352,6 +352,39 @@ def test_runtime_reporter_build_dashboard_renderable_uses_pool_snapshot(
     assert isinstance(panel, Panel)
 
 
+def test_runtime_reporter_periodic_tick_runs_when_live_is_none(
+    tmp_path: Path,
+    minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
+) -> None:
+    """Branch: dashboard=False + json_output_path set means live=None but tick fires."""
+    json_path = tmp_path / "snapshot.json"
+    pool = _StubPool(minimal_pool_runtime_snapshot)
+    reporter = RuntimeReporter(
+        pool,
+        dashboard=False,
+        refresh_seconds=0.25,
+        json_output_path=json_path,
+    )
+    reporter.start()
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and not json_path.exists():
+        time.sleep(0.02)
+    reporter.stop()
+
+    assert json_path.exists()
+
+
+def test_jsonl_metrics_sink_close_is_idempotent(tmp_path: Path) -> None:
+    """Branch: ``close()`` on a never-opened (or already-closed) sink is a no-op."""
+    sink = JsonlMetricsSink(tmp_path / "x.jsonl")
+
+    sink.close()  # never opened — _file is None, branch falls through
+
+    sink.open()
+    sink.close()
+    sink.close()  # already closed — _file is None again
+
+
 def test_runtime_reporter_dashboard_path_runs_one_tick(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -142,6 +142,38 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 01:45 UTC — test(branches): close batch 2 of 4 branch gaps (99.40% -> 99.57%)
+Files: tests/test_metrics_stream.py (+2 tests:
+test_runtime_reporter_periodic_tick_runs_when_live_is_none,
+test_jsonl_metrics_sink_close_is_idempotent),
+tests/test_resources.py (+1 test:
+test_linux_rss_bytes_continues_loop_when_vmrss_line_has_no_value),
+tests/test_discovery.py (+1 test:
+test_load_module_from_path_reloads_when_existing_module_points_elsewhere).
+Tests: 364/364 pass + 2 skipped. Combined coverage: 99.57%
+(was 99.40%); 10 branches remaining (was 14). ruff: clean.
+mypy: clean.
+Notes: Closed branches: cli/reporter.py 97->99 (`if live is
+not None:` skip when reporter runs without dashboard but with
+a json_output_path, so periodic ticks fire for the JSON write
+without ever entering the Rich Live context);
+observability/stream.py 137->exit (`if self._file is not
+None:` skip in JsonlMetricsSink.close() when the sink was
+never opened or has already been closed - asserts double-close
+is idempotent); observability/metrics.py 364->361 (`if
+len(parts) >= 2:` skip in _linux_rss_bytes when the VmRSS line
+has no value field, e.g. "VmRSS:" alone - the loop continues
+to subsequent lines and ultimately returns None);
+core/discovery.py 24->27 (`if existing_file is not None and
+Path(existing_file).resolve() == resolved_path:` skip when
+sys.modules already has the module name pointing at a
+different file - exercised by loading a decoy first then
+reloading the real path under the same module name).
+Remaining 10 branches need either reload tricks
+(cli/__init__.py 32->36), Textual app fixtures
+(tui/app.py x3), or careful state manipulation
+(execution/coroutine.py x6) - left for follow-ups.
+
 ## 2026-05-04 01:30 UTC — test(branches): close first batch of 8 branch gaps (combined 99.06% -> 99.40%)
 Files: tests/test_pool.py (+1 test:
 test_merge_session_kwargs_skips_direct_when_none),

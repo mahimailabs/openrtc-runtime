@@ -251,18 +251,21 @@ Tasks:
 ## Discovered work
 
 - [~] Close the 22 missing branches surfaced once
-  `[tool.coverage.run] branch = true` landed. **First batch
-  closed (8 branches):** cli/commands.py 351->354;
+  `[tool.coverage.run] branch = true` landed.
+  **Batch 1 closed (8 branches):** cli/commands.py 351->354;
   cli/dashboard.py 240->249, 257->284; cli/livekit.py 74->76;
   core/pool.py 430->432; core/routing.py 36->46, 56->67;
-  core/turn_handling.py 69->71. Combined coverage 99.06% ->
-  99.40%. Remaining 14 branches deferred to per-file
-  follow-ups: cli/__init__.py 32->36 (needs reload);
-  cli/reporter.py 97->99; core/discovery.py 24->27;
-  execution/coroutine.py 231->233, 279->293, 286->288,
-  528->526, 571->578, 679->exit; observability/metrics.py
-  364->361; observability/stream.py 137->exit;
-  tui/app.py 125->117, 127->117, 149->154.
+  core/turn_handling.py 69->71. (99.06% -> 99.40%)
+  **Batch 2 closed (4 branches):** cli/reporter.py 97->99
+  (live=None periodic tick); observability/stream.py 137->exit
+  (close on never-opened sink); observability/metrics.py
+  364->361 (VmRSS line with no value); core/discovery.py
+  24->27 (existing module file differs from resolved path).
+  (99.40% -> 99.57%) Remaining 10 branches: cli/__init__.py
+  32->36 (needs importlib.reload + monkeypatch); execution/
+  coroutine.py 231->233, 279->293, 286->288, 528->526,
+  571->578, 679->exit (race-edge defenses); tui/app.py
+  125->117, 127->117, 149->154 (Textual stream-parsing).
 
 ## Old discovered work
 
