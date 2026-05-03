@@ -4,8 +4,6 @@ on:
   pull_request:
     paths:
       - 'docs/**'
-      - 'package.json'
-      - 'package-lock.json'
       - '.github/workflows/docs.yml'
       - '.github/workflows/deploy-docs.yml'
   push:
@@ -13,14 +11,15 @@ on:
       - main
     paths:
       - 'docs/**'
-      - 'package.json'
-      - 'package-lock.json'
       - '.github/workflows/docs.yml'
       - '.github/workflows/deploy-docs.yml'
 
 jobs:
   build-docs:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
 
     steps:
       - name: Check out repository
@@ -35,7 +34,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-20-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-node-20-${{ hashFiles('docs/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-20-
 
