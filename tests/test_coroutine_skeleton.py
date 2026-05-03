@@ -74,7 +74,7 @@ def test_coroutine_job_executor_logging_extra_is_dict() -> None:
     assert extra["executor_id"] == ex.id
 
 
-@pytest.mark.parametrize("method_name", ["start", "join", "initialize", "aclose"])
+@pytest.mark.parametrize("method_name", ["start", "join"])
 def test_coroutine_job_executor_lifecycle_methods_are_unimplemented(
     method_name: str,
 ) -> None:
@@ -89,6 +89,80 @@ def test_coroutine_job_executor_launch_job_is_unimplemented() -> None:
     ex = CoroutineJobExecutor()
     with pytest.raises(NotImplementedError, match="skeleton"):
         asyncio.run(ex.launch_job(info=None))  # type: ignore[arg-type]
+
+
+def test_coroutine_job_executor_initialize_is_noop_and_idempotent() -> None:
+    ex = CoroutineJobExecutor()
+
+    async def _twice() -> None:
+        await ex.initialize()
+        await ex.initialize()
+
+    asyncio.run(_twice())
+    # initialize() must not change observable state.
+    assert ex.started is False
+    assert ex.status is JobStatus.RUNNING
+    assert ex.running_job is None
+
+
+def test_coroutine_job_executor_aclose_with_no_task_is_safe_and_idempotent() -> None:
+    ex = CoroutineJobExecutor()
+
+    async def _twice() -> None:
+        await ex.aclose()
+        await ex.aclose()
+
+    asyncio.run(_twice())
+    assert ex.started is False
+    # No task ever ran, so status stays at the construction default.
+    assert ex.status is JobStatus.RUNNING
+
+
+def test_coroutine_job_executor_aclose_clears_started_after_synthetic_start() -> None:
+    ex = CoroutineJobExecutor()
+    ex._started = True  # simulate post-start state until start() lands
+
+    asyncio.run(ex.aclose())
+
+    assert ex.started is False
+
+
+def test_coroutine_job_executor_aclose_cancels_pending_task_and_marks_failed() -> None:
+    ex = CoroutineJobExecutor()
+
+    async def _scenario() -> None:
+        async def _long_running() -> None:
+            await asyncio.sleep(60)
+
+        ex._task = asyncio.create_task(_long_running())  # white-box stand-in
+        # Yield once so the task actually starts.
+        await asyncio.sleep(0)
+        await ex.aclose()
+
+    asyncio.run(_scenario())
+
+    assert ex.status is JobStatus.FAILED
+    assert ex.started is False
+    assert ex._task is not None and ex._task.done()
+
+
+def test_coroutine_job_executor_aclose_preserves_success_when_task_finished() -> None:
+    ex = CoroutineJobExecutor()
+
+    async def _scenario() -> None:
+        async def _quick() -> None:
+            return None
+
+        ex._task = asyncio.create_task(_quick())
+        await ex._task  # let it finish cleanly first
+        # launch_job's wrapper would normally set SUCCESS; do it here by hand.
+        ex._status = JobStatus.SUCCESS
+        await ex.aclose()
+
+    asyncio.run(_scenario())
+
+    assert ex.status is JobStatus.SUCCESS
+    assert ex.started is False
 
 
 # ---- CoroutinePool shape ----

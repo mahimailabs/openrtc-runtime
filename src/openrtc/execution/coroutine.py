@@ -55,6 +55,7 @@ class CoroutineJobExecutor:
         self._running_job: RunningJobInfo | None = None
         self._status: JobStatus = JobStatus.RUNNING
         self._started = False
+        self._task: asyncio.Task[None] | None = None
 
     @property
     def id(self) -> str:
@@ -87,10 +88,37 @@ class CoroutineJobExecutor:
         raise NotImplementedError(_SKELETON_HINT)
 
     async def initialize(self) -> None:
-        raise NotImplementedError(_SKELETON_HINT)
+        """No-op handshake hook.
+
+        Process-mode executors complete a child handshake here; coroutine mode
+        runs in the same loop so there is nothing to negotiate. Kept idempotent
+        and safe to call multiple times so ``ProcPool.start()``-style callers
+        work unchanged.
+        """
+        return None
 
     async def aclose(self) -> None:
-        raise NotImplementedError(_SKELETON_HINT)
+        """Cancel any in-flight ``launch_job`` task and clear ``started``.
+
+        Idempotent: a second call (or a call before any ``launch_job``) returns
+        without raising. If a still-pending task is cancelled, the executor's
+        status flips to :class:`JobStatus.FAILED` per
+        ``docs/design/job-executor-protocol.md`` (cancellation maps to FAILED
+        because the upstream enum has no CANCELLED value).
+        """
+        task = self._task
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                # The launch_job wrapper will already have set status to FAILED.
+                pass
+            if self._status is JobStatus.RUNNING:
+                self._status = JobStatus.FAILED
+        self._started = False
 
     async def launch_job(self, info: RunningJobInfo) -> None:
         raise NotImplementedError(_SKELETON_HINT)

@@ -142,6 +142,28 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 12:38 UTC — feat(execution): implement CoroutineJobExecutor.initialize + aclose
+Files: src/openrtc/execution/coroutine.py (added _task attribute on
+       __init__; initialize() now no-ops with idempotent return None;
+       aclose() cancels self._task if pending, suppresses
+       CancelledError, flips status RUNNING -> FAILED on cancel,
+       and clears started=False).
+       tests/test_coroutine_skeleton.py (removed `initialize` and
+       `aclose` from the parametrized "still raises" list; added 5
+       targeted tests: initialize is no-op + idempotent, aclose
+       with no task is safe + idempotent, aclose clears a
+       synthetic started=True, aclose cancels a pending task and
+       marks FAILED, aclose preserves a SUCCESS status when the
+       task already finished).
+Tests: 156/156 pass (5 added, 2 parametrized cases removed).
+ruff: clean. mypy: clean.
+Notes: Cancellation maps to FAILED per
+docs/design/job-executor-protocol.md ("the upstream enum has no
+CANCELLED value"). The task-cancellation tests use white-box
+self._task injection because launch_job is still
+NotImplementedError; once it lands the same flows go through the
+public API.
+
 ## 2026-05-03 12:25 UTC — feat(execution): coroutine executor + pool skeletons
 Files: src/openrtc/execution/__init__.py (new, empty package marker),
        src/openrtc/execution/coroutine.py (new, ~155 LOC:
