@@ -250,6 +250,11 @@ Tasks:
 
 ## Discovered work
 
+- [x] Add a `make ci` aggregate target that runs every gate the
+  CI workflow runs in the same order: `lint`, `format-check`,
+  `typecheck`, `test` (with the 99% coverage gate). One command
+  for "did I break the PR?" Saves running four separate make
+  targets every time before pushing.
 - [x] Add a local pre-commit hook that runs `mypy --strict src/`
   before every commit. The CI matrix already runs typecheck on
   every PR, but contributors didn't get the same feedback

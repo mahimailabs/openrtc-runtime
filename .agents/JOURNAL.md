@@ -142,6 +142,20 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 04:30 UTC — chore(make): add aggregate `make ci` target
+Files: Makefile (+1 target, +`ci` in the .PHONY list).
+Tests: 374/374 pass + 2 skipped via the new aggregate target.
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Notes: `make ci` runs `lint format-check typecheck test` in the
+same order CI does — so a contributor can run one command before
+`git push` to catch every CI failure locally. The order matches
+CI: cheapest checks first (ruff is sub-second), expensive last
+(test+coverage at ~5s). Make's prerequisite chain short-circuits
+on the first failure, so a broken lint doesn't waste time
+running the test suite. The new line in `make help`:
+`ci            Run every gate CI runs (lint, format, typecheck,
+test+coverage)`.
+
 ## 2026-05-04 04:15 UTC — chore(pre-commit): add local mypy `--strict` hook for src/
 Files: .pre-commit-config.yaml (+1 local hook block).
 Tests: 374/374 pass + 2 skipped. Coverage: 100.00%. ruff:

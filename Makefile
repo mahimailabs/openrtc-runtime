@@ -2,7 +2,7 @@
 # All commands delegate to `uv run` so they pick up the locked dev environment.
 # Run `uv sync --group dev` once to set up the environment, then use these targets.
 
-.PHONY: help install test test-fast lint format format-check typecheck dev bench clean
+.PHONY: help install test test-fast lint format format-check typecheck ci dev bench clean
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -28,6 +28,8 @@ format-check: ## Check formatting without making changes (used in CI)
 
 typecheck: ## Run mypy type checks on the source tree
 	uv run mypy src/
+
+ci: lint format-check typecheck test ## Run every gate CI runs (lint, format, typecheck, test+coverage)
 
 dev: ## Validate agent discovery without a LiveKit server (set --agents-dir as needed)
 	uv run openrtc list ./examples/agents \
