@@ -12,6 +12,100 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### v0.1.0 — coroutine-mode worker (default behavior change)
+
+> **Heads up:** the default isolation flips from process-per-session to
+> a coroutine-mode worker that hosts every session as an `asyncio.Task`
+> inside one process. The user-facing API does not break, but workers
+> behave differently at runtime. Read the migration notes below before
+> upgrading production deployments.
+
+**Added**
+
+- `AgentPool(isolation="coroutine" | "process")` selects the worker
+  isolation mode. `"coroutine"` is the new default; `"process"`
+  preserves v0.0.17 behavior (one OS subprocess per session via
+  `livekit-agents`'s `ProcPool`).
+- `AgentPool(max_concurrent_sessions=50)` sets the coroutine-mode
+  backpressure threshold. The worker reports `load >= 1.0` to the
+  LiveKit dispatcher once this many sessions are in flight; ignored
+  in process mode.
+- `AgentPool(consecutive_failure_limit=5)` sets the worker supervisor
+  threshold. After this many non-`SUCCESS` session terminations the
+  worker calls `aclose()` so the deployment platform can restart it
+  (bounded blast radius for systemic bugs). Ignored in process mode.
+- New CLI flags `--isolation` and `--max-concurrent-sessions` on
+  `start` / `dev` / `console`.
+- New `openrtc.execution.coroutine.CoroutinePool` and
+  `CoroutineJobExecutor` (internal). Both implement the
+  `livekit.agents.ipc.proc_pool.ProcPool` / `JobExecutor` shapes;
+  `_CoroutineAgentServer` (also internal) monkey-patches `ProcPool`
+  during `run()` so `AgentServer`'s state machine and dispatcher
+  protocol are reused unchanged.
+- New `tests/benchmarks/density.py` script and corresponding CI gate
+  (`.github/workflows/bench.yml`) enforcing ≥ 50 concurrent sessions
+  per worker at ≤ 4 GB peak RSS on every PR.
+- New nightly canary CI job (`.github/workflows/canary.yml`) that
+  runs the integration suite against the latest released
+  `livekit-agents` and is allowed to fail.
+- New `docker-compose.test.yml` + `tests/integration/conftest.py`
+  fixture harness for local and CI integration runs.
+
+**Changed**
+
+- `livekit-agents` pin tightened from `~=1.4` to `~=1.5` because the
+  internal-ish surfaces we hook (`ProcPool`, `JobExecutor` Protocol)
+  are version-sensitive; the canary job watches the next minor.
+- Source layout reorganised under `core/`, `cli/`, `observability/`,
+  `tui/`, and `execution/` packages. Public imports
+  (`from openrtc import AgentPool`, etc.) are unchanged; internal
+  consumers should update to the canonical paths
+  (`openrtc.core.config.AgentConfig`, etc.).
+
+**Migration**
+
+- Existing code that does `pool = AgentPool()` keeps working but now
+  runs every session in coroutine mode. To stay on the v0.0.17
+  process-per-session model, pass `isolation="process"`:
+
+  ```python
+  pool = AgentPool(isolation="process")
+  ```
+
+  Pick `"process"` when:
+  - regulatory or compliance requirements demand hard process
+    isolation between sessions;
+  - per-session memory caps (`livekit-agents`' `job_memory_limit_mb`)
+    are required;
+  - the workload mixes very heavy agents with very light agents and
+    you want subprocess-level resource accounting.
+
+  Pick the new default `"coroutine"` when:
+  - you run many concurrent sessions on a single host and the
+    prewarm/idle baseline (VAD, turn detector) was the dominant cost;
+  - you want backpressure routed back to LiveKit dispatch via load
+    reporting instead of OS-level rejection.
+
+- `consecutive_failure_limit` defaults to 5 in coroutine mode. If your
+  agents legitimately fail more often (e.g. exploratory dev runs),
+  raise the threshold or run under `isolation="process"` (which the
+  setting does not affect).
+
+- The `current_load()` reported in coroutine mode is
+  `len(active) / max_concurrent_sessions`. If your dispatch policy
+  was tuned around `livekit-agents`' default CPU-based load math, the
+  new shape may route differently — verify against your dispatch
+  thresholds (`load_threshold` defaults to `0.7`).
+
+- Per-session memory caps (`job_memory_limit_mb` on `AgentServer`)
+  cannot be enforced in coroutine mode (one process, no subprocess
+  boundary). Process mode preserves the cap. Documented in design
+  §9.4.
+
+See `docs/concepts/architecture.md` for the coroutine-mode lifecycle
+and `docs/benchmarks/density-v0.1.md` for the §7 success-gate
+benchmark numbers.
+
 ---
 
 <!-- releases -->

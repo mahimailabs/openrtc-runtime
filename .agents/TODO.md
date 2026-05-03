@@ -215,7 +215,7 @@ Tasks:
   benchmark table, when-to-use-which guidance.
 - [x] Update `docs/concepts/architecture.md` with coroutine-mode
   lifecycle.
-- [ ] Add migration note to `docs/changelog.md` for v0.1.0 entry,
+- [x] Add migration note to `docs/changelog.md` for v0.1.0 entry,
   flagging the default behavior change (process → coroutine).
 - [ ] Bump version to `0.1.0` in `pyproject.toml`.
 - [ ] Tag `v0.1.0` and verify PyPI publish workflow succeeds.

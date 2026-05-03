@@ -142,6 +142,26 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 19:08 UTC — docs(changelog): v0.1.0 migration note in [Unreleased]
+Files: docs/changelog.md (+~95 LOC under [Unreleased]):
+       new "v0.1.0 — coroutine-mode worker (default behavior
+       change)" subsection with a heads-up callout, Added /
+       Changed sections covering every public surface that
+       landed in v0.1, and a Migration block explaining
+       isolation="process" opt-out, when to pick which mode,
+       consecutive_failure_limit semantics, current_load math
+       differences from v0.0.x, and the per-session memory cap
+       gap (design §9.4). Closes with pointers to the
+       architecture doc and the density benchmark file.
+Tests: 239 pass + 2 skipped (docs only).
+Notes: The PyPI publish workflow takes the GitHub release body
+and prepends a versioned section after the
+"<!-- releases -->" marker on tag. The Unreleased block above
+the marker is what we land manually pre-release; on
+v0.1.0 release I'll move the relevant content into the release
+notes so the auto-prepended section under the marker has the
+real story instead of just a PR title.
+
 ## 2026-05-03 18:55 UTC — docs(architecture): coroutine-mode lifecycle
 Files: docs/concepts/architecture.md (+~70 LOC):
        - extended the AgentPool section to call out the
