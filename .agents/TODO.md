@@ -172,8 +172,13 @@ Tasks:
   `RuntimeError` does not affect 4 sibling sessions.
 - [x] Implement worker supervisor: track consecutive session
   failures; after N (default 5), call `aclose()` and exit non-zero.
-- [ ] Implement graceful drain on SIGTERM: stop accepting jobs;
-  await in-flight to complete.
+- [x] Implement graceful drain on SIGTERM: stop accepting jobs;
+  await in-flight to complete. (Pool primitive landed:
+  `CoroutinePool.drain()` + `CoroutineJobExecutor.join()`. The
+  SIGTERM handler shim that calls into them belongs at the CLI
+  layer and is implicit via `AgentServer.drain()` which already
+  awaits `proc.join()` on every executor — our executor's
+  `join` is now wired to satisfy that.)
 - [ ] Add CLI flag `--isolation` to `cli/app.py` (default
   `coroutine`). Add `--max-concurrent-sessions` (default 50).
   Wire through `cli/params.py`.

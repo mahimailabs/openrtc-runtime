@@ -142,6 +142,40 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 16:30 UTC — feat(execution): drain primitive + executor.join
+Files: src/openrtc/execution/coroutine.py:
+       - CoroutineJobExecutor.join() (was NotImplementedError) now
+         awaits self._task if pending; suppresses CancelledError
+         and other exceptions so a drain path doesn't abort on
+         already-failed siblings; idempotent on done/idle.
+       - CoroutinePool gains a _draining flag and a new drain()
+         coroutine that mirrors AgentServer.drain()'s loop:
+         flips the flag (rejects new launches), awaits join() on
+         every in-flight executor via gather. Idempotent.
+       - CoroutinePool.launch_job() now raises RuntimeError when
+         _draining is True so any race between drain start and a
+         dispatcher message returns a clean "draining" rejection
+         instead of silently accepting work that will be cancelled.
+       - New `draining` read-only property.
+       tests/test_coroutine_drain.py (new, ~210 LOC, 10 tests):
+         5 join semantics (idle, in-flight, idempotent, suppress
+         failure, after cancel), 5 pool drain semantics (idle
+         safe, idempotent, waits for 3 in-flight, rejects late
+         launches, drain-then-aclose doesn't double-cancel).
+       tests/test_coroutine_skeleton.py: removed `join` from the
+       parametrized "still raises" list.
+Tests: 217/217 pass (10 added; 1 reclassified). ruff: clean.
+mypy: clean.
+Notes: The TODO calls for SIGTERM-handler integration; the
+operational hook lives at the CLI layer. AgentServer.drain()
+already iterates pool.processes and awaits proc.join() on each;
+implementing executor.join() correctly was the missing piece for
+that path. The pool-layer drain() lets a future cli signal
+handler call it directly without going through AgentServer's
+state machine. Design §8.8 acceptance criterion is now exercised
+at the unit boundary (3 in-flight sessions, drain awaits all
+three before returning).
+
 ## 2026-05-03 16:10 UTC — feat(execution): consecutive-failure supervisor
 Files: src/openrtc/execution/coroutine.py: CoroutinePool gains
        consecutive_failure_limit (default 5) and

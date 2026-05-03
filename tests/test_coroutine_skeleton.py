@@ -74,7 +74,7 @@ def test_coroutine_job_executor_logging_extra_is_dict() -> None:
     assert extra["executor_id"] == ex.id
 
 
-@pytest.mark.parametrize("method_name", ["start", "join"])
+@pytest.mark.parametrize("method_name", ["start"])
 def test_coroutine_job_executor_lifecycle_methods_are_unimplemented(
     method_name: str,
 ) -> None:

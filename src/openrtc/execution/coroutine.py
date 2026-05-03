@@ -146,7 +146,27 @@ class CoroutineJobExecutor:
         raise NotImplementedError(_SKELETON_HINT)
 
     async def join(self) -> None:
-        raise NotImplementedError(_SKELETON_HINT)
+        """Wait until the in-flight entrypoint task finishes.
+
+        Returns immediately for an idle executor (no ``launch_job`` yet) or
+        an executor whose task already completed. For an in-flight task,
+        awaits it; the wrapper inside :meth:`_run_entrypoint` already
+        catches exceptions and flips status, so this method never raises
+        the entrypoint's own error. ``CancelledError`` is suppressed so
+        a drain path that races a cancel does not abort the drain.
+
+        Idempotent: a second call after the task has settled returns
+        without further awaits.
+        """
+        task = self._task
+        if task is None or task.done():
+            return
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception:  # noqa: BLE001 — wrapper has already set FAILED + logged
+            pass
 
     async def initialize(self) -> None:
         """No-op handshake hook.
@@ -353,6 +373,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         self._executors: list[JobExecutor] = []
         self._target_idle_processes = num_idle_processes
         self._started = False
+        self._draining = False
         self._shared_proc: JobProcess | None = None
 
     @property
@@ -423,6 +444,38 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         """True after :meth:`start` has completed successfully."""
         return self._started
 
+    async def drain(self) -> None:
+        """Stop accepting new jobs; await every in-flight executor to finish.
+
+        Mirrors the loop inside ``AgentServer.drain()`` but stays at the
+        pool layer so callers (e.g. signal-handler shims) can drain the
+        coroutine pool without going through the AgentServer state
+        machine. Once draining starts, :meth:`launch_job` rejects new
+        jobs with a ``RuntimeError``. Existing executors are awaited via
+        their :meth:`CoroutineJobExecutor.join` so already-cancelled
+        tasks do not abort the drain.
+
+        Idempotent: a second call returns immediately. Safe to call on a
+        pool that never started (no-op).
+        """
+        if self._draining:
+            return
+        self._draining = True
+
+        while self._executors:
+            in_flight = list(self._executors)
+            await asyncio.gather(
+                *(ex.join() for ex in in_flight),
+                return_exceptions=True,
+            )
+            # If new launches slipped in just before the flag was set,
+            # the next iteration drains them too.
+
+    @property
+    def draining(self) -> bool:
+        """``True`` after :meth:`drain` (or :meth:`aclose`) has started."""
+        return self._draining
+
     async def aclose(self) -> None:
         """Drain the pool: cancel every active executor and wait for cleanup.
 
@@ -487,6 +540,10 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         """
         if not self._started:
             raise RuntimeError("CoroutinePool.start() must complete before launch_job.")
+        if self._draining:
+            raise RuntimeError(
+                "CoroutinePool is draining; new jobs cannot be launched."
+            )
 
         executor = self._build_executor()
         self._executors.append(executor)
