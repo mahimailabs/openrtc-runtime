@@ -2,7 +2,7 @@
 # All commands delegate to `uv run` so they pick up the locked dev environment.
 # Run `uv sync --group dev` once to set up the environment, then use these targets.
 
-.PHONY: help install test test-fast lint format format-check typecheck dev clean
+.PHONY: help install test test-fast lint format format-check typecheck dev bench clean
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -34,6 +34,9 @@ dev: ## Validate agent discovery without a LiveKit server (set --agents-dir as n
 		--default-stt "deepgram/nova-3:multi" \
 		--default-llm "openai/gpt-4.1-mini" \
 		--default-tts "cartesia/sonic-3"
+
+bench: ## Run the v0.1 density benchmark (50 sessions, 4 GB peak RSS gate)
+	uv run python tests/benchmarks/density.py --sessions 50 --rss-budget-mb 4096
 
 clean: ## Remove build artefacts and __pycache__ directories
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

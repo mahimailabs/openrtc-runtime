@@ -279,3 +279,8 @@ priority.)
   surface; users reading just the API summary would miss the
   new knobs without digging into the "Isolation modes"
   section above.)
+- [x] Add `make bench` target. (Existing Makefile had `test`,
+  `lint`, `format`, `typecheck`, `dev` but no shorthand for
+  the v0.1 density gate. `make bench` now runs
+  `tests/benchmarks/density.py --sessions 50 --rss-budget-mb
+  4096`, matching the CI gate exit-code contract.)

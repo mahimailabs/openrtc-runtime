@@ -142,6 +142,21 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 21:05 UTC — chore(make): add `make bench` target
+Files: Makefile: extended .PHONY with `bench`; new target runs
+       `uv run python tests/benchmarks/density.py --sessions 50
+       --rss-budget-mb 4096` (same arguments the CI bench
+       workflow uses). Kept the help-string short so `make help`
+       output stays readable.
+Tests: not re-run (Makefile only).
+Manual verify: `make help | grep bench` shows the new target;
+`make bench` ran and reported 50/50 successes, 366 MB peak,
+within the 4096 MB budget.
+Notes: Contributors who want to spot-check the v0.1 density
+gate locally before pushing now have a one-liner that matches
+CI exactly. Closes the last small ergonomic gap I can find
+between the v0.0.17 dev workflow and the v0.1 picture.
+
 ## 2026-05-03 20:55 UTC — docs(README): list v0.1 constructor kwargs in API summary
 Files: README.md "Public API at a glance" section: added a new
        "AgentPool(...) constructor (all keyword-only, all
