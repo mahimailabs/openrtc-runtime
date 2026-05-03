@@ -38,10 +38,12 @@ from openrtc.cli.types import (
     DefaultLlmArg,
     DefaultSttArg,
     DefaultTtsArg,
+    IsolationArg,
     LiveKitApiKeyArg,
     LiveKitApiSecretArg,
     LiveKitLogLevelArg,
     LiveKitUrlArg,
+    MaxConcurrentSessionsArg,
     MetricsJsonFileArg,
     MetricsJsonlArg,
     MetricsJsonlIntervalArg,
@@ -189,6 +191,8 @@ def _make_standard_livekit_worker_handler(subcommand: str):
         metrics_json_file: MetricsJsonFileArg = None,
         metrics_jsonl: MetricsJsonlArg = None,
         metrics_jsonl_interval: MetricsJsonlIntervalArg = None,
+        isolation: IsolationArg = "coroutine",
+        max_concurrent_sessions: MaxConcurrentSessionsArg = 50,
     ) -> None:
         _delegate_discovered_pool_to_livekit(
             subcommand,
@@ -207,6 +211,8 @@ def _make_standard_livekit_worker_handler(subcommand: str):
                 metrics_json_file=metrics_json_file,
                 metrics_jsonl=metrics_jsonl,
                 metrics_jsonl_interval=metrics_jsonl_interval,
+                isolation=isolation,
+                max_concurrent_sessions=max_concurrent_sessions,
             ),
         )
 

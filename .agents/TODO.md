@@ -179,9 +179,10 @@ Tasks:
   layer and is implicit via `AgentServer.drain()` which already
   awaits `proc.join()` on every executor — our executor's
   `join` is now wired to satisfy that.)
-- [ ] Add CLI flag `--isolation` to `cli/app.py` (default
+- [x] Add CLI flag `--isolation` to `cli/app.py` (default
   `coroutine`). Add `--max-concurrent-sessions` (default 50).
-  Wire through `cli/params.py`.
+  Wire through `cli/params.py`. (Note: `cli_app.py` is now
+  `cli/commands.py` after the Phase 0 reorg; flags landed there.)
 - [ ] Set up containerized LiveKit dev server for integration tests
   in CI (`docker-compose.test.yml`).
 - [ ] Write integration test: 5 concurrent real calls in one

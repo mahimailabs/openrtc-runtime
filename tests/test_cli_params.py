@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from openrtc.cli.params import SharedLiveKitWorkerOptions, agent_provider_kwargs
+from openrtc.cli.params import (
+    SharedLiveKitWorkerOptions,
+    agent_pool_runtime_kwargs,
+    agent_provider_kwargs,
+)
 
 
 def test_agent_provider_kwargs_matches_agent_pool_constructor() -> None:
@@ -17,6 +21,23 @@ def test_agent_provider_kwargs_matches_agent_pool_constructor() -> None:
     }
 
 
+def test_agent_pool_runtime_kwargs_defaults() -> None:
+    assert agent_pool_runtime_kwargs() == {
+        "isolation": "coroutine",
+        "max_concurrent_sessions": 50,
+    }
+
+
+def test_agent_pool_runtime_kwargs_overrides() -> None:
+    assert agent_pool_runtime_kwargs(
+        isolation="process",
+        max_concurrent_sessions=10,
+    ) == {
+        "isolation": "process",
+        "max_concurrent_sessions": 10,
+    }
+
+
 def test_shared_livekit_worker_options_from_cli_and_for_download_files() -> None:
     agents = Path("/tmp/agents")
     opts = SharedLiveKitWorkerOptions.from_cli(
@@ -26,7 +47,12 @@ def test_shared_livekit_worker_options_from_cli_and_for_download_files() -> None
         dashboard=True,
     )
     assert opts.agents_dir == agents
-    assert opts.agent_pool_kwargs() == agent_provider_kwargs("a", None, None, "hi")
+    assert opts.isolation == "coroutine"
+    assert opts.max_concurrent_sessions == 50
+    assert opts.agent_pool_kwargs() == {
+        **agent_provider_kwargs("a", None, None, "hi"),
+        **agent_pool_runtime_kwargs(),
+    }
 
     dl = SharedLiveKitWorkerOptions.for_download_files(
         agents,
@@ -38,3 +64,19 @@ def test_shared_livekit_worker_options_from_cli_and_for_download_files() -> None
     assert dl.metrics_jsonl is None
     assert dl.url == "ws://example"
     assert dl.log_level == "INFO"
+    # Defaults flow through the for_download_files factory too.
+    assert dl.isolation == "coroutine"
+    assert dl.max_concurrent_sessions == 50
+
+
+def test_shared_livekit_worker_options_isolation_and_max_propagate() -> None:
+    """`--isolation` + `--max-concurrent-sessions` reach AgentPool kwargs."""
+    agents = Path("/tmp/agents")
+    opts = SharedLiveKitWorkerOptions.from_cli(
+        agents,
+        isolation="process",
+        max_concurrent_sessions=12,
+    )
+    kwargs = opts.agent_pool_kwargs()
+    assert kwargs["isolation"] == "process"
+    assert kwargs["max_concurrent_sessions"] == 12

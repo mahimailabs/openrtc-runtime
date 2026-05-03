@@ -142,6 +142,33 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 16:50 UTC — feat(cli): --isolation + --max-concurrent-sessions
+Files: src/openrtc/cli/types.py: new IsolationArg (Choice
+       coroutine|process, case-insensitive) and
+       MaxConcurrentSessionsArg (INTEGER RANGE >= 1) Annotated
+       aliases. Added `import click` for click.Choice (Typer's
+       click_type forwards to the underlying click parameter).
+       src/openrtc/cli/params.py: new agent_pool_runtime_kwargs()
+       helper, SharedLiveKitWorkerOptions gains isolation +
+       max_concurrent_sessions fields (default coroutine/50);
+       agent_pool_kwargs() now merges provider + runtime kwargs;
+       from_cli accepts both.
+       src/openrtc/cli/commands.py: imported the two new aliases;
+       _make_standard_livekit_worker_handler signature extended
+       with isolation + max_concurrent_sessions kwargs forwarded
+       through SharedLiveKitWorkerOptions.from_cli.
+       tests/test_cli_params.py: extended the existing test to
+       check the new fields' defaults plus the merged
+       agent_pool_kwargs(); added 3 new tests (runtime_kwargs
+       defaults, runtime_kwargs overrides, isolation+max plumb
+       through to agent_pool_kwargs). The change to
+       agent_pool_kwargs() return shape is the explicit
+       behavior change this task requires (PROMPT.md exception).
+Tests: 220/220 pass (3 added). ruff: clean. mypy: clean.
+Manual smoke: `uv run openrtc dev --help` shows the two new
+flags under the OpenRTC panel with the right Choice/Range
+constraints.
+
 ## 2026-05-03 16:30 UTC — feat(execution): drain primitive + executor.join
 Files: src/openrtc/execution/coroutine.py:
        - CoroutineJobExecutor.join() (was NotImplementedError) now
