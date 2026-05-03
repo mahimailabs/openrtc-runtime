@@ -79,7 +79,7 @@ Tasks:
 - [x] Create `observability/` package skeleton (empty
   `__init__.py`) and rename `resources.py` →
   `observability/metrics.py`. Update all import sites.
-- [ ] Rename `metrics_stream.py` → `observability/stream.py`.
+- [x] Rename `metrics_stream.py` → `observability/stream.py`.
   Update all import sites.
 - [ ] Extract `PoolRuntimeSnapshot` (and the
   `ProcessResidentSetInfo` / `SavingsEstimate` payload dataclasses

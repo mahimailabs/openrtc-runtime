@@ -10,17 +10,17 @@ from pathlib import Path
 import pytest
 
 from openrtc.cli_app import RuntimeReporter
-from openrtc.metrics_stream import (
+from openrtc.observability.metrics import (
+    MetricsStreamEvent,
+    PoolRuntimeSnapshot,
+)
+from openrtc.observability.stream import (
     KIND_EVENT,
     KIND_SNAPSHOT,
     METRICS_STREAM_SCHEMA_VERSION,
     JsonlMetricsSink,
     parse_metrics_jsonl_line,
     snapshot_envelope,
-)
-from openrtc.observability.metrics import (
-    MetricsStreamEvent,
-    PoolRuntimeSnapshot,
 )
 
 

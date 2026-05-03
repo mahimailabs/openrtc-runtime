@@ -7,7 +7,7 @@ from typing import Annotated
 
 import typer
 
-from openrtc.metrics_stream import DEFAULT_METRICS_JSONL_FILENAME
+from openrtc.observability.stream import DEFAULT_METRICS_JSONL_FILENAME
 
 PANEL_OPENRTC = "OpenRTC"
 PANEL_LIVEKIT = "Connection"

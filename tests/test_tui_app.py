@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from openrtc.metrics_stream import snapshot_envelope
 from openrtc.observability.metrics import PoolRuntimeSnapshot
+from openrtc.observability.stream import snapshot_envelope
 
 pytest.importorskip("textual")
 
@@ -25,7 +25,7 @@ def test_validate_metrics_watch_path_rejects_existing_directory(tmp_path: Path) 
 
 @pytest.mark.asyncio
 async def test_metrics_tui_displays_event_line(tmp_path) -> None:
-    from openrtc.metrics_stream import event_envelope
+    from openrtc.observability.stream import event_envelope
     from openrtc.tui_app import MetricsTuiApp
 
     path = tmp_path / "ev.jsonl"

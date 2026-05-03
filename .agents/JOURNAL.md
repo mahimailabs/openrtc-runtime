@@ -142,6 +142,18 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 09:05 UTC — refactor: rename metrics_stream.py to observability/stream.py
+Files: git mv src/openrtc/metrics_stream.py ->
+       src/openrtc/observability/stream.py,
+       5 src import sites (cli_types.py, cli_app.py, cli_reporter.py,
+       tui_app.py: import + module docstring),
+       2 test files (test_metrics_stream.py: 1 site,
+       test_tui_app.py: 2 sites).
+Tests: 130/130 pass. ruff: clean (auto-fixed 3 import-order issues
+in tui_app.py and the two test files). mypy: clean.
+Notes: Pure rename (subtask 2 of 3 from the observability split).
+Used `git mv` so blame is preserved. Public API unchanged.
+
 ## 2026-05-03 08:55 UTC — refactor: rename resources.py to observability/metrics.py
 Files: src/openrtc/observability/__init__.py (new, empty),
        git mv src/openrtc/resources.py ->
