@@ -142,6 +142,22 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 05:00 UTC — docs(security): add SECURITY.md vulnerability disclosure policy
+Files: SECURITY.md (new, ~50 LOC).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Notes: Documents the intake path for security reports (GitHub
+Security Advisories preferred for coordinated disclosure;
+email to `hello@mahimai.dev` as fallback). Supported-versions
+matrix says 0.1.x latest patch only, 0.0.x superseded -
+matches what we'll actually backport for. SLA is honest about
+single-maintainer reality: 3 business days to acknowledge, 7
+to triage; high-severity reports prioritized. Out-of-scope
+section steers upstream livekit-agents reports + operator
+misconfig (e.g. exposing API secrets via DEBUG logging) +
+documented backpressure-as-DoS away to the right place.
+GitHub auto-surfaces this file in the Security tab.
+
 ## 2026-05-04 04:45 UTC — chore(deps): add Dependabot config (weekly pip + github-actions)
 Files: .github/dependabot.yml (new, 53 LOC).
 Tests: 374/374 pass + 2 skipped (no-op for the test suite).

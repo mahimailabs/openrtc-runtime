@@ -250,6 +250,14 @@ Tasks:
 
 ## Discovered work
 
+- [x] Add `SECURITY.md` so vulnerability reports have a documented
+  intake path (GitHub Security Advisories preferred, email
+  fallback to `hello@mahimai.dev`). Includes the supported-versions
+  matrix (0.1.x latest patch only — 0.0.x is superseded), the
+  expected response timeline (acknowledge in 3 business days,
+  triage in 7), and an out-of-scope section steering upstream
+  livekit-agents reports to the right place. GitHub auto-surfaces
+  this file in the repo's Security tab and overview sidebar.
 - [x] Add `.github/dependabot.yml` for weekly Python +
   GitHub-Actions dep updates. Two ecosystems pinned (pip via
   pyproject.toml; github-actions for the workflow files). Bundles
