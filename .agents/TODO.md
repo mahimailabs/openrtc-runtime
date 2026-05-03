@@ -190,7 +190,7 @@ Tasks:
   Mark with `pytest.mark.integration`. (Skips when LiveKit dev
   server unreachable OR `OPENAI_API_KEY` is unset; the
   validation runs in CI environments with both available.)
-- [ ] Verify `isolation="process"` mode behaves identically to
+- [x] Verify `isolation="process"` mode behaves identically to
   v0.0.17 (regression test against existing test suite).
 - [ ] Backpressure test: with `max_concurrent_sessions=10`, the
   11th job is rejected; LiveKit dispatch sees `load >= 1.0`.

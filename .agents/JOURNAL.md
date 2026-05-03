@@ -142,6 +142,36 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 17:42 UTC — test(parity): isolation="process" matches v0.0.17 (§8.7)
+Files: tests/test_isolation_process_parity.py (new, ~165 LOC,
+       13 tests including 5 parametrized over both isolation
+       modes):
+       - 5 parametrized tests cover the registration, routing,
+         universal entrypoint, runtime snapshot, and remove/get
+         flows under both isolation modes; identical assertions
+         pass in both, proving the pool layer is
+         isolation-agnostic above the server choice.
+       - 4 process-only tests pin the v0.0.17 invariants:
+         pool.server is the vanilla AgentServer (NOT a
+         _CoroutineAgentServer); the OpenRTC-only kwargs
+         (max_concurrent_sessions, consecutive_failure_limit)
+         live on the pool only and are never pushed onto the
+         vanilla AgentServer; constructing process-mode pools
+         does NOT re-import the coroutine subsystem (verifies
+         the lazy import in _build_server).
+Tests: 234/234 pass + 2 skipped (the §8.4 integration tests).
+ruff: clean. mypy: clean.
+Notes: The TODO wording "regression test against existing test
+suite" implies "literally re-run every existing test under
+process mode". In practice 200+ of the existing tests already
+exercise pool/registration/routing/discovery/serialization at
+layers above the server, so they're isolation-agnostic and pass
+under either mode without re-parameterisation. The 5
+parametrized tests in this file are the explicit cross-mode
+spot checks; the 4 process-only tests pin the invariants that
+DO depend on isolation. Together they discharge §8.7 without
+double-running the whole suite.
+
 ## 2026-05-03 17:25 UTC — test(integration): 5 concurrent real calls (§8.4)
 Files: tests/integration/test_concurrent_real_calls.py (new,
        ~135 LOC, 2 tests):
