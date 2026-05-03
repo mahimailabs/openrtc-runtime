@@ -12,6 +12,7 @@ from livekit.agents import Agent
 
 import openrtc.core.discovery as discovery_module
 import openrtc.core.pool as pool_module
+import openrtc.core.serialization as serialization_module
 from openrtc import AgentPool
 
 
@@ -167,9 +168,9 @@ def test_resolve_agent_class_reuses_loaded_discovered_module(tmp_path: Path) -> 
 
     module_name = discovery_module._discovered_module_name(module_path)
     module = discovery_module._load_module_from_path(module_name, module_path)
-    agent_ref = pool_module._build_agent_class_ref(module.SampleAgent)
+    agent_ref = serialization_module._build_agent_class_ref(module.SampleAgent)
 
-    resolved = pool_module._resolve_agent_class(agent_ref)
+    resolved = serialization_module._resolve_agent_class(agent_ref)
 
     assert resolved is module.SampleAgent
 
@@ -184,27 +185,27 @@ def test_resolve_agent_class_falls_back_to_module_path(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    agent_ref = pool_module._AgentClassRef(
+    agent_ref = serialization_module._AgentClassRef(
         module_name="missing_runtime_module",
         qualname="FallbackAgent",
         module_path=str(module_path),
     )
 
-    resolved = pool_module._resolve_agent_class(agent_ref)
+    resolved = serialization_module._resolve_agent_class(agent_ref)
 
     assert resolved.__name__ == "FallbackAgent"
     assert issubclass(resolved, Agent)
 
 
 def test_resolve_agent_class_raises_when_module_cannot_be_imported() -> None:
-    agent_ref = pool_module._AgentClassRef(
+    agent_ref = serialization_module._AgentClassRef(
         module_name="missing_runtime_module_without_path",
         qualname="MissingAgent",
         module_path=None,
     )
 
     with pytest.raises(ModuleNotFoundError):
-        pool_module._resolve_agent_class(agent_ref)
+        serialization_module._resolve_agent_class(agent_ref)
 
 
 def test_resolve_agent_class_rejects_non_agent_symbol(tmp_path: Path) -> None:
@@ -214,14 +215,14 @@ def test_resolve_agent_class_rejects_non_agent_symbol(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    agent_ref = pool_module._AgentClassRef(
+    agent_ref = serialization_module._AgentClassRef(
         module_name="missing_non_agent_module",
         qualname="NotAnAgent",
         module_path=str(module_path),
     )
 
     with pytest.raises(TypeError, match="is not a livekit.agents.Agent subclass"):
-        pool_module._resolve_agent_class(agent_ref)
+        serialization_module._resolve_agent_class(agent_ref)
 
 
 def test_load_module_from_path_reuses_existing_module(tmp_path: Path) -> None:
@@ -625,7 +626,7 @@ def test_is_not_given_detects_openai_sentinels_without_repr() -> None:
     pytest.importorskip("openai")
     from openai import NOT_GIVEN, not_given
 
-    from openrtc.core.pool import _is_not_given
+    from openrtc.core.serialization import _is_not_given
 
     assert _is_not_given(NOT_GIVEN) is True
     assert _is_not_given(not_given) is True
@@ -634,7 +635,7 @@ def test_is_not_given_detects_openai_sentinels_without_repr() -> None:
 
 
 def test_is_not_given_ignores_unrelated_class_named_notgiven() -> None:
-    from openrtc.core.pool import _is_not_given
+    from openrtc.core.serialization import _is_not_given
 
     class NotGiven:
         pass

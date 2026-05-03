@@ -5,14 +5,18 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from livekit.agents import Agent
 
+from openrtc.core.serialization import (
+    _AgentClassRef,
+    _build_agent_class_ref,
+    _deserialize_provider_value,
+    _resolve_agent_class,
+    _serialize_provider_value,
+)
 from openrtc.types import ProviderValue
-
-if TYPE_CHECKING:
-    from openrtc.core.pool import _AgentClassRef
 
 _AgentType = TypeVar("_AgentType", bound=type[Agent])
 _AGENT_METADATA_ATTR = "__openrtc_agent_config__"
@@ -59,21 +63,12 @@ class AgentConfig:
     _agent_ref: _AgentClassRef = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        # Late imports avoid a circular dependency with core.pool until the
-        # serialization helpers move to core/serialization.py (next refactor task).
-        from openrtc.core.pool import (
-            _build_agent_class_ref,
-            _serialize_provider_value,
-        )
-
         self._agent_ref = _build_agent_class_ref(self.agent_cls)
         _serialize_provider_value(self.stt)
         _serialize_provider_value(self.llm)
         _serialize_provider_value(self.tts)
 
     def __getstate__(self) -> dict[str, Any]:
-        from openrtc.core.pool import _serialize_provider_value
-
         return {
             "name": self.name,
             "stt": _serialize_provider_value(self.stt),
@@ -88,11 +83,6 @@ class AgentConfig:
         }
 
     def __setstate__(self, state: Mapping[str, Any]) -> None:
-        from openrtc.core.pool import (
-            _deserialize_provider_value,
-            _resolve_agent_class,
-        )
-
         self.name = state["name"]
         self.stt = _deserialize_provider_value(state["stt"])
         self.llm = _deserialize_provider_value(state["llm"])
@@ -123,6 +113,14 @@ class AgentDiscoveryConfig:
     llm: ProviderValue | None = None
     tts: ProviderValue | None = None
     greeting: str | None = None
+
+
+def _resolve_discovery_metadata(agent_cls: type[Agent]) -> AgentDiscoveryConfig:
+    metadata = getattr(agent_cls, _AGENT_METADATA_ATTR, None)
+    if metadata is not None:
+        return cast(AgentDiscoveryConfig, metadata)
+
+    return AgentDiscoveryConfig()
 
 
 def agent_config(

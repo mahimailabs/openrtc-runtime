@@ -10,11 +10,8 @@ import sys
 from hashlib import sha1
 from pathlib import Path
 from types import ModuleType
-from typing import cast
 
 from livekit.agents import Agent
-
-from openrtc.core.config import _AGENT_METADATA_ATTR, AgentDiscoveryConfig
 
 logger = logging.getLogger("openrtc")
 
@@ -80,11 +77,3 @@ def _find_local_agent_subclass(module: ModuleType) -> type[Agent]:
     raise RuntimeError(
         f"Module '{module.__name__}' does not define a local Agent subclass."
     )
-
-
-def _resolve_discovery_metadata(agent_cls: type[Agent]) -> AgentDiscoveryConfig:
-    metadata = getattr(agent_cls, _AGENT_METADATA_ATTR, None)
-    if metadata is not None:
-        return cast(AgentDiscoveryConfig, metadata)
-
-    return AgentDiscoveryConfig()
