@@ -341,7 +341,7 @@ def test_dev_positional_agents_rewrites_before_typer(
 
 def test_strip_openrtc_only_flags_for_livekit_removes_openrtc_options() -> None:
     """LiveKit ``run_app`` must not see OpenRTC-only flags (see ``_livekit_sys_argv``)."""
-    from openrtc.cli_app import _strip_openrtc_only_flags_for_livekit
+    from openrtc.cli_livekit import _strip_openrtc_only_flags_for_livekit
 
     tail = [
         "--agents-dir",

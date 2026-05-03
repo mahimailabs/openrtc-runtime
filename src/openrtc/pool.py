@@ -480,25 +480,6 @@ class AgentPool:
             raise RuntimeError("Register at least one agent before calling run().")
         cli.run_app(self._server)
 
-    def _resolve_agent(self, ctx: JobContext) -> AgentConfig:
-        """Resolve the agent for a session from metadata or fallback order.
-
-        Args:
-            ctx: LiveKit job context for the incoming room session.
-
-        Returns:
-            The selected agent configuration.
-
-        Raises:
-            RuntimeError: If no agents are registered.
-            ValueError: If metadata references an unknown agent.
-        """
-        return _resolve_agent_config(self._agents, ctx)
-
-    async def _handle_session(self, ctx: JobContext) -> None:
-        """Create and start a LiveKit ``AgentSession`` for the resolved agent."""
-        await _run_universal_session(self._runtime_state, ctx)
-
     def _resolve_provider(
         self,
         value: ProviderValue | None,

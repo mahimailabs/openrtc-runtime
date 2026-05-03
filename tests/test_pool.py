@@ -476,7 +476,7 @@ def test_runtime_snapshot_reports_active_sessions_and_failures(
     ctx = FakeJobContext()
 
     async def run_session() -> None:
-        await pool._handle_session(ctx)
+        await pool_module._run_universal_session(pool._runtime_state, ctx)
 
     async def exercise() -> None:
         task = asyncio.create_task(run_session())
@@ -528,7 +528,9 @@ def test_runtime_snapshot_records_session_failures(
     monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
 
     with pytest.raises(RuntimeError, match="boom"):
-        asyncio.run(pool._handle_session(FakeJobContext()))
+        asyncio.run(
+            pool_module._run_universal_session(pool._runtime_state, FakeJobContext())
+        )
 
     snapshot = pool.runtime_snapshot()
     assert snapshot.active_sessions == 0
@@ -565,7 +567,9 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_build_fails
     monkeypatch.setattr("openrtc.pool._build_session_kwargs", raise_build_error)
 
     with pytest.raises(RuntimeError, match="session kwargs boom"):
-        asyncio.run(pool._handle_session(FakeJobContext()))
+        asyncio.run(
+            pool_module._run_universal_session(pool._runtime_state, FakeJobContext())
+        )
 
     snapshot = pool.runtime_snapshot()
     assert snapshot.active_sessions == 0
@@ -599,7 +603,9 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_constructor
     monkeypatch.setattr("openrtc.pool.AgentSession", BrokenSession)
 
     with pytest.raises(RuntimeError, match="session constructor boom"):
-        asyncio.run(pool._handle_session(FakeJobContext()))
+        asyncio.run(
+            pool_module._run_universal_session(pool._runtime_state, FakeJobContext())
+        )
 
     snapshot = pool.runtime_snapshot()
     assert snapshot.active_sessions == 0
@@ -671,7 +677,7 @@ def test_deprecated_session_kwargs_warning(
     ctx.connect = do_connect.__get__(ctx, type(ctx))  # type: ignore[attr-defined]
 
     with pytest.warns(DeprecationWarning, match="turn_handling"):
-        asyncio.run(pool._handle_session(ctx))
+        asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))
 
 
 def test_no_warning_for_modern_session_kwargs(
@@ -708,4 +714,4 @@ def test_no_warning_for_modern_session_kwargs(
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
-        asyncio.run(pool._handle_session(ctx))
+        asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))

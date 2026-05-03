@@ -22,8 +22,6 @@ from openrtc.cli_livekit import (
     _delegate_discovered_pool_to_livekit,
     _discover_or_exit,
     _run_connect_handoff,
-    _run_pool_with_reporting,
-    _strip_openrtc_only_flags_for_livekit,
     inject_cli_positional_paths,
 )
 from openrtc.cli_params import SharedLiveKitWorkerOptions, agent_provider_kwargs
@@ -360,8 +358,6 @@ def main(argv: list[str] | None = None) -> int:
 
 __all__ = [
     "RuntimeReporter",
-    "_run_pool_with_reporting",
-    "_strip_openrtc_only_flags_for_livekit",
     "app",
     "build_runtime_dashboard",
     "main",
