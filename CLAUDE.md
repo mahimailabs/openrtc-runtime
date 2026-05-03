@@ -10,7 +10,7 @@ All workflows go through `uv` (preferred over pip). The Makefile wraps the most-
 | --- | --- |
 | Install dev env | `uv sync --group dev` |
 | Run all tests | `uv run pytest` |
-| Tests with coverage gate (CI parity) | `uv run pytest --cov=openrtc --cov-report=xml --cov-fail-under=80` |
+| Tests with coverage gate (CI parity) | `uv run pytest --cov=openrtc --cov-report=xml --cov-fail-under=99` |
 | Run a single test | `uv run pytest tests/test_pool.py::test_name -xvs` |
 | Run integration tests only | `uv run pytest -m integration` |
 | Lint | `uv run ruff check .` |
@@ -19,7 +19,7 @@ All workflows go through `uv` (preferred over pip). The Makefile wraps the most-
 | Smoke-check discovery without LiveKit | `make dev` (or `uv run openrtc list ./examples/agents --default-stt … --default-llm … --default-tts …`) |
 | Build wheel | `uv build` |
 
-`mypy src/` and `ruff check` both run in CI (`.github/workflows/lint.yml`). The coverage gate is enforced at 80%.
+`mypy src/` (in `strict = true` mode) and `ruff check` both run in CI (`.github/workflows/lint.yml`). The combined line + branch coverage gate is enforced at 99% (project sits at 100.00%; the 1pp cushion is for legitimate `# pragma: no cover` defensive code).
 
 Python 3.11+ is required; 3.10 will fail because the LiveKit Silero / turn-detector plugins pull `onnxruntime`, which has no 3.10 wheels.
 

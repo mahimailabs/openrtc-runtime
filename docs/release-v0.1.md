@@ -51,7 +51,7 @@ before pushing.)
 
 ## Creating the GitHub release
 
-1. Open `https://github.com/mahimairaja/openrtc-python/releases/new`.
+1. Open `https://github.com/mahimailabs/openrtc/releases/new`.
 2. Pick the new `v0.1.0` tag.
 3. Title: `v0.1.0 — coroutine-mode worker`.
 4. Body: copy the entire `### v0.1.0 — coroutine-mode worker (default

@@ -115,7 +115,11 @@ async def test_five_concurrent_sessions_complete_in_one_coroutine_worker(
         assert snapshot.total_session_failures == 0
     finally:
         await server.aclose()
-        # Surface any background errors instead of silently dropping.
+        # Best-effort cleanup: swallow whatever the runner task raises so a
+        # post-aclose error doesn't mask the actual assertion failure (or
+        # success) the test reached above. The runner is a background server
+        # loop; any genuine bug it hits has already shown up as a session
+        # failure on `pool.runtime_snapshot()`.
         with contextlib.suppress(TimeoutError, asyncio.CancelledError, Exception):
             await asyncio.wait_for(runner, timeout=10.0)
 
