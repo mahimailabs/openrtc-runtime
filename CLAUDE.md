@@ -64,9 +64,9 @@ Worker processes can be spawned (LiveKit's default on macOS), so anything captur
 
 ### CLI architecture
 
-`cli.py` is the lazy entrypoint that prints a friendly message if the `cli` extra isn't installed, then defers to `cli_app.py`. Subcommands (`list`, `start`, `dev`, `console`, `connect`, `download-files`, `tui`) mirror the LiveKit Agents CLI shape; OpenRTC-only flags (`--agents-dir`, `--metrics-jsonl`, etc.) are stripped before handoff. The handoff itself happens in `cli_livekit.py`, which rewrites `sys.argv` and applies env overrides before calling `pool.run()`.
+`cli/__init__.py` re-exports `main` and `app`. `cli/entry.py` is the lazy entrypoint that prints a friendly message if the `cli` extra isn't installed, then defers to `cli/commands.py` (the Typer app, named `commands.py` rather than `app.py` to avoid a Python collision with the package-level `app` re-export). Subcommands (`list`, `start`, `dev`, `console`, `connect`, `download-files`, `tui`) mirror the LiveKit Agents CLI shape; OpenRTC-only flags (`--agents-dir`, `--metrics-jsonl`, etc.) are stripped before handoff. The handoff itself happens in `cli/livekit.py`, which rewrites `sys.argv` and applies env overrides before calling `pool.run()`.
 
-The Textual sidecar (`tui_app.py`) is gated behind the `tui` extra and tails the JSONL metrics stream produced by `cli_reporter.py`.
+The Textual sidecar (`tui_app.py`) is gated behind the `tui` extra and tails the JSONL metrics stream produced by `cli/reporter.py`.
 
 ### Versioning and release
 

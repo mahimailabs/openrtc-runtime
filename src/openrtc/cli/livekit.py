@@ -11,8 +11,8 @@ from pathlib import Path
 
 import typer
 
-from openrtc.cli_params import SharedLiveKitWorkerOptions
-from openrtc.cli_reporter import RuntimeReporter
+from openrtc.cli.params import SharedLiveKitWorkerOptions
+from openrtc.cli.reporter import RuntimeReporter
 from openrtc.core.config import AgentConfig
 from openrtc.core.pool import AgentPool
 

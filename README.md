@@ -286,24 +286,29 @@ On `AgentPool`:
 src/openrtc/
 ├── __init__.py
 ├── py.typed
-├── cli.py                 # lazy console entry / missing-extra hints
-├── cli_app.py             # Typer commands and programmatic main()
-├── cli_types.py           # shared CLI option aliases
-├── cli_dashboard.py     # Rich dashboard and list output
-├── cli_reporter.py        # background metrics reporter thread
-├── cli_livekit.py         # LiveKit argv/env handoff, pool run
-├── cli_params.py          # shared worker handoff option bundles
-├── metrics_stream.py      # JSONL metrics schema
 ├── types.py               # ProviderValue and related typing
 ├── tui_app.py             # optional Textual sidecar
-└── core/
-    └── pool.py            # AgentPool, discovery, routing
+├── cli/
+│   ├── __init__.py        # re-exports `main` and `app`
+│   ├── entry.py           # lazy console entry / missing-extra hint
+│   ├── commands.py        # Typer commands and programmatic main()
+│   ├── types.py           # shared CLI option aliases
+│   ├── dashboard.py       # Rich dashboard and list output
+│   ├── reporter.py        # background metrics reporter thread
+│   ├── livekit.py         # LiveKit argv/env handoff, pool run
+│   └── params.py          # shared worker handoff option bundles
+├── core/
+│   └── pool.py            # AgentPool, discovery, routing
+└── observability/
+    ├── metrics.py         # RuntimeMetricsStore, footprint helpers
+    ├── snapshot.py        # PoolRuntimeSnapshot dataclass
+    └── stream.py          # JSONL metrics schema
 ```
 
-- `core/pool.py` — `AgentPool`, discovery, routing
-- `cli.py` / `cli_app.py` — Typer/Rich CLI (`openrtc[cli]`)
-- `metrics_stream.py` — JSONL metrics schema
-- `tui_app.py` — optional Textual sidecar (`openrtc[tui]`)
+- `core/pool.py`: `AgentPool`, discovery, routing
+- `cli/`: Typer/Rich CLI (`openrtc[cli]`)
+- `observability/stream.py`: JSONL metrics schema
+- `tui_app.py`: optional Textual sidecar (`openrtc[tui]`)
 
 ## Contributing
 

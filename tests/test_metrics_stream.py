@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from openrtc.cli_app import RuntimeReporter
+from openrtc.cli.commands import RuntimeReporter
 from openrtc.observability.metrics import MetricsStreamEvent
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.observability.stream import (

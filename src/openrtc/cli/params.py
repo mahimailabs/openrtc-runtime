@@ -29,7 +29,7 @@ class SharedLiveKitWorkerOptions:
     """Options shared by ``start`` / ``dev`` / ``console`` / ``connect`` handoff paths.
 
     Typer still lists each flag on every command so ``--help`` stays accurate; this
-    dataclass deduplicates the handoff to :mod:`openrtc.cli_livekit`.
+    dataclass deduplicates the handoff to :mod:`openrtc.cli.livekit`.
     """
 
     agents_dir: Path

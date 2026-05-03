@@ -71,7 +71,7 @@ Keep these responsibilities in mind when contributing:
 
 - `src/openrtc/core/pool.py` contains the core pooling, discovery, routing, and
   session-construction logic.
-- `src/openrtc/cli.py` is the console entrypoint; `src/openrtc/cli_app.py`
+- `src/openrtc/cli/` is the console entrypoint package; `src/openrtc/cli/commands.py`
   implements the Typer/Rich CLI (optional extra ``openrtc[cli]``; dev deps
   include it for local runs).
 - `src/openrtc/__init__.py` defines the public package surface.

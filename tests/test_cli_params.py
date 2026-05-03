@@ -1,10 +1,10 @@
-"""Unit tests for :mod:`openrtc.cli_params` bundles."""
+"""Unit tests for :mod:`openrtc.cli.params` bundles."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from openrtc.cli_params import SharedLiveKitWorkerOptions, agent_provider_kwargs
+from openrtc.cli.params import SharedLiveKitWorkerOptions, agent_provider_kwargs
 
 
 def test_agent_provider_kwargs_matches_agent_pool_constructor() -> None:

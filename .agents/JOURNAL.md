@@ -142,6 +142,36 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 09:50 UTC — refactor: move CLI modules into a cli/ package
+Files: 7 git mv operations (via temporary cli_pkg_new/ to avoid the
+       cli.py / cli/ file-vs-directory naming collision):
+       cli.py -> cli/entry.py,
+       cli_app.py -> cli/commands.py (renamed from app.py — see notes),
+       cli_dashboard.py -> cli/dashboard.py,
+       cli_livekit.py -> cli/livekit.py,
+       cli_params.py -> cli/params.py,
+       cli_reporter.py -> cli/reporter.py,
+       cli_types.py -> cli/types.py.
+       New: cli/__init__.py with main re-export and an eager `app`
+       binding (with __getattr__ fallback when the [cli] extra is
+       absent).
+       Updated 4 internal cross-references inside cli/* files.
+       Updated 4 test files (test_cli.py: many monkeypatch + import
+       sites, test_cli_params.py: 1 import + docstring,
+       test_metrics_stream.py: 1 import). Updated 4 docs/config
+       references (docs/cli.md, README.md, CLAUDE.md,
+       CONTRIBUTING.md).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: Deviation from the .agents/TODO.md target tree: cli_app.py
+became cli/commands.py rather than cli/app.py. The TODO target
+tree gives both `cli/__init__.py` and `cli/app.py`, but Python
+treats `openrtc.cli.app` as both the submodule and the Typer
+attribute the package re-exports — `from openrtc.cli import app`
+returns the wrong thing depending on import order. Renaming the
+submodule file removes the collision and lets the Typer instance
+keep the natural `app` name. Behavior, public API, console-script
+entrypoint (`openrtc.cli:main` in pyproject.toml) all preserved.
+
 ## 2026-05-03 09:20 UTC — refactor: extract observability/snapshot.py from metrics.py
 Files: src/openrtc/observability/snapshot.py (new, 80 LOC:
        ProcessResidentSetInfo, SavingsEstimate, PoolRuntimeSnapshot

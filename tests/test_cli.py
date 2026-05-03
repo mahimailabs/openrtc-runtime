@@ -151,7 +151,7 @@ def test_list_command_prints_discovered_agents(
             )
         ]
     )
-    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli.commands.AgentPool", lambda **kwargs: stub_pool)
 
     runner = CliRunner()
     result = runner.invoke(app, ["list", "--agents-dir", "./agents"])
@@ -175,7 +175,7 @@ def test_cli_passes_pool_defaults_into_agent_pool(
         created_pools.append(pool)
         return pool
 
-    monkeypatch.setattr("openrtc.cli_app.AgentPool", build_pool)
+    monkeypatch.setattr("openrtc.cli.commands.AgentPool", build_pool)
 
     exit_code = main(
         [
@@ -220,7 +220,7 @@ def test_run_commands_inject_livekit_mode_and_run_pool(
     stub_pool = StubPool(
         discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
     )
-    monkeypatch.setattr("openrtc.cli_livekit.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli.livekit.AgentPool", lambda **kwargs: stub_pool)
     monkeypatch.setattr(sys, "argv", original_argv.copy())
 
     exit_code = main([command, *extra_args])
@@ -235,7 +235,7 @@ def test_cli_returns_non_zero_when_no_agents_are_discovered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_pool = StubPool(discovered=[])
-    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli.commands.AgentPool", lambda **kwargs: stub_pool)
 
     exit_code = main(["list", "--agents-dir", "./agents"])
 
@@ -276,7 +276,7 @@ def test_list_exits_cleanly_when_agents_dir_does_not_exist(
 
 
 def test_inject_cli_positional_paths_rewrites_shortcuts() -> None:
-    from openrtc.cli_livekit import inject_cli_positional_paths
+    from openrtc.cli.livekit import inject_cli_positional_paths
 
     assert inject_cli_positional_paths(
         ["dev", "./agents", "./openrtc-metrics.jsonl", "--reload"],
@@ -312,7 +312,7 @@ def test_inject_cli_positional_paths_rewrites_shortcuts() -> None:
         ["tui", "./m.jsonl", "--from-start"],
     ) == ["tui", "--watch", "./m.jsonl", "--from-start"]
     assert inject_cli_positional_paths(["tui"]) == ["tui"]
-    from openrtc.cli_livekit import inject_worker_positional_paths
+    from openrtc.cli.livekit import inject_worker_positional_paths
 
     assert inject_worker_positional_paths(
         ["list", "./agents"]
@@ -326,7 +326,7 @@ def test_dev_positional_agents_rewrites_before_typer(
     tmp_path: Path,
 ) -> None:
     """``openrtc dev ./agents`` is rewritten to ``--agents-dir`` in :func:`main`."""
-    import openrtc.cli_livekit as cli_livekit_mod
+    import openrtc.cli.livekit as cli_livekit_mod
 
     agents = tmp_path / "agents"
     agents.mkdir()
@@ -341,7 +341,7 @@ def test_dev_positional_agents_rewrites_before_typer(
 
 def test_strip_openrtc_only_flags_for_livekit_removes_openrtc_options() -> None:
     """LiveKit ``run_app`` must not see OpenRTC-only flags (see ``_livekit_sys_argv``)."""
-    from openrtc.cli_livekit import _strip_openrtc_only_flags_for_livekit
+    from openrtc.cli.livekit import _strip_openrtc_only_flags_for_livekit
 
     tail = [
         "--agents-dir",
@@ -385,7 +385,7 @@ def test_dev_passes_reload_through_argv_strip(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    import openrtc.cli_livekit as cli_livekit_mod
+    import openrtc.cli.livekit as cli_livekit_mod
 
     agents = tmp_path / "agents"
     agents.mkdir()
@@ -424,7 +424,7 @@ def test_dev_passes_reload_through_argv_strip(
 def test_livekit_env_restored_after_delegate_returns(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import openrtc.cli_livekit as cli_livekit_mod
+    import openrtc.cli.livekit as cli_livekit_mod
 
     stub_pool = StubPool(discovered=[StubConfig(name="a", agent_cls=StubAgent)])
     monkeypatch.setattr(cli_livekit_mod, "AgentPool", lambda **kwargs: stub_pool)
@@ -528,7 +528,7 @@ def test_list_plain_matches_line_oriented_format(
             )
         ]
     )
-    monkeypatch.setattr("openrtc.cli_app.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli.commands.AgentPool", lambda **kwargs: stub_pool)
 
     runner = CliRunner()
     result = runner.invoke(app, ["list", "--agents-dir", "./agents", "--plain"])
@@ -551,7 +551,7 @@ def test_list_plain_and_json_conflict() -> None:
 
 
 def test_build_runtime_dashboard_renders_key_metrics() -> None:
-    from openrtc.cli_app import build_runtime_dashboard
+    from openrtc.cli.commands import build_runtime_dashboard
 
     snapshot = PoolRuntimeSnapshot(
         timestamp=1.0,
@@ -594,7 +594,7 @@ def test_start_command_can_write_runtime_metrics_json(
     stub_pool = StubPool(
         discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
     )
-    monkeypatch.setattr("openrtc.cli_livekit.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli.livekit.AgentPool", lambda **kwargs: stub_pool)
 
     metrics_path = tmp_path / "runtime.json"
     runner = CliRunner()
@@ -626,7 +626,7 @@ def test_start_command_metrics_jsonl_writes_snapshot_records(
     stub_pool = StubPool(
         discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
     )
-    monkeypatch.setattr("openrtc.cli_livekit.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr("openrtc.cli.livekit.AgentPool", lambda **kwargs: stub_pool)
 
     runner = CliRunner()
     result = runner.invoke(
