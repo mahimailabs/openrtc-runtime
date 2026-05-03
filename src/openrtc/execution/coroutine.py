@@ -301,6 +301,8 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         http_proxy: str | None,
         loop: asyncio.AbstractEventLoop,
         max_concurrent_sessions: int = 50,
+        consecutive_failure_limit: int = 5,
+        on_consecutive_failure_limit: Callable[[int], None] | None = None,
     ) -> None:
         super().__init__()
         self._initialize_process_fnc = initialize_process_fnc
@@ -332,6 +334,22 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
                 f"max_concurrent_sessions must be >= 1, got {max_concurrent_sessions}."
             )
         self._max_concurrent_sessions = max_concurrent_sessions
+        if not isinstance(consecutive_failure_limit, int) or isinstance(
+            consecutive_failure_limit, bool
+        ):
+            raise TypeError(
+                "consecutive_failure_limit must be an int, "
+                f"got {type(consecutive_failure_limit).__name__}."
+            )
+        if consecutive_failure_limit < 1:
+            raise ValueError(
+                "consecutive_failure_limit must be >= 1, "
+                f"got {consecutive_failure_limit}."
+            )
+        self._consecutive_failure_limit = consecutive_failure_limit
+        self._on_consecutive_failure_limit = on_consecutive_failure_limit
+        self._consecutive_failures = 0
+        self._failure_limit_fired = False
         self._executors: list[JobExecutor] = []
         self._target_idle_processes = num_idle_processes
         self._started = False
@@ -562,6 +580,53 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
             return
         self._executors.remove(executor)
         self.emit("process_closed", executor)
+        self._observe_executor_status(executor)
+
+    def _observe_executor_status(self, executor: JobExecutor) -> None:
+        """Track consecutive failures and trip the supervisor at the limit.
+
+        SUCCESS resets the counter; any other terminal status (FAILED,
+        and by extension cancellation, which we map to FAILED) increments
+        it. The supervisor callback fires exactly once per cluster (the
+        ``_failure_limit_fired`` flag clears on the next SUCCESS) so a
+        sustained outage does not spam logs or trigger repeated
+        shutdowns.
+        """
+        status = executor.status
+        if status is JobStatus.SUCCESS:
+            self._consecutive_failures = 0
+            self._failure_limit_fired = False
+            return
+
+        # FAILED (or any non-SUCCESS terminal status).
+        self._consecutive_failures += 1
+
+        if (
+            self._consecutive_failures >= self._consecutive_failure_limit
+            and not self._failure_limit_fired
+        ):
+            self._failure_limit_fired = True
+            logger.error(
+                "CoroutinePool tripped consecutive_failure_limit=%d "
+                "(failures observed=%d); invoking supervisor callback",
+                self._consecutive_failure_limit,
+                self._consecutive_failures,
+            )
+            if self._on_consecutive_failure_limit is not None:
+                try:
+                    self._on_consecutive_failure_limit(self._consecutive_failures)
+                except Exception:
+                    logger.exception("consecutive_failure_limit callback raised")
+
+    @property
+    def consecutive_failures(self) -> int:
+        """Failure count since the last SUCCESS (or start)."""
+        return self._consecutive_failures
+
+    @property
+    def consecutive_failure_limit(self) -> int:
+        """Threshold that fires :attr:`on_consecutive_failure_limit`."""
+        return self._consecutive_failure_limit
 
     def set_target_idle_processes(self, num_idle_processes: int) -> None:
         self._target_idle_processes = num_idle_processes

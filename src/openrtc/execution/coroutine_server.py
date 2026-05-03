@@ -17,6 +17,7 @@ default.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import livekit.agents.ipc.proc_pool as _proc_pool_mod
@@ -40,6 +41,7 @@ class _CoroutineAgentServer(AgentServer):
         self,
         *args: Any,
         max_concurrent_sessions: int = 50,
+        consecutive_failure_limit: int = 5,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -54,7 +56,20 @@ class _CoroutineAgentServer(AgentServer):
             raise ValueError(
                 f"max_concurrent_sessions must be >= 1, got {max_concurrent_sessions}."
             )
+        if not isinstance(consecutive_failure_limit, int) or isinstance(
+            consecutive_failure_limit, bool
+        ):
+            raise TypeError(
+                "consecutive_failure_limit must be an int, "
+                f"got {type(consecutive_failure_limit).__name__}."
+            )
+        if consecutive_failure_limit < 1:
+            raise ValueError(
+                "consecutive_failure_limit must be >= 1, "
+                f"got {consecutive_failure_limit}."
+            )
         self._max_concurrent_sessions = max_concurrent_sessions
+        self._consecutive_failure_limit = consecutive_failure_limit
         self._coroutine_pool: CoroutinePool | None = None
 
     @property
@@ -76,10 +91,33 @@ class _CoroutineAgentServer(AgentServer):
         """
         original_proc_pool_cls = _proc_pool_mod.ProcPool
         max_sess = self._max_concurrent_sessions
+        failure_limit = self._consecutive_failure_limit
         captured: dict[str, CoroutinePool | None] = {"pool": None}
 
+        # Supervisor: when the pool reports that it has tripped the
+        # consecutive-failure limit, schedule self.aclose() so the worker
+        # exits and the deployment platform restarts it.
+        def _on_consecutive_failure_limit(failures: int) -> None:
+            import logging
+
+            logging.getLogger("openrtc.execution.coroutine_server").error(
+                "supervisor: %d consecutive session failures observed; "
+                "invoking AgentServer.aclose() so the worker can exit",
+                failures,
+            )
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
+            loop.create_task(self.aclose())
+
         def _coroutine_pool_factory(**pool_kwargs: Any) -> CoroutinePool:
-            pool = CoroutinePool(**pool_kwargs, max_concurrent_sessions=max_sess)
+            pool = CoroutinePool(
+                **pool_kwargs,
+                max_concurrent_sessions=max_sess,
+                consecutive_failure_limit=failure_limit,
+                on_consecutive_failure_limit=_on_consecutive_failure_limit,
+            )
             captured["pool"] = pool
             return pool
 

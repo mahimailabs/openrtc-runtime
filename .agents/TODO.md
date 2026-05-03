@@ -170,7 +170,7 @@ sessions at ≤ 4 GB RSS, no errors. If not met, add a
 Tasks:
 - [x] Per-job error isolation test: a session raising
   `RuntimeError` does not affect 4 sibling sessions.
-- [ ] Implement worker supervisor: track consecutive session
+- [x] Implement worker supervisor: track consecutive session
   failures; after N (default 5), call `aclose()` and exit non-zero.
 - [ ] Implement graceful drain on SIGTERM: stop accepting jobs;
   await in-flight to complete.

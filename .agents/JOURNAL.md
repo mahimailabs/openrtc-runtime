@@ -142,6 +142,49 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 16:10 UTC — feat(execution): consecutive-failure supervisor
+Files: src/openrtc/execution/coroutine.py: CoroutinePool gains
+       consecutive_failure_limit (default 5) and
+       on_consecutive_failure_limit kwargs. _on_executor_done
+       now calls a new _observe_executor_status() that increments
+       on non-SUCCESS terminal status and resets on SUCCESS.
+       Trips the callback exactly once per cluster
+       (_failure_limit_fired flag), with the cluster cleared on
+       the next SUCCESS. Logs at ERROR. Exposes
+       consecutive_failures (current count) and
+       consecutive_failure_limit (configured threshold) as
+       properties.
+       src/openrtc/execution/coroutine_server.py:
+       _CoroutineAgentServer also takes consecutive_failure_limit;
+       run() registers a closure that schedules
+       loop.create_task(self.aclose()) so the worker exits when
+       the pool trips. Constructor validates int + >= 1 (and
+       rejects bool).
+       src/openrtc/core/pool.py: AgentPool.__init__ takes
+       consecutive_failure_limit=5; validates; forwards to
+       _CoroutineAgentServer; exposes via the
+       consecutive_failure_limit property. Process mode ignores
+       the value (each subprocess crashes independently); the
+       docstring documents the semantics.
+       tests/test_coroutine_isolation.py: 6 new tests
+       (supervisor fires at limit, NOT below, resets on SUCCESS,
+       absorbs callback exception, AgentPool plumbing
+       propagates value, AgentPool validation rejects float +
+       bool + 0). Plus a new _drain_until_idle helper that polls
+       pool.processes (callbacks fire via loop.call_soon and are
+       not synchronous with `await task`); the helper is the
+       reliable signal that all observations have completed.
+       Reused by the existing tests in the file.
+Tests: 208/208 pass (6 added). ruff: clean. mypy: clean.
+Notes: Diagnosed a real timing issue while writing the tests:
+asyncio Task done callbacks (added via add_done_callback) fire
+on the next loop iteration, not synchronously when an awaited
+task completes. The polling helper handles it without depending
+on internal scheduler timing. The supervisor satisfies the §6.8
+spec: bounded blast radius via deployment-platform restart, with
+the trip surfaced as both a logged ERROR and an externally
+registered callback.
+
 ## 2026-05-03 15:50 UTC — test(isolation): per-job error isolation (Phase 2 task 1)
 Files: tests/test_coroutine_isolation.py (new, ~140 LOC, 2 tests):
        1) 5 concurrent sessions, the 3rd raises RuntimeError; the

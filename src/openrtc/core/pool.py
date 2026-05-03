@@ -112,6 +112,7 @@ class AgentPool:
         default_greeting: str | None = None,
         isolation: IsolationMode = "coroutine",
         max_concurrent_sessions: int = 50,
+        consecutive_failure_limit: int = 5,
     ) -> None:
         """Create a pool with shared defaults, prewarm, and a universal entrypoint.
 
@@ -137,6 +138,12 @@ class AgentPool:
                 jobs are routed elsewhere. Default ``50`` matches the design
                 target. Ignored in ``"process"`` mode (livekit-agents' own
                 load math applies). Plumbed but not yet enforced.
+            consecutive_failure_limit: Coroutine-mode supervisor threshold.
+                After this many consecutive session failures (any non-SUCCESS
+                terminal status), the worker invokes ``aclose()`` and exits
+                so the deployment platform restarts it. Default ``5`` per
+                docs/design/v0.1.md §6.8. Ignored in ``"process"`` mode
+                (each subprocess crashes and is restarted independently).
         """
         if isolation not in ("coroutine", "process"):
             raise ValueError(
@@ -153,8 +160,21 @@ class AgentPool:
             raise ValueError(
                 f"max_concurrent_sessions must be >= 1, got {max_concurrent_sessions}."
             )
+        if not isinstance(consecutive_failure_limit, int) or isinstance(
+            consecutive_failure_limit, bool
+        ):
+            raise TypeError(
+                "consecutive_failure_limit must be an int, "
+                f"got {type(consecutive_failure_limit).__name__}."
+            )
+        if consecutive_failure_limit < 1:
+            raise ValueError(
+                "consecutive_failure_limit must be >= 1, "
+                f"got {consecutive_failure_limit}."
+            )
         self._isolation: IsolationMode = isolation
         self._max_concurrent_sessions: int = max_concurrent_sessions
+        self._consecutive_failure_limit: int = consecutive_failure_limit
         self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(agents=self._agents)
@@ -181,6 +201,7 @@ class AgentPool:
 
             return _CoroutineAgentServer(
                 max_concurrent_sessions=self._max_concurrent_sessions,
+                consecutive_failure_limit=self._consecutive_failure_limit,
             )
         return AgentServer()
 
@@ -193,6 +214,11 @@ class AgentPool:
     def max_concurrent_sessions(self) -> int:
         """Return the coroutine-mode backpressure threshold."""
         return self._max_concurrent_sessions
+
+    @property
+    def consecutive_failure_limit(self) -> int:
+        """Return the coroutine-mode supervisor failure threshold."""
+        return self._consecutive_failure_limit
 
     @property
     def server(self) -> AgentServer:
