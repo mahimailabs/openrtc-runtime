@@ -142,6 +142,30 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 14:05 UTC — feat(execution): CoroutinePool.current_load + max_concurrent_sessions
+Files: src/openrtc/execution/coroutine.py:
+       - new optional `max_concurrent_sessions: int = 50` kwarg
+         on CoroutinePool.__init__ (extra to ProcPool's signature
+         so AgentServer construction stays compatible). Eager
+         TypeError for non-int / bool, ValueError for < 1.
+       - new max_concurrent_sessions read-only property,
+       - new current_load() method returning
+         len(active) / max_concurrent_sessions.
+       tests/test_coroutine_skeleton.py:
+       - 6 new tests: default is 50, constructor override
+         works, invalid types/values rejected, idle pool reports
+         0.0, 2 active out of default 50 reports 0.04, full
+         capacity reports 1.0.
+Tests: 182/182 pass (6 added). ruff: clean. mypy: clean.
+Notes: current_load is NOT part of the upstream ProcPool
+surface. AgentServer reads load via a separate load_fnc the user
+registers on AgentPool.server. The next wiring task will close
+over `pool.current_load` as the worker's load_fnc so dispatch
+sees the coroutine pool's actual saturation. Pool `>= 1.0` maps
+to AgentServer `WS_FULL` once load_fnc returns it; the default
+`load_threshold` is 0.7 so we'll need to either tune that or
+clamp current_load output. Documented in the docstring.
+
 ## 2026-05-03 13:50 UTC — feat(execution): implement CoroutinePool.launch_job
 Files: src/openrtc/execution/coroutine.py:
        - new module-level _NoOpInferenceExecutor stub (and shared

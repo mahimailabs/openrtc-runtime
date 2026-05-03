@@ -300,6 +300,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         memory_limit_mb: float,
         http_proxy: str | None,
         loop: asyncio.AbstractEventLoop,
+        max_concurrent_sessions: int = 50,
     ) -> None:
         super().__init__()
         self._initialize_process_fnc = initialize_process_fnc
@@ -315,6 +316,22 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         self._memory_limit_mb = memory_limit_mb
         self._http_proxy = http_proxy
         self._loop = loop
+        # Backpressure threshold: extra to ProcPool's signature so the
+        # constructor stays compatible with AgentServer (which only passes
+        # the ProcPool kwargs); the AgentPool wiring sets this via a
+        # closure when it monkey-patches ProcPool.
+        if not isinstance(max_concurrent_sessions, int) or isinstance(
+            max_concurrent_sessions, bool
+        ):
+            raise TypeError(
+                "max_concurrent_sessions must be an int, "
+                f"got {type(max_concurrent_sessions).__name__}."
+            )
+        if max_concurrent_sessions < 1:
+            raise ValueError(
+                f"max_concurrent_sessions must be >= 1, got {max_concurrent_sessions}."
+            )
+        self._max_concurrent_sessions = max_concurrent_sessions
         self._executors: list[JobExecutor] = []
         self._target_idle_processes = num_idle_processes
         self._started = False
@@ -510,3 +527,24 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
     @property
     def target_idle_processes(self) -> int:
         return self._target_idle_processes
+
+    @property
+    def max_concurrent_sessions(self) -> int:
+        """Backpressure threshold this pool was configured with."""
+        return self._max_concurrent_sessions
+
+    def current_load(self) -> float:
+        """Return active-session load ratio for AgentServer's ``load_fnc``.
+
+        Computed as ``len(active_executors) / max_concurrent_sessions``.
+        Returns ``0.0`` for an idle pool, ``1.0`` once
+        ``max_concurrent_sessions`` is reached, and ``> 1.0`` if the pool
+        has somehow over-allocated. ``AgentServer._update_worker_status``
+        treats a load ``>= load_threshold`` (default ``0.7``) as "full" and
+        stops accepting jobs from the dispatcher.
+
+        Not part of the upstream ``ProcPool`` surface; this is the data
+        source AgentPool will register as a custom ``load_fnc`` once the
+        coroutine wiring lands.
+        """
+        return len(self._executors) / self._max_concurrent_sessions

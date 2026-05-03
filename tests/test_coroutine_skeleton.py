@@ -693,6 +693,100 @@ def test_coroutine_pool_get_by_job_id_finds_running_executor() -> None:
     assert found.running_job.job.id == "job-x"
 
 
+def test_coroutine_pool_default_max_concurrent_sessions_is_50() -> None:
+    pool = _build_pool()
+    assert pool.max_concurrent_sessions == 50
+
+
+def test_coroutine_pool_max_concurrent_sessions_constructor_override() -> None:
+    pool = CoroutinePool(
+        initialize_process_fnc=lambda _proc: None,
+        job_entrypoint_fnc=_build_pool().__class__.__init__.__defaults__  # noqa: E501 — placeholder, overwritten
+        and (lambda _ctx: None),  # type: ignore[assignment]
+        session_end_fnc=None,
+        num_idle_processes=0,
+        initialize_timeout=5.0,
+        close_timeout=10.0,
+        inference_executor=None,
+        job_executor_type=JobExecutorType.PROCESS,
+        mp_ctx=mp.get_context(),
+        memory_warn_mb=0.0,
+        memory_limit_mb=0.0,
+        http_proxy=None,
+        loop=asyncio.new_event_loop(),
+        max_concurrent_sessions=10,
+    )
+    assert pool.max_concurrent_sessions == 10
+
+
+def test_coroutine_pool_max_concurrent_sessions_rejects_invalid() -> None:
+    base_kwargs: dict[str, Any] = {
+        "initialize_process_fnc": lambda _proc: None,
+        "job_entrypoint_fnc": lambda _ctx: None,
+        "session_end_fnc": None,
+        "num_idle_processes": 0,
+        "initialize_timeout": 5.0,
+        "close_timeout": 10.0,
+        "inference_executor": None,
+        "job_executor_type": JobExecutorType.PROCESS,
+        "mp_ctx": mp.get_context(),
+        "memory_warn_mb": 0.0,
+        "memory_limit_mb": 0.0,
+        "http_proxy": None,
+        "loop": asyncio.new_event_loop(),
+    }
+    with pytest.raises(TypeError, match="must be an int"):
+        CoroutinePool(**base_kwargs, max_concurrent_sessions=10.0)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="must be an int"):
+        CoroutinePool(**base_kwargs, max_concurrent_sessions=True)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="must be >= 1"):
+        CoroutinePool(**base_kwargs, max_concurrent_sessions=0)
+
+
+def test_coroutine_pool_current_load_is_zero_for_empty_pool() -> None:
+    pool = _build_pool()
+    assert pool.current_load() == 0.0
+
+
+def test_coroutine_pool_current_load_reflects_active_executor_count() -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _entry(_ctx: Any) -> None:
+        started.set()
+        await release.wait()
+
+    pool = _build_started_pool(entrypoint=_entry)
+    pool._build_job_context = lambda info: f"ctx-{info.job.id}"  # type: ignore[assignment, return-value]
+
+    async def _scenario() -> tuple[float, float, float]:
+        load_idle = pool.current_load()
+        await pool.launch_job(_stub_running_job_info("a"))
+        await pool.launch_job(_stub_running_job_info("b"))
+        load_two = pool.current_load()
+        release.set()
+        await asyncio.gather(
+            *(ex._task for ex in pool.processes if ex._task is not None)  # type: ignore[attr-defined]
+        )
+        load_drained = pool.current_load()
+        return load_idle, load_two, load_drained
+
+    load_idle, load_two, load_drained = asyncio.run(_scenario())
+
+    assert load_idle == 0.0
+    # Default max_concurrent_sessions is 50; 2 active = 0.04
+    assert load_two == pytest.approx(2 / 50)
+    assert load_drained == 0.0
+
+
+def test_coroutine_pool_current_load_reaches_one_at_capacity() -> None:
+    pool = _build_pool()
+    pool._max_concurrent_sessions = 4
+    pool._executors.extend([object(), object(), object(), object()])  # type: ignore[list-item]
+
+    assert pool.current_load() == 1.0
+
+
 def test_coroutine_pool_emits_process_closed_on_executor_failure() -> None:
     async def _entry(_ctx: Any) -> None:
         raise RuntimeError("boom")
