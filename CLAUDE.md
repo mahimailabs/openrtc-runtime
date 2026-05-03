@@ -27,7 +27,7 @@ Python 3.11+ is required; 3.10 will fail because the LiveKit Silero / turn-detec
 
 OpenRTC is a thin layer on top of `livekit-agents` that lets one worker process host many agent classes, with shared prewarm (Silero VAD, turn detector) loaded once instead of once per worker. User agents stay as standard `livekit.agents.Agent` subclasses; OpenRTC never introduces a custom base class.
 
-### The single load-bearing module: `src/openrtc/pool.py`
+### The single load-bearing module: `src/openrtc/core/pool.py`
 
 Almost everything that matters happens here:
 

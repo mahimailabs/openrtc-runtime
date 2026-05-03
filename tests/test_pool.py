@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 from livekit.agents import Agent
 
-import openrtc.pool as pool_module
+import openrtc.core.pool as pool_module
 from openrtc import AgentPool
 
 
@@ -381,7 +381,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
         VAD = FakeVAD
 
     monkeypatch.setattr(
-        "openrtc.pool._load_shared_runtime_dependencies",
+        "openrtc.core.pool._load_shared_runtime_dependencies",
         lambda: (FakeSilero, FakeTurnDetector),
     )
     setup_callback(process)
@@ -417,7 +417,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
             raise AssertionError("Greeting should not be generated in this test.")
 
     ctx = FakeJobContext()
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     asyncio.run(session_callback(ctx))
 
     assert ctx.connected is True
@@ -472,7 +472,7 @@ def test_runtime_snapshot_reports_active_sessions_and_failures(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     ctx = FakeJobContext()
 
     async def run_session() -> None:
@@ -525,7 +525,7 @@ def test_runtime_snapshot_records_session_failures(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
 
     with pytest.raises(RuntimeError, match="boom"):
         asyncio.run(
@@ -564,7 +564,7 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_build_fails
     ) -> dict[str, object]:
         raise RuntimeError("session kwargs boom")
 
-    monkeypatch.setattr("openrtc.pool._build_session_kwargs", raise_build_error)
+    monkeypatch.setattr("openrtc.core.pool._build_session_kwargs", raise_build_error)
 
     with pytest.raises(RuntimeError, match="session kwargs boom"):
         asyncio.run(
@@ -600,7 +600,7 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_constructor
         def __init__(self, **kwargs: object) -> None:
             raise RuntimeError("session constructor boom")
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", BrokenSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", BrokenSession)
 
     with pytest.raises(RuntimeError, match="session constructor boom"):
         asyncio.run(
@@ -624,7 +624,7 @@ def test_is_not_given_detects_openai_sentinels_without_repr() -> None:
     pytest.importorskip("openai")
     from openai import NOT_GIVEN, not_given
 
-    from openrtc.pool import _is_not_given
+    from openrtc.core.pool import _is_not_given
 
     assert _is_not_given(NOT_GIVEN) is True
     assert _is_not_given(not_given) is True
@@ -633,7 +633,7 @@ def test_is_not_given_detects_openai_sentinels_without_repr() -> None:
 
 
 def test_is_not_given_ignores_unrelated_class_named_notgiven() -> None:
-    from openrtc.pool import _is_not_given
+    from openrtc.core.pool import _is_not_given
 
     class NotGiven:
         pass
@@ -653,7 +653,7 @@ def test_deprecated_session_kwargs_warning(
         async def start(self, *, agent: object, room: object) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     pool.add(
         "test",
         DemoAgent,
@@ -692,7 +692,7 @@ def test_no_warning_for_modern_session_kwargs(
         async def start(self, *, agent: object, room: object) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
     pool.add(
         "test",
         DemoAgent,

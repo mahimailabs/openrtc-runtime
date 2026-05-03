@@ -10,7 +10,7 @@ from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
-from openrtc.pool import AgentConfig
+from openrtc.core.pool import AgentConfig
 from openrtc.resources import (
     PoolRuntimeSnapshot,
     agent_disk_footprints,

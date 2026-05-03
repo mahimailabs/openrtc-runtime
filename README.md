@@ -296,10 +296,11 @@ src/openrtc/
 ├── metrics_stream.py      # JSONL metrics schema
 ├── types.py               # ProviderValue and related typing
 ├── tui_app.py             # optional Textual sidecar
-└── pool.py                # AgentPool, discovery, routing
+└── core/
+    └── pool.py            # AgentPool, discovery, routing
 ```
 
-- `pool.py` — `AgentPool`, discovery, routing
+- `core/pool.py` — `AgentPool`, discovery, routing
 - `cli.py` / `cli_app.py` — Typer/Rich CLI (`openrtc[cli]`)
 - `metrics_stream.py` — JSONL metrics schema
 - `tui_app.py` — optional Textual sidecar (`openrtc[tui]`)

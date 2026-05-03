@@ -15,7 +15,7 @@ def agent_provider_kwargs(
     default_tts: ProviderValue | None,
     default_greeting: str | None,
 ) -> dict[str, Any]:
-    """Keyword arguments for :class:`openrtc.pool.AgentPool` provider defaults."""
+    """Keyword arguments for :class:`openrtc.core.pool.AgentPool` provider defaults."""
     return {
         "default_stt": default_stt,
         "default_llm": default_llm,

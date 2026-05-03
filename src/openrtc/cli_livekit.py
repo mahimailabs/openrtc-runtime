@@ -13,7 +13,7 @@ import typer
 
 from openrtc.cli_params import SharedLiveKitWorkerOptions
 from openrtc.cli_reporter import RuntimeReporter
-from openrtc.pool import AgentConfig, AgentPool
+from openrtc.core.pool import AgentConfig, AgentPool
 
 logger = logging.getLogger("openrtc")
 

@@ -69,7 +69,7 @@ like mypy and pyright treat `openrtc` as a typed dependency.
 
 Keep these responsibilities in mind when contributing:
 
-- `src/openrtc/pool.py` contains the core pooling, discovery, routing, and
+- `src/openrtc/core/pool.py` contains the core pooling, discovery, routing, and
   session-construction logic.
 - `src/openrtc/cli.py` is the console entrypoint; `src/openrtc/cli_app.py`
   implements the Typer/Rich CLI (optional extra ``openrtc[cli]``; dev deps
@@ -119,5 +119,5 @@ Good pull requests for OpenRTC are:
 - easy to review
 - aligned with the existing architecture
 
-If you are unsure where a change belongs, start by reading `src/openrtc/pool.py`
+If you are unsure where a change belongs, start by reading `src/openrtc/core/pool.py`
 and open a small, incremental PR.

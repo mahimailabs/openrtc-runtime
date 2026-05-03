@@ -7,7 +7,7 @@ import pytest
 from livekit.agents import Agent
 
 import openrtc.resources as resources_module
-from openrtc.pool import AgentPool
+from openrtc.core.pool import AgentPool
 from openrtc.resources import (
     ProcessResidentSetInfo,
     agent_disk_footprints,

@@ -48,8 +48,8 @@ from openrtc.cli_types import (
     TuiFromStartArg,
     TuiWatchPathArg,
 )
+from openrtc.core.pool import AgentPool
 from openrtc.metrics_stream import DEFAULT_METRICS_JSONL_FILENAME
-from openrtc.pool import AgentPool
 
 logger = logging.getLogger("openrtc")
 

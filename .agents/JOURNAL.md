@@ -33,3 +33,20 @@ Notes: Pure rename per Phase 0 refactor rules (no behavior change).
 Used `git mv` so blame is preserved. ruff auto-fix reordered the now-
 alphabetically-misplaced imports in pool.py and tests/test_cli.py.
 docs/audit-2026-05-02.md left unchanged (historical snapshot).
+
+## 2026-05-03 07:00 UTC — refactor: move pool.py into core/ package
+Files: src/openrtc/core/__init__.py (new, empty),
+       git mv src/openrtc/pool.py -> src/openrtc/core/pool.py,
+       6 src import sites (__init__.py, cli_app.py, cli_dashboard.py,
+       cli_livekit.py, cli_reporter.py, cli_params.py docstring,
+       resources.py TYPE_CHECKING block),
+       4 test sites (test_pool.py: 5 patterns; test_routing.py: 2;
+       test_resources.py: 1; conftest.py docstring),
+       README.md (project tree), CLAUDE.md, CONTRIBUTING.md.
+Tests: 130/130 pass. ruff: clean (auto-fixed 2 import-order issues
+in cli_app.py and cli_reporter.py). mypy: clean.
+Notes: No behavior change. `from openrtc import AgentPool` still
+works because __init__.py re-exports from .core.pool. All
+monkeypatch path strings updated from "openrtc.pool.X" to
+"openrtc.core.pool.X". docs/audit-2026-05-02.md historical paths
+left as-is.
