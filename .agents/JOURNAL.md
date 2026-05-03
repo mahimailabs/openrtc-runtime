@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 12:25 UTC — feat(execution): coroutine executor + pool skeletons
+Files: src/openrtc/execution/__init__.py (new, empty package marker),
+       src/openrtc/execution/coroutine.py (new, ~155 LOC:
+       CoroutineJobExecutor with all 12 JobExecutor Protocol
+       members + CoroutinePool subclassing utils.EventEmitter
+       with the full ProcPool kwarg signature),
+       tests/test_coroutine_skeleton.py (new, 15 tests covering
+       both shapes plus the EventEmitter wiring).
+Tests: 153/153 pass (15 new). ruff: clean. mypy: clean.
+Notes: Pure structural surface. Properties return inert defaults
+(id is uuid4, status is RUNNING, started False, running_job None).
+All real lifecycle methods raise NotImplementedError with the
+hint "v0.1 coroutine runtime is not implemented yet (skeleton)".
+The CoroutinePool constructor accepts the full ProcPool kwargs
+verbatim per docs/design/proc-pool-surface.md so AgentServer
+can construct it without errors. EventEmitter subclass verified
+via emit/on round-trip test. set_target_idle_processes is
+implemented as a plain setter (already simple enough that a stub
+would be silly). Subsequent iterations fill the lifecycle methods
+one by one without churning the surface.
+
 ## 2026-05-03 12:08 UTC — feat(pool): plumb max_concurrent_sessions (no behavior yet)
 Files: src/openrtc/core/pool.py (new keyword-only
        max_concurrent_sessions: int = 50 on AgentPool.__init__;

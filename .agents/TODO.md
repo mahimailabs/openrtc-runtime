@@ -120,7 +120,7 @@ Tasks:
   don't act on it yet — just plumbing.
 - [x] Add `max_concurrent_sessions: int = 50` parameter to
   `AgentPool.__init__`. Plumbing only.
-- [ ] Create `execution/coroutine.py`: skeleton classes
+- [x] Create `execution/coroutine.py`: skeleton classes
   `CoroutineJobExecutor` and `CoroutinePool` satisfying the
   `JobExecutor` Protocol but raising `NotImplementedError` in all
   methods. Add basic unit tests verifying the Protocol shape.
