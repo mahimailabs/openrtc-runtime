@@ -91,7 +91,7 @@ Tasks:
   → `cli/commands.py`, not `cli/app.py`, because Python collides
   the submodule name with the re-exported `app` Typer instance at
   the package level. Documented in `cli/__init__.py`.)
-- [ ] Create `tui/` package. Move `tui_app.py` to `tui/app.py`.
+- [x] Create `tui/` package. Move `tui_app.py` to `tui/app.py`.
 - [ ] Verify `from openrtc import AgentPool, AgentConfig,
   AgentDiscoveryConfig, agent_config, ProviderValue` still works.
 - [ ] Verify `openrtc dev`, `openrtc list`, `openrtc tui` still work.

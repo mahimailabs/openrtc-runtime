@@ -299,7 +299,7 @@ def tui_command(
     start the worker with ``--metrics-jsonl`` set to that same path.
     """
     try:
-        from openrtc.tui_app import run_metrics_tui
+        from openrtc.tui.app import run_metrics_tui
     except ImportError as exc:
         logger.error(
             "The TUI requires Textual. Install with: pip install 'openrtc[tui]' "

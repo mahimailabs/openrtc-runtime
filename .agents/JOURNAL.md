@@ -142,6 +142,24 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 10:05 UTC — refactor: move tui_app.py into tui/ package
+Files: git mv src/openrtc/tui_app.py -> src/openrtc/tui/app.py
+       (via temporary tui_pkg_new/ to dodge the file-vs-directory
+       naming collision that bit the cli move),
+       new src/openrtc/tui/__init__.py (empty package marker),
+       src/openrtc/cli/commands.py (1 import: openrtc.tui_app
+       -> openrtc.tui.app),
+       tests/test_cli.py (3 import sites: 1 monkeypatch string,
+       1 inline `import openrtc.tui_app as tu`, 1 inline
+       `from openrtc.tui_app import MetricsTuiApp`),
+       tests/test_tui_app.py (replace_all rewrote 14 inline
+       `from openrtc.tui_app import ...` and 1
+       `import openrtc.tui_app as tu`),
+       README.md (project tree section), CLAUDE.md (sidecar mention).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: Pure rename per Phase 0 refactor rules. No behavior change.
+Used `git mv` so blame is preserved on the moved module.
+
 ## 2026-05-03 09:50 UTC — refactor: move CLI modules into a cli/ package
 Files: 7 git mv operations (via temporary cli_pkg_new/ to avoid the
        cli.py / cli/ file-vs-directory naming collision):

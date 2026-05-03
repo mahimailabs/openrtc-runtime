@@ -15,7 +15,7 @@ pytest.importorskip("textual")
 
 
 def test_validate_metrics_watch_path_rejects_existing_directory(tmp_path: Path) -> None:
-    from openrtc.tui_app import validate_metrics_watch_path
+    from openrtc.tui.app import validate_metrics_watch_path
 
     d = tmp_path / "agents"
     d.mkdir()
@@ -26,7 +26,7 @@ def test_validate_metrics_watch_path_rejects_existing_directory(tmp_path: Path) 
 @pytest.mark.asyncio
 async def test_metrics_tui_displays_event_line(tmp_path) -> None:
     from openrtc.observability.stream import event_envelope
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "ev.jsonl"
     ev = json.dumps(
@@ -51,7 +51,7 @@ async def test_metrics_tui_skips_malformed_line_then_parses_valid(
     tmp_path,
     minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "mix.jsonl"
     snap = minimal_pool_runtime_snapshot
@@ -71,7 +71,7 @@ async def test_metrics_tui_displays_snapshot_line(
     tmp_path,
     minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "stream.jsonl"
     snap = minimal_pool_runtime_snapshot
@@ -93,7 +93,7 @@ async def test_metrics_tui_reopens_after_writer_truncates_file(
     tmp_path,
     minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "rot.jsonl"
     snap = minimal_pool_runtime_snapshot
@@ -116,7 +116,7 @@ async def test_metrics_tui_reopens_after_writer_truncates_file(
 
 @pytest.mark.asyncio
 async def test_metrics_tui_creates_watch_file_when_missing(tmp_path: Path) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     watch = tmp_path / "nested" / "metrics.jsonl"
     app = MetricsTuiApp(watch, from_start=True)
@@ -129,7 +129,7 @@ async def test_metrics_tui_tail_mode_seeks_to_end_then_reads_appends(
     tmp_path: Path,
     minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "tail.jsonl"
     snap = minimal_pool_runtime_snapshot
@@ -155,7 +155,7 @@ async def test_metrics_tui_poll_returns_early_when_no_new_bytes(
     tmp_path: Path,
     minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "empty_poll.jsonl"
     snap = minimal_pool_runtime_snapshot
@@ -177,7 +177,7 @@ async def test_metrics_tui_sync_opens_when_handle_cleared(
     tmp_path: Path,
     minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "reopen.jsonl"
     snap = minimal_pool_runtime_snapshot
@@ -199,7 +199,7 @@ async def test_metrics_tui_sync_opens_when_handle_cleared(
 async def test_metrics_tui_refresh_event_line_noop_without_event(
     tmp_path: Path,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "no_ev.jsonl"
     path.touch()
@@ -214,7 +214,7 @@ async def test_metrics_tui_refresh_event_line_noop_without_event(
 async def test_metrics_tui_refresh_view_noop_when_latest_missing(
     tmp_path: Path,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "no_latest.jsonl"
     path.touch()
@@ -230,8 +230,8 @@ async def test_metrics_tui_sync_ignores_stat_oserror(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import openrtc.tui_app as tu
-    from openrtc.tui_app import MetricsTuiApp
+    import openrtc.tui.app as tu
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "stat_err.jsonl"
     path.touch()
@@ -262,7 +262,7 @@ async def test_metrics_tui_refresh_view_skips_bad_payload_shapes(
     tmp_path: Path,
     minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "bad_payload.jsonl"
     path.touch()
@@ -295,7 +295,7 @@ async def test_metrics_tui_wall_time_invalid_falls_back_to_na(
     tmp_path: Path,
     minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "wall.jsonl"
     path.touch()
@@ -314,7 +314,7 @@ async def test_metrics_tui_wall_time_invalid_falls_back_to_na(
 
 @pytest.mark.asyncio
 async def test_metrics_tui_action_quit_exits(tmp_path: Path) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "quit.jsonl"
     path.touch()
@@ -327,7 +327,7 @@ async def test_metrics_tui_action_quit_exits(tmp_path: Path) -> None:
 def test_run_metrics_tui_calls_app_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import openrtc.tui_app as tu
+    import openrtc.tui.app as tu
 
     ran: list[object] = []
 
@@ -347,7 +347,7 @@ async def test_metrics_tui_poll_returns_when_open_does_not_restore_handle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "noop_open.jsonl"
     path.touch()
@@ -365,7 +365,7 @@ async def test_metrics_tui_poll_returns_when_open_does_not_restore_handle(
 
 @pytest.mark.asyncio
 async def test_metrics_tui_on_unmount_closes_file_handle(tmp_path: Path) -> None:
-    from openrtc.tui_app import MetricsTuiApp
+    from openrtc.tui.app import MetricsTuiApp
 
     path = tmp_path / "um.jsonl"
     path.touch()

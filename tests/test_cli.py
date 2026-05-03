@@ -661,7 +661,7 @@ def test_tui_command_exits_when_textual_is_not_importable(
     real_import = builtins.__import__
 
     def guard(name: str, *args: object, **kwargs: object) -> object:
-        if name == "openrtc.tui_app":
+        if name == "openrtc.tui.app":
             raise ImportError("simulated missing textual")
         return real_import(name, *args, **kwargs)
 
@@ -690,8 +690,8 @@ def test_tui_command_without_watch_uses_default_metrics_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pytest.importorskip("textual")
-    import openrtc.tui_app as tu
-    from openrtc.tui_app import MetricsTuiApp
+    import openrtc.tui.app as tu
+    from openrtc.tui.app import MetricsTuiApp
 
     seen: list[Path] = []
 

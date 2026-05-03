@@ -287,7 +287,9 @@ src/openrtc/
 ├── __init__.py
 ├── py.typed
 ├── types.py               # ProviderValue and related typing
-├── tui_app.py             # optional Textual sidecar
+├── tui/
+│   ├── __init__.py
+│   └── app.py             # optional Textual sidecar
 ├── cli/
 │   ├── __init__.py        # re-exports `main` and `app`
 │   ├── entry.py           # lazy console entry / missing-extra hint
@@ -308,7 +310,7 @@ src/openrtc/
 - `core/pool.py`: `AgentPool`, discovery, routing
 - `cli/`: Typer/Rich CLI (`openrtc[cli]`)
 - `observability/stream.py`: JSONL metrics schema
-- `tui_app.py`: optional Textual sidecar (`openrtc[tui]`)
+- `tui/app.py`: optional Textual sidecar (`openrtc[tui]`)
 
 ## Contributing
 
