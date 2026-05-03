@@ -92,7 +92,7 @@ Tasks:
   the submodule name with the re-exported `app` Typer instance at
   the package level. Documented in `cli/__init__.py`.)
 - [x] Create `tui/` package. Move `tui_app.py` to `tui/app.py`.
-- [ ] Verify `from openrtc import AgentPool, AgentConfig,
+- [x] Verify `from openrtc import AgentPool, AgentConfig,
   AgentDiscoveryConfig, agent_config, ProviderValue` still works.
 - [ ] Verify `openrtc dev`, `openrtc list`, `openrtc tui` still work.
 - [ ] Verify all 124 tests still pass.

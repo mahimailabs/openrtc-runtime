@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 10:18 UTC — verify: public surface still resolves after Phase 0
+Files: none changed (verification-only iteration).
+Tests: ran an explicit round-trip script (not committed) plus the
+       full suite (130/130 pass; ruff and mypy clean).
+Notes: Confirmed end-to-end after the Phase 0 reorganization:
+  - `from openrtc import AgentPool, AgentConfig,
+    AgentDiscoveryConfig, agent_config, ProviderValue,
+    __version__` resolves.
+  - The bound classes carry their canonical paths
+    (`openrtc.core.pool.AgentPool`,
+    `openrtc.core.config.AgentConfig`,
+    `openrtc.core.config.AgentDiscoveryConfig`).
+  - `AgentPool().add(...)` constructs an AgentConfig and
+    list_agents()/get() round-trip.
+  - The `@agent_config(name=..., greeting=...)` decorator attaches
+    AgentDiscoveryConfig metadata under `__openrtc_agent_config__`.
+  - `ProviderValue` resolves to `str | object` (TypeAlias).
+The smoke script intentionally lives in /tmp because spawn-safety
+guard rejects __main__-scoped agent classes without source files;
+running via `python <file>` exercises the real path.
+
 ## 2026-05-03 10:05 UTC — refactor: move tui_app.py into tui/ package
 Files: git mv src/openrtc/tui_app.py -> src/openrtc/tui/app.py
        (via temporary tui_pkg_new/ to dodge the file-vs-directory
