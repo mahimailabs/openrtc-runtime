@@ -142,6 +142,28 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 18:55 UTC — docs(architecture): coroutine-mode lifecycle
+Files: docs/concepts/architecture.md (+~70 LOC):
+       - extended the AgentPool section to call out the
+         isolation-driven server choice (coroutine ->
+         _CoroutineAgentServer monkey-patches ProcPool with
+         CoroutinePool; process -> vanilla AgentServer),
+       - new "Coroutine-mode lifecycle" section with an ASCII
+         diagram of the pool -> executor -> task flow,
+       - 6 explicit invariants (setup runs once per worker,
+         one executor per session, no subprocess, cooperative
+         backpressure via current_load, cooperative shutdown
+         via drain+aclose, supervisor on consecutive failures),
+       - process-mode lifecycle comparison left as the closing
+         paragraph for symmetry.
+Tests: 239 pass + 2 skipped (no source changes). ruff clean.
+Notes: This is the conceptual companion to the README's
+"Isolation modes" comparison table from the previous iteration.
+Operators read the README to pick a mode; library authors and
+contributors read this file to understand the per-session
+lifecycle in coroutine mode (so they don't accidentally violate
+an invariant when adding new pool/executor behavior).
+
 ## 2026-05-03 18:42 UTC — docs(README): isolation modes + density table
 Files: README.md (+~45 LOC inserted between "Memory: before and
        after" and "Routing"): new "Isolation modes" section with
