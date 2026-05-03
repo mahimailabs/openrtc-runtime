@@ -298,6 +298,13 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `cli/commands.py` coverage gap (93% -> 100%):
+  4 tests in tests/test_cli.py exercising the programmatic
+  `main()` exit-code mapping: `argv=None` reads from sys.argv
+  (covers the sys.argv branch); bare `SystemExit()` returns 0;
+  string `SystemExit` code maps to 1; non-raising inner command
+  falls through to 0. Locks the exit-code contract that any
+  embedder of `openrtc.cli.main` relies on.
 - [x] Close `core/serialization.py` coverage gap (98% -> 100%):
   5 tests in tests/test_serialization.py exercising
   `_extract_provider_kwargs` (returns {} when `_opts` is None

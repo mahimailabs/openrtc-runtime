@@ -725,3 +725,79 @@ def test_tui_command_rejects_watch_path_that_is_directory(
     assert result.exit_code == 1
     combined = caplog.text + (result.output or "")
     assert "directory" in combined.lower()
+
+
+def test_main_uses_sys_argv_when_called_without_explicit_argv(
+    monkeypatch: pytest.MonkeyPatch,
+    original_argv: list[str],
+) -> None:
+    """``main()`` (no argv) reads from sys.argv and restores it on exit."""
+    stub_pool = StubPool(
+        discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
+    )
+    monkeypatch.setattr("openrtc.cli.commands.AgentPool", lambda **kwargs: stub_pool)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [original_argv[0], "list", "--agents-dir", "./agents"],
+    )
+
+    exit_code = main()
+
+    assert exit_code == 0
+    assert stub_pool.discover_calls == [Path("./agents").resolve()]
+    assert sys.argv == [original_argv[0], "list", "--agents-dir", "./agents"]
+
+
+def test_main_returns_zero_when_systemexit_code_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare ``SystemExit()`` (no code) maps to exit code 0."""
+
+    class _StubCommand:
+        def main(self, **_kwargs: Any) -> None:
+            raise SystemExit()
+
+    monkeypatch.setattr(
+        "typer.main.get_command", lambda _app: _StubCommand(), raising=True
+    )
+
+    exit_code = main(["list"])
+
+    assert exit_code == 0
+
+
+def test_main_returns_one_when_systemexit_code_is_non_int_string(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A string ``SystemExit`` code (e.g. an error message) maps to exit code 1."""
+
+    class _StubCommand:
+        def main(self, **_kwargs: Any) -> None:
+            raise SystemExit("boom")
+
+    monkeypatch.setattr(
+        "typer.main.get_command", lambda _app: _StubCommand(), raising=True
+    )
+
+    exit_code = main(["list"])
+
+    assert exit_code == 1
+
+
+def test_main_returns_zero_when_inner_command_does_not_raise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the underlying command returns normally, ``main()`` falls through to 0."""
+
+    class _StubCommand:
+        def main(self, **_kwargs: Any) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "typer.main.get_command", lambda _app: _StubCommand(), raising=True
+    )
+
+    exit_code = main(["list"])
+
+    assert exit_code == 0

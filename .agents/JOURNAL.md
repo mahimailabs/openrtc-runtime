@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 22:45 UTC — test(cli): close cli/commands.py coverage gap (93% -> 100%)
+Files: tests/test_cli.py (+4 tests, ~60 LOC at end of file).
+Tests: 294/294 pass + 2 skipped. Coverage: cli/commands.py 100%
+(was 93%); total 93.67% (was 93.34%). ruff: clean. mypy: clean.
+Notes: New tests cover the `main()` programmatic surface paths
+that `main([...])` invocation never reaches:
+test_main_uses_sys_argv_when_called_without_explicit_argv calls
+main() with no args after monkeypatching sys.argv (covers the
+`else` branch with inject_cli_positional_paths on sys.argv tail);
+test_main_returns_zero_when_systemexit_code_is_none stubs
+get_command to raise bare SystemExit() (covers `code is None
+-> return 0`); test_main_returns_one_when_systemexit_code_is_non_int_string
+raises SystemExit("boom") (covers the non-int-code -> 1
+branch); test_main_returns_zero_when_inner_command_does_not_raise
+returns normally (covers the fall-through `return 0` after the
+finally). The exit-code contract is the public surface of
+`openrtc.cli.main` for any programmatic embedder; locking each
+mapping in unit tests prevents a future Typer/Click upgrade
+from silently shifting the integer codes a CI pipeline might
+key off of.
+
 ## 2026-05-03 22:30 UTC — test(serialization): close core/serialization.py coverage gap (98% -> 100%)
 Files: tests/test_serialization.py (new, 5 tests, ~58 LOC).
 Tests: 290/290 pass + 2 skipped. Coverage: serialization.py
