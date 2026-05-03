@@ -142,6 +142,22 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 06:00 UTC — docs(changelog): record dev-experience improvements under v0.1.0
+Files: docs/changelog.md (+30 LOC: new "Developer experience"
+subsection inside the v0.1.0 [Unreleased] block).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Notes: The block is organized as a bulleted list grouped by
+category (coverage, types, linting, pre-commit, make,
+Dependabot, repo-meta files) and prefixed with a short
+"user-facing behavior is unchanged by these" caveat so a
+reader scanning the changelog for migration impact knows
+they can skip the section. The publish workflow's auto-
+prepend step on release will carry this whole block into
+the versioned `## [0.1.0] - YYYY-MM-DD` section, so future
+maintainers reading the changelog see the complete v0.1.0
+delta in one place.
+
 ## 2026-05-04 05:45 UTC — chore(editorconfig): add `.editorconfig` for cross-editor consistency
 Files: .editorconfig (new, 26 LOC).
 Tests: 374/374 pass + 2 skipped (no-op for tests).

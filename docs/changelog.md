@@ -106,6 +106,34 @@ See `docs/concepts/architecture.md` for the coroutine-mode lifecycle
 and `docs/benchmarks/density-v0.1.md` for the §7 success-gate
 benchmark numbers.
 
+**Developer experience**
+
+User-facing behavior is unchanged by these — they land here so the
+contributor onboarding matches what's in the repo.
+
+- Test coverage: combined line + branch coverage now sits at 100%
+  with the CI gate at 99% (was 80% line-only). `pytest` runs with
+  `branch = true` by default.
+- Type checking: `mypy` runs in `strict = true` mode on `src/`. CI
+  blocks PRs with untyped defs, implicit `Optional`, redundant
+  casts, or `Any` returns.
+- Linting: ruff selects expanded to include `SIM`, `PT`, `RET`,
+  `PERF`, `PIE`, `ICN`, `TID`, `BLE`, `A` on top of the previous
+  `E`/`W`/`F`/`I`/`B`/`C4`/`UP` set.
+- Pre-commit hook chain extended with `mypy --strict src/` so the
+  same typecheck CI applies fires locally on every commit (only
+  for source / `pyproject.toml` changes).
+- New `make ci` aggregate target runs `lint format-check typecheck
+  test` in the same order as CI, short-circuiting on the first
+  failure.
+- `.github/dependabot.yml` keeps Python and GitHub Actions
+  dependencies fresh weekly; `livekit-agents` is intentionally
+  excluded (the `~=1.5` pin is design-locked).
+- `.github/PULL_REQUEST_TEMPLATE.md` adds a short checklist for
+  contributors. `.editorconfig` keeps file-level conventions
+  consistent across editors. `SECURITY.md` documents the
+  vulnerability-disclosure intake path.
+
 ---
 
 <!-- releases -->

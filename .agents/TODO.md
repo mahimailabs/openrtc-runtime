@@ -250,6 +250,16 @@ Tasks:
 
 ## Discovered work
 
+- [x] Document the developer-experience improvements landed
+  across this loop in the v0.1.0 changelog block under a new
+  "Developer experience" subsection. Lists the coverage
+  ratchet (100% combined; 99% gate; branch tracking on);
+  mypy strict enablement; expanded ruff selects (SIM/PT/RET/
+  PERF/PIE/ICN/TID/BLE/A); pre-commit mypy hook; `make ci`
+  aggregate target; Dependabot config; PR template;
+  .editorconfig; SECURITY.md. Prefixed with a "User-facing
+  behavior is unchanged by these" caveat so readers know
+  these don't affect runtime semantics.
 - [x] Add `.editorconfig` so file-level conventions (charset,
   EOL, final newline, trailing whitespace, indent) stay
   consistent regardless of the contributor's editor /
