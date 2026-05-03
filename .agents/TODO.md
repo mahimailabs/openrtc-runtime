@@ -264,3 +264,7 @@ priority.)
   `openrtc.observability.metrics`. The remaining references
   live in `docs/design/v0.1.md` (locked) and the historical
   audit doc, both correctly preserved.)
+- [x] Refresh GitHub bug report template for v0.1: bump stale
+  version placeholders (0.0.15 -> 0.1.0; 1.4.3 -> 1.5.0) and
+  add an "Isolation mode" dropdown so triage of v0.1 issues
+  can route by mode without a follow-up question.

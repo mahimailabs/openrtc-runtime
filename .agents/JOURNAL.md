@@ -142,6 +142,22 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 20:30 UTC — chore(issue-template): refresh for v0.1
+Files: .github/ISSUE_TEMPLATE/bug_report.yml: bumped stale
+       version placeholders (OpenRTC 0.0.15 -> 0.1.0;
+       livekit-agents 1.4.3 -> 1.5.0) and added a new
+       "Isolation mode" dropdown (coroutine default / process /
+       both-or-not-sure). The dropdown helps triage routes a
+       v0.1 issue to the right code path without a follow-up
+       comment.
+Tests: 256/256 pass + 2 skipped. ruff clean. YAML validates.
+Notes: Spotted while auditing v0.1-readiness gaps after the
+TODO went idle. The bug template is the operator's canonical
+intake form; shipping v0.1 with 0.0.x placeholders would be a
+small but real fit-and-finish bug. The isolation field is the
+piece operators will want most often when investigating a
+report.
+
 ## 2026-05-03 20:18 UTC — docs(cli): fix stale openrtc.resources reference
 Files: docs/cli.md: `from openrtc.resources` ->
        `from openrtc.observability.metrics` in the resources
