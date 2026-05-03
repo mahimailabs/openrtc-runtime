@@ -142,6 +142,18 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 20:18 UTC — docs(cli): fix stale openrtc.resources reference
+Files: docs/cli.md: `from openrtc.resources` ->
+       `from openrtc.observability.metrics` in the resources
+       summary explanation paragraph.
+Tests: 256/256 pass + 2 skipped (docs only). ruff: clean.
+Notes: Found by sweeping current docs/sources for any module
+path the Phase 0 reorg moved. Only one residual reference in
+non-historical content. Other stale paths live in
+docs/design/v0.1.md (locked, PROMPT.md hard rule) and
+docs/audit-2026-05-02.md (historical snapshot, intentional);
+both correctly preserved.
+
 ## 2026-05-03 20:05 UTC — docs(cli): cover --isolation + --max-concurrent-sessions
 Files: docs/cli.md: merged the per-subcommand entries for
        start/dev/console (they share the same option shape) and

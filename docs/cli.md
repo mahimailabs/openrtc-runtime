@@ -246,8 +246,8 @@ With **`--resources`**, `list` adds:
 - **Per-agent** on-disk size of the discovered `.py` module when the path is
   known (see `AgentConfig.source_path` in the API docs).
 - **Summary** — total source bytes and a **best-effort** process memory metric
-  from `openrtc.resources` (Linux: current VmRSS; macOS: peak `ru_maxrss`, not
-  live RSS—see `resident_set.description` in `--json` output).
+  from `openrtc.observability.metrics` (Linux: current VmRSS; macOS: peak
+  `ru_maxrss`, not live RSS—see `resident_set.description` in `--json` output).
 - **Savings estimate** — a transparent estimate of the memory saved by one
   shared worker versus one worker per registered agent.
 

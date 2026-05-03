@@ -258,3 +258,9 @@ priority.)
   the flags shipped in `cli/commands.py`, the README, and the
   test suite, but the standalone CLI doc page didn't mention
   them. v0.1 release-blocker for §8.9.)
+- [x] Sweep current docs for stale module paths after the Phase 0
+  reorg. (Audit found one residual reference to
+  `openrtc.resources` in `docs/cli.md`, updated to
+  `openrtc.observability.metrics`. The remaining references
+  live in `docs/design/v0.1.md` (locked) and the historical
+  audit doc, both correctly preserved.)
