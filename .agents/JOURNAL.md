@@ -142,6 +142,32 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 23:15 UTC — test(livekit-cli): close cli/livekit.py coverage gap (86% -> 100%)
+Files: tests/test_cli.py (+11 tests, +1 import (`typer`),
+~140 LOC). The new tests live next to the existing livekit
+handoff tests rather than in a separate file because they
+exercise the same module surface and reuse the existing
+`StubPool` / `original_argv` fixtures.
+Tests: 307/307 pass + 2 skipped. Coverage: cli/livekit.py
+100% (was 86%); total 95.56% (was 94.37%). ruff: clean.
+mypy: clean.
+Notes: New coverage spans (a) the
+`_strip_openrtc_only_flags_for_livekit` parser:
+the `--` separator pass-through and the `=`-form non-OpenRTC
+flag preservation (`--reload=true`, `--url=ws://x`); (b) the
+positional-rewriting helpers' "flag already in tail" no-op
+branches for `--agents-dir` (list/connect/download-files
+path AND dev/start/console path) and `--watch` (tui path),
+the empty-argv short-circuit, and the unknown-subcommand
+short-circuit; (c) `_livekit_env_overrides` setting all
+four LIVEKIT_* keys and restoring previous values
+(including delete-when-previously-unset); (d)
+`_run_connect_handoff` with `--participant-identity` AND
+`--log-level` both set, captured via stub `_run_pool_with_reporting`;
+(e) `_discover_or_exit` raising `typer.Exit(1)` on
+NotADirectoryError (file-as-agents-dir) and
+PermissionError (monkey-patched discover()).
+
 ## 2026-05-03 23:00 UTC — test(reporter): close cli/reporter.py coverage gap (86% -> 100%)
 Files: tests/test_metrics_stream.py (+2 tests, ~60 LOC at end of
 file).

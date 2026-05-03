@@ -298,6 +298,20 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `cli/livekit.py` coverage gap (86% -> 100%):
+  11 tests in tests/test_cli.py exercising the LiveKit CLI
+  handoff edges: `--` separator + `=`-form pass-through in
+  `_strip_openrtc_only_flags_for_livekit`; empty-argv +
+  unknown-subcommand short-circuits in
+  `inject_cli_positional_paths`; "flag already in tail"
+  no-op branches for all three positional rewriters
+  (agents-dir / worker / tui-watch); the
+  `_livekit_env_overrides` setter for the three non-URL
+  keys (api_key, api_secret, log_level); the connect
+  handoff with `--participant-identity` + `--log-level`;
+  `_discover_or_exit` for `NotADirectoryError` and
+  `PermissionError`. Locks the CLI handoff contract before
+  tagging.
 - [x] Close `cli/reporter.py` coverage gap (86% -> 100%):
   2 tests in tests/test_metrics_stream.py exercising the
   Rich-dashboard path that the existing JSONL-only tests

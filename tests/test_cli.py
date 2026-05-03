@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import typer
 from rich.console import Console
 from typer.testing import CliRunner
 
@@ -801,3 +802,181 @@ def test_main_returns_zero_when_inner_command_does_not_raise(
     exit_code = main(["list"])
 
     assert exit_code == 0
+
+
+def test_strip_openrtc_only_flags_preserves_double_dash_separator() -> None:
+    """``--`` must end argument parsing; everything after it is passed verbatim."""
+    from openrtc.cli.livekit import _strip_openrtc_only_flags_for_livekit
+
+    assert _strip_openrtc_only_flags_for_livekit(
+        ["--reload", "--", "--dashboard", "./agents"]
+    ) == ["--reload", "--", "--dashboard", "./agents"]
+
+
+def test_strip_openrtc_only_flags_keeps_unknown_equals_form_flag() -> None:
+    """``--name=value`` for non-OpenRTC flags is preserved verbatim."""
+    from openrtc.cli.livekit import _strip_openrtc_only_flags_for_livekit
+
+    assert _strip_openrtc_only_flags_for_livekit(["--reload=true", "--url=ws://x"]) == [
+        "--reload=true",
+        "--url=ws://x",
+    ]
+
+
+def test_inject_cli_positional_paths_returns_argv_when_empty() -> None:
+    """No-op on an empty argv list."""
+    from openrtc.cli.livekit import inject_cli_positional_paths
+
+    assert inject_cli_positional_paths([]) == []
+
+
+def test_inject_cli_positional_paths_returns_argv_for_unknown_subcommand() -> None:
+    """Unknown subcommands are not rewritten."""
+    from openrtc.cli.livekit import inject_cli_positional_paths
+
+    assert inject_cli_positional_paths(["unknown", "./agents"]) == [
+        "unknown",
+        "./agents",
+    ]
+
+
+def test_inject_agents_dir_positional_skipped_when_flag_already_in_tail() -> None:
+    """Existing ``--agents-dir`` later in argv suppresses positional rewriting."""
+    from openrtc.cli.livekit import inject_cli_positional_paths
+
+    assert inject_cli_positional_paths(
+        ["list", "trailing-positional", "--agents-dir", "./real"]
+    ) == ["list", "trailing-positional", "--agents-dir", "./real"]
+
+
+def test_inject_worker_positional_skipped_when_flag_already_in_tail() -> None:
+    """Same skip behavior for the dev/start/console rewriter."""
+    from openrtc.cli.livekit import inject_cli_positional_paths
+
+    assert inject_cli_positional_paths(
+        ["dev", "trailing-positional", "--agents-dir", "./real"]
+    ) == ["dev", "trailing-positional", "--agents-dir", "./real"]
+
+
+def test_inject_tui_positional_skipped_when_watch_already_in_tail() -> None:
+    """Existing ``--watch`` later in argv suppresses positional rewriting."""
+    from openrtc.cli.livekit import inject_cli_positional_paths
+
+    assert inject_cli_positional_paths(
+        ["tui", "trailing-positional", "--watch", "./real.jsonl"]
+    ) == ["tui", "trailing-positional", "--watch", "./real.jsonl"]
+
+
+def test_livekit_env_overrides_sets_and_restores_all_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """All four LIVEKIT_* env vars are temporarily set then restored."""
+    from openrtc.cli.livekit import _livekit_env_overrides
+
+    monkeypatch.delenv("LIVEKIT_URL", raising=False)
+    monkeypatch.setenv("LIVEKIT_API_KEY", "previous-key")
+    monkeypatch.delenv("LIVEKIT_API_SECRET", raising=False)
+    monkeypatch.setenv("LIVEKIT_LOG_LEVEL", "INFO")
+
+    with _livekit_env_overrides(
+        url="ws://override",
+        api_key="override-key",
+        api_secret="override-secret",
+        log_level="DEBUG",
+    ):
+        assert os.environ["LIVEKIT_URL"] == "ws://override"
+        assert os.environ["LIVEKIT_API_KEY"] == "override-key"
+        assert os.environ["LIVEKIT_API_SECRET"] == "override-secret"
+        assert os.environ["LIVEKIT_LOG_LEVEL"] == "DEBUG"
+
+    assert "LIVEKIT_URL" not in os.environ
+    assert os.environ["LIVEKIT_API_KEY"] == "previous-key"
+    assert "LIVEKIT_API_SECRET" not in os.environ
+    assert os.environ["LIVEKIT_LOG_LEVEL"] == "INFO"
+
+
+def test_connect_handoff_propagates_participant_identity_and_log_level(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    original_argv: list[str],
+) -> None:
+    """``--participant-identity`` and ``--log-level`` reach LiveKit's argv."""
+    import openrtc.cli.livekit as cli_livekit_mod
+
+    agents = tmp_path / "agents"
+    agents.mkdir()
+    stub_pool = StubPool(discovered=[StubConfig(name="a", agent_cls=StubAgent)])
+    monkeypatch.setattr(cli_livekit_mod, "AgentPool", lambda **kwargs: stub_pool)
+
+    captured_argv: list[list[str]] = []
+
+    def _capture_argv(_pool: StubPool, **_kwargs: Any) -> None:
+        captured_argv.append(list(sys.argv))
+
+    monkeypatch.setattr(cli_livekit_mod, "_run_pool_with_reporting", _capture_argv)
+    monkeypatch.setattr(sys, "argv", original_argv.copy())
+
+    exit_code = main(
+        [
+            "connect",
+            "--agents-dir",
+            str(agents),
+            "--room",
+            "demo",
+            "--participant-identity",
+            "tester",
+            "--log-level",
+            "DEBUG",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured_argv, "reporter stub never ran"
+    argv_seen = captured_argv[0]
+    assert "--participant-identity" in argv_seen
+    assert argv_seen[argv_seen.index("--participant-identity") + 1] == "tester"
+    assert "--log-level" in argv_seen
+    assert argv_seen[argv_seen.index("--log-level") + 1] == "DEBUG"
+
+
+def test_discover_or_exit_when_agents_dir_is_a_regular_file(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``--agents-dir`` pointing at a file (not a directory) exits with code 1."""
+    from openrtc.cli.livekit import _discover_or_exit
+    from openrtc.core.pool import AgentPool
+
+    file_path = tmp_path / "not-a-directory.py"
+    file_path.write_text("x = 1\n", encoding="utf-8")
+
+    with caplog.at_level(logging.ERROR, logger="openrtc"):
+        with pytest.raises(typer.Exit) as exc:
+            _discover_or_exit(file_path, AgentPool())
+
+    assert exc.value.exit_code == 1
+    assert "not a directory" in caplog.text.lower()
+
+
+def test_discover_or_exit_when_permission_denied(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A PermissionError from discover() exits with code 1 and logs the cause."""
+    from openrtc.cli.livekit import _discover_or_exit
+    from openrtc.core.pool import AgentPool
+
+    pool = AgentPool()
+
+    def _raise_permission_error(_self: AgentPool, _path: Path) -> list[Any]:
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr(AgentPool, "discover", _raise_permission_error)
+
+    with caplog.at_level(logging.ERROR, logger="openrtc"):
+        with pytest.raises(typer.Exit) as exc:
+            _discover_or_exit(tmp_path, pool)
+
+    assert exc.value.exit_code == 1
+    assert "permission denied" in caplog.text.lower()
