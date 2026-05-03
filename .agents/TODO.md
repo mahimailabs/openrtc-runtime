@@ -298,6 +298,14 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `core/serialization.py` coverage gap (98% -> 100%):
+  5 tests in tests/test_serialization.py exercising
+  `_extract_provider_kwargs` (returns {} when `_opts` is None
+  or attribute is missing; extracts set options) and
+  `_filter_provider_kwargs` (drops the OpenAI `NotGiven`
+  sentinel; passes through explicit `None`). Locks the
+  spawn-safe serialization edge cases that the higher-level
+  pool tests don't exercise directly.
 - [x] Close `core/config.py` coverage gap (97% -> 100%):
   6 tests in tests/test_config.py exercising
   `_normalize_optional_name` validation through the public

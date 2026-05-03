@@ -142,6 +142,25 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 22:30 UTC — test(serialization): close core/serialization.py coverage gap (98% -> 100%)
+Files: tests/test_serialization.py (new, 5 tests, ~58 LOC).
+Tests: 290/290 pass + 2 skipped. Coverage: serialization.py
+100% (was 98%); total 93.34% (was 93.23%). ruff: clean.
+mypy: clean.
+Notes: Tests exercise the spawn-safe provider serialization
+edge cases that the pool-level tests don't reach directly:
+`_extract_provider_kwargs` returns {} when `_opts` is None or
+the attribute is missing entirely (catches the early-return
+branch); `_filter_provider_kwargs` drops the OpenAI
+`NotGiven` sentinel from a kwargs dict (the canonical
+"unset optional" marker on every plugin _opts dataclass) and
+passes through explicit `None` (a user-set value, distinct
+from "unset"). The serialization layer is the v0.1 spawn-safety
+backbone: every provider object that survives a process boundary
+goes through these helpers, so locking the per-key filter
+behavior in pure unit tests prevents a future plugin upgrade
+from silently leaking sentinels into the spawn-time kwargs.
+
 ## 2026-05-03 22:15 UTC — test(config): close core/config.py coverage gap (97% -> 100%)
 Files: tests/test_config.py (new, 6 tests, ~62 LOC).
 Tests: 285/285 pass + 2 skipped. Coverage: config.py 100%
