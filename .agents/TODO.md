@@ -76,10 +76,16 @@ Tasks:
   `__getstate__/__setstate__` helpers (currently `pool.py:573-646`).
 - [x] Extract `core/turn_handling.py` from `pool.py`: deprecated
   kwargs translation logic (currently `pool.py:42-53, 649-778`).
-- [ ] Create `observability/` package. Rename `resources.py` →
-  `observability/metrics.py`, `metrics_stream.py` →
-  `observability/stream.py`. Extract `PoolRuntimeSnapshot` to
-  `observability/snapshot.py`.
+- [ ] Create `observability/` package skeleton (empty
+  `__init__.py`) and rename `resources.py` →
+  `observability/metrics.py`. Update all import sites.
+- [ ] Rename `metrics_stream.py` → `observability/stream.py`.
+  Update all import sites.
+- [ ] Extract `PoolRuntimeSnapshot` (and the
+  `ProcessResidentSetInfo` / `SavingsEstimate` payload dataclasses
+  it embeds) from `observability/metrics.py` to
+  `observability/snapshot.py`. `metrics.py` imports the snapshot
+  types back in.
 - [ ] Create `cli/` package. Move all `cli_*.py` files in, dropping
   the `cli_` prefix. Update entrypoint references.
 - [ ] Create `tui/` package. Move `tui_app.py` to `tui/app.py`.

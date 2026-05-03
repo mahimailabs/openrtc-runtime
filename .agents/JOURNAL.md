@@ -142,6 +142,18 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 08:40 UTC — chore: split observability extraction into three subtasks
+Files: .agents/TODO.md (one item replaced by three).
+Tests: not run (TODO-only edit).
+Notes: The TODO line "Create observability/ package. Rename
+resources.py → observability/metrics.py, metrics_stream.py →
+observability/stream.py. Extract PoolRuntimeSnapshot to
+observability/snapshot.py." bundled three operations (one rename,
+one rename, one extract+split) totaling ~600 LOC of file movement
+and ~12 import sites — too large for one iteration per PROMPT.md.
+Split into three sequential subtasks. Next iteration picks up the
+first one.
+
 ## 2026-05-03 08:25 UTC — refactor: extract core/turn_handling.py from pool.py
 Files: src/openrtc/core/turn_handling.py (new, 161 LOC:
        _DEPRECATED_TURN_HANDLING_KEYS, _build_session_kwargs,
