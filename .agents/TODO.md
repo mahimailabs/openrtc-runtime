@@ -65,7 +65,7 @@ Tasks:
   `cli_app.__all__`. Verify no external references.
 - [x] Rename `provider_types.py` → `types.py`.
 - [x] Create `core/` package. Move `pool.py` into it (no split yet).
-- [ ] Extract `core/config.py` from `pool.py`: `AgentConfig`,
+- [x] Extract `core/config.py` from `pool.py`: `AgentConfig`,
   `AgentDiscoveryConfig`, `agent_config` decorator.
 - [ ] Extract `core/routing.py` from `pool.py`: `_resolve_agent_config`
   and routing helpers (currently `pool.py:781-853`).

@@ -50,3 +50,23 @@ works because __init__.py re-exports from .core.pool. All
 monkeypatch path strings updated from "openrtc.pool.X" to
 "openrtc.core.pool.X". docs/audit-2026-05-02.md historical paths
 left as-is.
+
+## 2026-05-03 07:15 UTC — refactor: extract core/config.py from pool.py
+Files: src/openrtc/core/config.py (new, 158 LOC),
+       src/openrtc/core/pool.py (-126 LOC: removed AgentConfig,
+       AgentDiscoveryConfig, agent_config, _normalize_optional_name,
+       _AgentType TypeVar, _AGENT_METADATA_ATTR; added imports +
+       __all__ for stable internal surface),
+       src/openrtc/__init__.py (split AgentPool import from the
+       config types), src/openrtc/cli_dashboard.py,
+       src/openrtc/cli_livekit.py, src/openrtc/resources.py
+       (TYPE_CHECKING block) — all updated to import from
+       core.config.
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: AgentConfig.__post_init__/__getstate__/__setstate__ use
+late imports of _serialize_provider_value, _deserialize_provider_value,
+_build_agent_class_ref, _resolve_agent_class to avoid a circular
+import with core.pool. These late imports are temporary — they
+collapse to module-level imports when core/serialization.py is
+extracted in the next refactor task. Comment in the file explains.
+Public API unchanged.

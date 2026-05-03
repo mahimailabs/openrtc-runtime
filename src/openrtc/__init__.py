@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .core.pool import AgentConfig, AgentDiscoveryConfig, AgentPool, agent_config
+from .core.config import AgentConfig, AgentDiscoveryConfig, agent_config
+from .core.pool import AgentPool
 from .types import ProviderValue
 
 try:

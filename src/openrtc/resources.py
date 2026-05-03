@@ -11,7 +11,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, TypedDict, cast
 
 if TYPE_CHECKING:
-    from openrtc.core.pool import AgentConfig
+    from openrtc.core.config import AgentConfig
 
 logger = logging.getLogger("openrtc")
 
