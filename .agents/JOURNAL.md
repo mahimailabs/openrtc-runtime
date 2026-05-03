@@ -142,6 +142,22 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 18:30 UTC — ci: density benchmark gate (§7 success gate)
+Files: .github/workflows/bench.yml (new, ~50 LOC).
+Tests: not re-run (no source changes). YAML validates.
+Local sanity: `uv run python tests/benchmarks/density.py
+--sessions 50 --rss-budget-mb 4096 --json` exits 0 (peak 367 MB
+of 4096 MB budget, 50/50 successes).
+Notes: enforces design §7's "≥ 50 concurrent sessions per
+worker process at ≤ 4 GB peak RSS, no errors" on every PR and
+push to main. The script's own exit-code contract drives the
+gate (0 success / 2 RSS over / 3 session error). Result
+artifact `density-result-${run_id}` is uploaded for 30 days
+so trend analysis later is possible (e.g., "did peak RSS
+regress between v0.1.0 and v0.1.1?"). Triggers: push to main +
+all PRs. Workflow consumes only literal strings; security
+preamble noted in the file.
+
 ## 2026-05-03 18:20 UTC — ci: canary job vs latest livekit-agents (§9.1)
 Files: .github/workflows/canary.yml (new, ~85 LOC).
 Tests: 239 pass + 2 skipped (no functional changes). YAML
