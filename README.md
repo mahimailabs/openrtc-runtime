@@ -308,6 +308,13 @@ Everything openrtc exposes publicly is listed here. Anything else is internal an
 - `agent_config(...)`
 - `ProviderValue` — type alias for STT/LLM/TTS slot values (provider ID strings or LiveKit plugin instances)
 
+`AgentPool(...)` constructor (all keyword-only, all optional):
+
+- `default_stt`, `default_llm`, `default_tts`, `default_greeting` — pool-wide defaults applied when `add()` / `discover()` doesn't override them.
+- `isolation: "coroutine" | "process"` (v0.1) — worker isolation mode. Default `"coroutine"` runs every session as an `asyncio.Task` in one worker; `"process"` keeps the v0.0.x one-subprocess-per-session behavior.
+- `max_concurrent_sessions: int` (v0.1) — coroutine-mode backpressure threshold. Default `50`. The worker reports `load >= 1.0` to LiveKit dispatch once this many sessions are in flight; ignored under `isolation="process"`.
+- `consecutive_failure_limit: int` (v0.1) — coroutine-mode supervisor threshold. Default `5`. After this many non-`SUCCESS` session terminations the worker calls `aclose()` so the deployment platform can restart it; ignored under `isolation="process"`.
+
 On `AgentPool`:
 
 - `add(...)`
@@ -319,6 +326,9 @@ On `AgentPool`:
 - `runtime_snapshot()`
 - `drain_metrics_stream_events()` — for JSONL export paths (mainly CLI; rare in app code)
 - `server`
+- `isolation` (read-only property, v0.1)
+- `max_concurrent_sessions` (read-only property, v0.1)
+- `consecutive_failure_limit` (read-only property, v0.1)
 
 ## Project structure
 

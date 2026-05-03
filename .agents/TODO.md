@@ -272,3 +272,10 @@ priority.)
   tagging+publishing step (the only `[?]` blocker on v0.1)
   has a literal step-by-step checklist. Linked from
   CONTRIBUTING.md's new "Releasing" section.
+- [x] README "Public API at a glance" lists v0.1 constructor
+  kwargs (isolation, max_concurrent_sessions,
+  consecutive_failure_limit) and read-only properties.
+  (Section was written pre-v0.1 and only listed the v0.0.x
+  surface; users reading just the API summary would miss the
+  new knobs without digging into the "Isolation modes"
+  section above.)

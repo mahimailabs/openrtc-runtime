@@ -142,6 +142,22 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 20:55 UTC — docs(README): list v0.1 constructor kwargs in API summary
+Files: README.md "Public API at a glance" section: added a new
+       "AgentPool(...) constructor (all keyword-only, all
+       optional)" subsection listing both the v0.0.x kwargs
+       (default_stt/llm/tts/greeting) and the new v0.1 ones
+       (isolation, max_concurrent_sessions,
+       consecutive_failure_limit) with their defaults and a
+       one-line semantics note. Added the three new read-only
+       properties to the existing "On AgentPool:" list.
+Tests: 256/256 pass + 2 skipped. ruff: clean.
+Notes: The summary section is the public-API contract page —
+users skimming it before reading the "Isolation modes"
+section deeper down would have missed the v0.1 knobs entirely.
+Marked v0.1-introduced items with "(v0.1)" so the
+v0.0.x-vs-v0.1 distinction is grep-able.
+
 ## 2026-05-03 20:45 UTC — docs(release): single-page v0.1 release checklist
 Files: docs/release-v0.1.md (new, ~110 LOC):
        - Pre-flight checks (merge to main, CI green on the
