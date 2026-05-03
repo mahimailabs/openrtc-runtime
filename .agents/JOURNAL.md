@@ -142,6 +142,29 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 15:18 UTC — bench(density): 50 concurrent sessions in one worker
+Files: tests/benchmarks/__init__.py (new, empty),
+       tests/benchmarks/density.py (new, ~210 LOC: argparse +
+       async harness, DensityResult dataclass, run_density_benchmark
+       coroutine, RSS sampler, _build_pool with stub entrypoint
+       that holds a 5 MB buffer per session, _stub_running_job_info
+       helper, human-readable + --json output).
+Tests: 200/200 pass (no test changes). ruff: clean. mypy: clean
+(extended scope to also cover tests/benchmarks/).
+Manual run on macOS Darwin 24.3.0 / Python 3.13.5:
+  uv run python tests/benchmarks/density.py --sessions 50 \
+      --rss-budget-mb 4096
+  -> sessions=50 successes=50 failures=0
+     baseline 116 MB, peak 367 MB, delta 251 MB
+     within budget=True, elapsed 1.04 s, exit 0.
+Notes: 5 MB per session was chosen to stress task-scheduling
+overhead, not allocator pressure; the realistic ~60 MB/session
+budget validates against the §8.4 real-LiveKit integration test
+in Phase 2. The benchmark's exit codes drive CI: 0 success,
+2 over RSS budget, 3 any session error. The next iteration
+records the result text in docs/benchmarks/density-v0.1.md per
+the TODO.
+
 ## 2026-05-03 15:00 UTC — test: end-to-end smoke for coroutine path
 Files: tests/test_coroutine_smoke.py (new, ~110 LOC, 1 test).
 Tests: 200/200 pass (1 added). ruff: clean. mypy: clean.

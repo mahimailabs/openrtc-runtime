@@ -154,7 +154,7 @@ Tasks:
   `_CoroutineAgentServer(...)` based on `isolation` parameter.
 - [x] First end-to-end smoke test: `AgentPool(isolation="coroutine")`
   registers, accepts one simulated job, runs it to completion.
-- [ ] Density benchmark script `tests/benchmarks/density.py`: spawn
+- [x] Density benchmark script `tests/benchmarks/density.py`: spawn
   50 simulated jobs concurrently in one worker; record peak RSS.
 - [ ] Run density benchmark. Record results in
   `docs/benchmarks/density-v0.1.md`.
