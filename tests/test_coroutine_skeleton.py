@@ -442,13 +442,119 @@ def test_coroutine_pool_get_by_job_id_returns_none_for_empty_pool() -> None:
     assert pool.get_by_job_id("nonexistent") is None
 
 
-@pytest.mark.parametrize("method_name", ["start", "aclose"])
+@pytest.mark.parametrize("method_name", ["aclose"])
 def test_coroutine_pool_lifecycle_methods_are_unimplemented(method_name: str) -> None:
     pool = _build_pool()
     method = getattr(pool, method_name)
     assert inspect.iscoroutinefunction(method)
     with pytest.raises(NotImplementedError, match="skeleton"):
         asyncio.run(method())
+
+
+def _build_pool_with_setup(
+    setup_fnc: Any, *, initialize_timeout: float = 5.0
+) -> CoroutinePool:
+    async def _entry(_ctx: Any) -> None:
+        return None
+
+    return CoroutinePool(
+        initialize_process_fnc=setup_fnc,
+        job_entrypoint_fnc=_entry,
+        session_end_fnc=None,
+        num_idle_processes=0,
+        initialize_timeout=initialize_timeout,
+        close_timeout=10.0,
+        inference_executor=None,
+        job_executor_type=JobExecutorType.PROCESS,
+        mp_ctx=mp.get_context(),
+        memory_warn_mb=0.0,
+        memory_limit_mb=0.0,
+        http_proxy="http://proxy.example",
+        loop=asyncio.new_event_loop(),
+    )
+
+
+def test_coroutine_pool_start_invokes_setup_fnc_once_with_singleton_proc() -> None:
+    seen_procs: list[Any] = []
+
+    def _setup(proc: Any) -> None:
+        seen_procs.append(proc)
+        proc.userdata["loaded"] = True
+
+    pool = _build_pool_with_setup(_setup)
+
+    assert pool.started is False
+    assert pool.shared_process is None
+
+    asyncio.run(pool.start())
+
+    assert pool.started is True
+    assert pool.shared_process is not None
+    assert pool.shared_process.userdata["loaded"] is True
+    assert seen_procs == [pool.shared_process]
+
+
+def test_coroutine_pool_start_is_idempotent() -> None:
+    call_count = 0
+
+    def _setup(_proc: Any) -> None:
+        nonlocal call_count
+        call_count += 1
+
+    pool = _build_pool_with_setup(_setup)
+
+    async def _scenario() -> None:
+        await pool.start()
+        await pool.start()
+        await pool.start()
+
+    asyncio.run(_scenario())
+
+    assert call_count == 1
+    assert pool.started is True
+
+
+def test_coroutine_pool_start_awaits_async_setup_fnc() -> None:
+    invoked: list[Any] = []
+
+    async def _setup(proc: Any) -> None:
+        await asyncio.sleep(0)
+        invoked.append(proc)
+        proc.userdata["async_loaded"] = True
+
+    pool = _build_pool_with_setup(_setup)
+
+    asyncio.run(pool.start())
+
+    assert pool.started is True
+    assert pool.shared_process is not None
+    assert pool.shared_process.userdata["async_loaded"] is True
+    assert invoked == [pool.shared_process]
+
+
+def test_coroutine_pool_start_respects_initialize_timeout() -> None:
+    async def _slow_setup(_proc: Any) -> None:
+        await asyncio.sleep(60)
+
+    pool = _build_pool_with_setup(_slow_setup, initialize_timeout=0.1)
+
+    with pytest.raises(TimeoutError):
+        asyncio.run(pool.start())
+
+    assert pool.started is False
+    assert pool.shared_process is None
+
+
+def test_coroutine_pool_shared_process_propagates_http_proxy() -> None:
+    def _setup(_proc: Any) -> None:
+        return None
+
+    pool = _build_pool_with_setup(_setup)
+
+    asyncio.run(pool.start())
+
+    assert pool.shared_process is not None
+    assert pool.shared_process.http_proxy == "http://proxy.example"
 
 
 def test_coroutine_pool_launch_job_is_unimplemented() -> None:

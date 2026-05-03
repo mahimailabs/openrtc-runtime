@@ -138,7 +138,7 @@ Tasks:
   beyond `aclose()`. Status reporting was already correct via the
   property; the iteration verifies idle / in-flight / completed
   semantics under kill.)
-- [ ] Implement `CoroutinePool.start()`: invoke `setup_fnc` once,
+- [x] Implement `CoroutinePool.start()`: invoke `setup_fnc` once,
   populate the singleton `JobProcess.userdata` with shared models.
 - [ ] Implement `CoroutinePool.launch_job()`: instantiate a
   `CoroutineJobExecutor`, track it, return.

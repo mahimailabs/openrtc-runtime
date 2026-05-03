@@ -142,6 +142,33 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 13:25 UTC — feat(execution): implement CoroutinePool.start
+Files: src/openrtc/execution/coroutine.py (added `inspect` import;
+       new _started flag + _shared_proc on CoroutinePool.__init__;
+       CoroutinePool.start() constructs the singleton JobProcess
+       (executor_type, http_proxy from kwargs), invokes
+       initialize_process_fnc(proc), awaits the result if it is a
+       coroutine (inspect.isawaitable), wraps in asyncio.wait_for
+       with self._initialize_timeout. Idempotent. New
+       shared_process and started properties. ruff prefers
+       built-in TimeoutError over asyncio.TimeoutError so the
+       except clause uses TimeoutError directly.),
+       tests/test_coroutine_skeleton.py (removed `start` from the
+       parametrized "still raises" list; added 5 tests: start
+       invokes setup_fnc once with the singleton proc + populates
+       userdata, idempotent on repeat calls, awaits async
+       setup_fnc, raises TimeoutError on slow setup with state
+       unchanged, http_proxy propagates to shared_process).
+Tests: 172/172 pass (4 added net). ruff: clean. mypy: clean.
+Notes: setup_fnc runs ONCE per worker in coroutine mode (vs once
+per process in process mode) per design §6.6 — that's the whole
+density story. The shared_process lives on the pool until
+launch_job lands so each per-session JobContext can close over
+it. _started is a bool flag so start() can early-return; this
+mirrors ProcPool's idempotent guard. Timeout error raises with
+the caller in stack so AgentServer.run()'s `wait_for(... +2)`
+guard at worker.py:96 keeps working.
+
 ## 2026-05-03 13:10 UTC — feat(execution): add CoroutineJobExecutor.kill (forceful)
 Files: src/openrtc/execution/coroutine.py (new module-level helper
        _consume_cancelled_task_exception that retrieves a task's

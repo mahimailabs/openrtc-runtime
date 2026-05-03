@@ -15,6 +15,7 @@ Contracts derived from:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -295,6 +296,8 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         self._loop = loop
         self._executors: list[JobExecutor] = []
         self._target_idle_processes = num_idle_processes
+        self._started = False
+        self._shared_proc: JobProcess | None = None
 
     @property
     def processes(self) -> list[JobExecutor]:
@@ -311,7 +314,58 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         )
 
     async def start(self) -> None:
-        raise NotImplementedError(_SKELETON_HINT)
+        """Construct the singleton ``JobProcess`` and run ``setup_fnc`` once.
+
+        Coroutine mode shares one ``JobProcess`` across every executor (and
+        therefore every session) in the worker, so ``setup_fnc`` runs **once**
+        — not once per session as in process mode. The shared instance lives
+        on ``self.shared_process`` and is what each executor's
+        ``context_factory`` will close over.
+
+        Wraps the call in :func:`asyncio.wait_for` with the configured
+        ``initialize_timeout``. Idempotent: a second call after a successful
+        start is a no-op.
+        """
+        if self._started:
+            return
+
+        proc = JobProcess(
+            executor_type=self._job_executor_type,
+            user_arguments=None,
+            http_proxy=self._http_proxy,
+        )
+
+        async def _do_setup() -> None:
+            result = self._initialize_process_fnc(proc)
+            if inspect.isawaitable(result):
+                await result
+
+        try:
+            await asyncio.wait_for(_do_setup(), timeout=self._initialize_timeout)
+        except TimeoutError:
+            logger.error(
+                "CoroutinePool setup_fnc timed out after %.1fs",
+                self._initialize_timeout,
+            )
+            raise
+
+        self._shared_proc = proc
+        self._started = True
+
+    @property
+    def shared_process(self) -> JobProcess | None:
+        """Return the singleton ``JobProcess`` populated by :meth:`start`.
+
+        ``None`` until ``start()`` completes successfully. Read by the
+        per-executor ``context_factory`` so every ``JobContext`` references
+        the same prewarmed userdata.
+        """
+        return self._shared_proc
+
+    @property
+    def started(self) -> bool:
+        """True after :meth:`start` has completed successfully."""
+        return self._started
 
     async def aclose(self) -> None:
         raise NotImplementedError(_SKELETON_HINT)
