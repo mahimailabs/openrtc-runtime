@@ -298,6 +298,19 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `cli/dashboard.py` coverage gap (82% -> 100%):
+  11 tests in tests/test_dashboard.py covering: pure-helper
+  edges (`_format_percent` returning "—" for missing or
+  zero baseline, ratio-rounding; `_memory_style` for None /
+  green / yellow / red thresholds; `_truncate_cell` short
+  pass-through and ellipsis append); `print_list_rich_table`
+  `—` source-column for agents without source_path;
+  `print_list_plain` source_size append + Resource summary
+  trigger; `print_resource_summary_plain` known-path-caveat
+  branch + unavailable-RSS branch (via monkey-patched
+  `get_process_resident_set_info`); `print_resource_summary_rich`
+  unavailable-RSS branch. Locks the dashboard rendering
+  contract before tagging.
 - [x] Close `core/pool.py` coverage gap (93% -> 100%):
   7 tests in tests/test_pool.py covering: empty/whitespace
   agent name rejection in `add()`; `run()` raises when zero

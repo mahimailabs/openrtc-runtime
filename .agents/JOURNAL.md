@@ -142,6 +142,29 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 00:00 UTC — test(dashboard): close cli/dashboard.py coverage gap (82% -> 100%)
+Files: tests/test_dashboard.py (new, 11 tests, ~145 LOC).
+Tests: 343/343 pass + 2 skipped. Coverage: cli/dashboard.py
+100% (was 82%); total 99.02% (was 97.62%). ruff: clean.
+mypy: clean.
+Notes: New tests cover the pure rendering helpers
+(`_format_percent` for None/zero-baseline + ratio rounding;
+`_memory_style` for None / green / yellow / red thresholds;
+`_truncate_cell` short pass-through + ellipsis append) and
+the print-output branches that the integration tests don't
+exercise individually:
+print_list_rich_table renders "—" in the source column for
+agents without source_path; print_list_plain appends
+source_size= for known paths and triggers the resource
+summary; print_resource_summary_plain emits the
+"per-agent source size" caveat when not all agents have a
+known path AND the "Resident memory metric unavailable"
+branch when monkey-patched get_process_resident_set_info
+returns None; print_resource_summary_rich's unavailable-RSS
+branch (Rich version of the same fallback). New unit tests
+import the helpers directly from cli.dashboard, which the
+integration tests via CliRunner couldn't reach.
+
 ## 2026-05-03 23:45 UTC — test(pool): close core/pool.py coverage gap (93% -> 100%)
 Files: tests/test_pool.py (+7 tests, ~95 LOC at end of file).
 Tests: 332/332 pass + 2 skipped. Coverage: core/pool.py 100%
