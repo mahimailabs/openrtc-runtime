@@ -142,6 +142,25 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 02:45 UTC — chore(ci): ratchet coverage gate from 95% to 99%
+Files: Makefile (`--cov-fail-under=95` -> `=99`),
+.github/workflows/test.yml (same flag in the matrix job),
+codecov.yml (project + patch targets 95% -> 99%, range
+`85...100` -> `90...100`, header comment updated).
+Tests: 374/374 pass + 2 skipped. Required: 99%; actual
+combined line+branch: 100.00%. ruff: clean. mypy: clean.
+Notes: This is the second floor bump in this loop (80 -> 95
+last week, now 95 -> 99). The 1pp cushion below 100% is
+deliberate: branch coverage adds many edges per function (a
+single `if x and y:` is 4 branches), so a small helper added
+in a future PR can naturally push combined % below 100%
+even when the contributor wrote tests for every behavior
+they intended. Anchoring at 99% prevents a drop below the
+v0.1 baseline without making "added one branch + forgot one
+test" a CI hard-stop. Bumped all three places (Makefile, CI
+matrix, Codecov) in one pass so the local hard gate, the CI
+hard gate, and the PR-comment status check stay in sync.
+
 ## 2026-05-04 02:30 UTC — test(branches): close last branch — cli/__init__.py 32->36 (99.96% -> 100.00%)
 Files: tests/test_cli.py (+1 test, ~22 LOC).
 Tests: 374/374 pass + 2 skipped. Combined line+branch

@@ -12,7 +12,7 @@ install: ## Install package and dev dependencies via uv
 	uv sync --group dev
 
 test: ## Run the test suite with coverage
-	uv run pytest --cov=openrtc --cov-report=term-missing --cov-fail-under=95
+	uv run pytest --cov=openrtc --cov-report=term-missing --cov-fail-under=99
 
 test-fast: ## Run tests without coverage (faster feedback loop)
 	uv run pytest -q

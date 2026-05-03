@@ -250,9 +250,17 @@ Tasks:
 
 ## Discovered work
 
+- [x] Ratchet the v0.1 coverage gate from 95% to 99% (was bumped
+  from 80% to 95% earlier in this loop; now that line + branch
+  is at 100.00% the floor moves up again). 1pp cushion is
+  intentional: branch coverage adds many edges per function so
+  even a small new helper can push combined % below 100% even
+  with full intent. Bumped in three places: Makefile,
+  test.yml CI matrix, codecov.yml (project + patch). Codecov
+  range nudged from `85...100` to `90...100`.
 - [x] Close the 22 missing branches surfaced once
   `[tool.coverage.run] branch = true` landed.
-  **All 22 closed across 4 batches; project sits at 100.00%
+  **All 22 closed across 5 batches; project sits at 100.00%
   combined line + branch coverage.**
   **Batch 1 closed (8 branches):** cli/commands.py 351->354;
   cli/dashboard.py 240->249, 257->284; cli/livekit.py 74->76;
