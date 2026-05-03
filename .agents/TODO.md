@@ -217,7 +217,13 @@ Tasks:
   lifecycle.
 - [x] Add migration note to `docs/changelog.md` for v0.1.0 entry,
   flagging the default behavior change (process → coroutine).
-- [ ] Bump version to `0.1.0` in `pyproject.toml`.
+- [x] Bump version to `0.1.0` in `pyproject.toml`. (The version is
+  hatch-vcs-derived from git tags; the literal "bump" is the
+  `fallback_version = "0.1.0.dev0"` raw-option for dev checkouts
+  without a reachable tag, kept in sync with the
+  `__init__.py` PackageNotFoundError fallback. The actual
+  `0.1.0` version comes from tagging `v0.1.0` — handled in the
+  next task.)
 - [ ] Tag `v0.1.0` and verify PyPI publish workflow succeeds.
 
 **Phase 2 success gate:** all 12 acceptance criteria in

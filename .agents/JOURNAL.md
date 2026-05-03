@@ -142,6 +142,31 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 19:18 UTC — chore(version): set fallback_version to 0.1.0.dev0
+Files: pyproject.toml: added
+       `fallback_version = "0.1.0.dev0"` to
+       `[tool.hatch.version.raw-options]` (with a comment
+       reminding the next operator to bump after the v0.1.0
+       tag).
+       src/openrtc/__init__.py: PackageNotFoundError fallback
+       now returns "0.1.0.dev0" with a comment cross-
+       referencing the pyproject.toml setting.
+Tests: 239/239 pass + 2 skipped. ruff: clean. mypy: clean.
+Verified: `uv run python -c "import openrtc; print(openrtc.__version__)"`
+prints `0.1.0.dev199+g1a8b6990e.d20260503` (hatch-vcs is
+counting commits since the last reachable tag — works as
+expected). After tagging v0.1.0 it will print exactly `0.1.0`.
+Notes: hatch-vcs makes "bump version in pyproject.toml" a bit
+of a literal misnomer because the version is dynamic. The
+fallback covers two real cases:
+1. Dev checkouts where no tag is reachable (e.g. fresh clone
+   of a feature branch with shallow history).
+2. The `try/except PackageNotFoundError` path in
+   __init__.py when openrtc is imported without `pip install`.
+Both now report 0.1.0-flavored versions instead of "0.0.0",
+which matters for `__version__` users (the README and the
+GitHub issue template both surface this string).
+
 ## 2026-05-03 19:08 UTC — docs(changelog): v0.1.0 migration note in [Unreleased]
 Files: docs/changelog.md (+~95 LOC under [Unreleased]):
        new "v0.1.0 — coroutine-mode worker (default behavior

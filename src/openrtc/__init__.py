@@ -9,7 +9,10 @@ from .types import ProviderValue
 try:
     __version__ = version("openrtc")
 except PackageNotFoundError:
-    __version__ = "0.0.0"
+    # Fallback when openrtc is imported without being installed (e.g. running
+    # from a source checkout without `pip install -e .`). Kept in sync with
+    # `[tool.hatch.version.raw-options].fallback_version` in pyproject.toml.
+    __version__ = "0.1.0.dev0"
 
 __all__ = [
     "AgentConfig",

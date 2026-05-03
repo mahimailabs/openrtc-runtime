@@ -52,6 +52,10 @@ source = "vcs"
 
 [tool.hatch.version.raw-options]
 root = "."
+# Dev-checkout fallback when no tag is reachable (e.g. fresh clone from a
+# branch). Keep this in sync with the version planned for the next
+# release: bump to "0.2.0.dev0" after tagging v0.1.0.
+fallback_version = "0.1.0.dev0"
 
 
 [tool.pyright]
