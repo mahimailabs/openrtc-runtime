@@ -142,6 +142,33 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 17:55 UTC — test(backpressure): current_load + load_fnc end-to-end (§8.6)
+Files: tests/test_coroutine_backpressure.py (new, ~190 LOC, 4
+       tests):
+       1. test_current_load_reaches_one_at_capacity_with_real_executors:
+          launches 10 long-running entrypoints with max=10,
+          asserts current_load() == 1.0 at saturation, drops to
+          0.0 after drain.
+       2. test_current_load_reports_over_one_when_dispatcher_overshoots:
+          11 in flight against max=10 returns 1.1 — documents
+          the cooperative semantics (we accept one through the
+          race window).
+       3. test_current_load_climbs_smoothly_below_capacity: launches
+          1..10 sequentially, asserts the exact ratio per step
+          (0.1, 0.2, ..., 1.0).
+       4. test_load_fnc_closure_pattern_reports_pool_load:
+          re-exercises the closure shape that
+          _CoroutineAgentServer.run() registers, against a real
+          pool with active executors at 0.0/0.7/1.0.
+Tests: 238/238 pass (4 added) + 2 skipped (the §8.4 integration
+tests). ruff: clean. mypy: clean.
+Notes: §8.6 acceptance criterion is satisfied. Backpressure in
+v0.1 is cooperative (load-driven), not hard-rejected at the
+pool — that is the design (§5.4 / §6.3) and the docstring at
+the top of the new test module documents the contract: if the
+dispatcher races and sends an 11th job, we accept and the next
+load read will report 1.1 so the dispatcher backs off harder.
+
 ## 2026-05-03 17:42 UTC — test(parity): isolation="process" matches v0.0.17 (§8.7)
 Files: tests/test_isolation_process_parity.py (new, ~165 LOC,
        13 tests including 5 parametrized over both isolation

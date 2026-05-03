@@ -192,8 +192,14 @@ Tasks:
   validation runs in CI environments with both available.)
 - [x] Verify `isolation="process"` mode behaves identically to
   v0.0.17 (regression test against existing test suite).
-- [ ] Backpressure test: with `max_concurrent_sessions=10`, the
+- [x] Backpressure test: with `max_concurrent_sessions=10`, the
   11th job is rejected; LiveKit dispatch sees `load >= 1.0`.
+  (Note: backpressure in v0.1 is cooperative; the dispatcher
+  reads load_fnc and routes elsewhere — the pool itself does
+  not hard-reject. If the dispatcher races and sends one
+  anyway, the pool accepts it and the next load read tells the
+  dispatcher to back off harder. Documented in the test
+  module's docstring.)
 - [ ] Drain test: SIGTERM with 3 in-flight sessions waits for
   completion before worker exits.
 - [ ] Add CI canary job that runs `pytest -m integration` against
