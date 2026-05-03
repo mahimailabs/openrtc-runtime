@@ -142,6 +142,26 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 18:42 UTC — docs(README): isolation modes + density table
+Files: README.md (+~45 LOC inserted between "Memory: before and
+       after" and "Routing"): new "Isolation modes" section with
+       a comparison table covering sessions per worker, prewarm
+       cost, crash isolation, per-session memory caps,
+       backpressure semantics, and when-to-pick guidance for
+       both modes; new "Density (50 concurrent sessions, one
+       worker)" subsection with the 4-row results table from
+       docs/benchmarks/density-v0.1.md (50 / 100 / 200 / 500
+       sessions, peak RSS, elapsed) and an explicit
+       stub-workload caveat pointing at §8.4 for realistic
+       per-session footprint.
+Tests: 239 pass + 2 skipped. ruff: clean (only README touched).
+Notes: §8.10 acceptance criterion satisfied. The comparison
+table is the entry point for an operator deciding between
+modes; the density table answers "how does it scale?"; the
+caveat answers "is the 5 MB per-session allocation
+representative?" honestly so users don't quote it as a
+production number.
+
 ## 2026-05-03 18:30 UTC — ci: density benchmark gate (§7 success gate)
 Files: .github/workflows/bench.yml (new, ~50 LOC).
 Tests: not re-run (no source changes). YAML validates.

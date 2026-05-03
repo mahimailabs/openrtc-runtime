@@ -211,7 +211,7 @@ Tasks:
   the latest `livekit-agents` release (allowed to fail;
   informational).
 - [x] Add CI density benchmark job; fail if peak RSS > 4 GB.
-- [ ] Update `README.md`: add isolation modes section, density
+- [x] Update `README.md`: add isolation modes section, density
   benchmark table, when-to-use-which guidance.
 - [ ] Update `docs/concepts/architecture.md` with coroutine-mode
   lifecycle.

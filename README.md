@@ -182,6 +182,46 @@ Assume an illustrative **~400 MB** idle baseline per worker for the shared stack
 
 Exact numbers depend on your providers, concurrency, and call patterns. The win is not loading that stack once per agent worker.
 
+## Isolation modes
+
+`AgentPool` accepts an `isolation` argument that picks how each session
+runs inside the worker. The v0.1 default is `"coroutine"`; pass
+`isolation="process"` to opt back into the v0.0.x behavior:
+
+```python
+pool = AgentPool(
+    isolation="coroutine",          # default in v0.1
+    max_concurrent_sessions=50,     # backpressure threshold (coroutine only)
+)
+```
+
+| Aspect | `coroutine` (default) | `process` |
+| --- | --- | --- |
+| Sessions per worker | Many (one `asyncio.Task` per session, shared `JobProcess`) | One (each session is its own subprocess via `livekit-agents` `ProcPool`) |
+| Prewarm cost (VAD, turn detector) | Paid once per worker | Paid once per session subprocess |
+| Crash isolation | Cooperative: an unhandled exception in one session is logged and marked FAILED; siblings continue. After `consecutive_failure_limit` (default 5) the worker calls `aclose()` so the platform restarts it. | Hard: each subprocess crashes independently; siblings unaffected. |
+| Per-session memory cap | Not enforced (asyncio shares one process) | Enforced via `livekit-agents` `job_memory_limit_mb` |
+| Backpressure | `current_load() = active / max_concurrent_sessions` reported as worker load; LiveKit dispatch routes elsewhere at `>= load_threshold` | `livekit-agents` default load math (CPU-based) |
+| When to pick | High density on a single host; cost-sensitive deployments. | Regulatory/compliance requires hard process isolation; per-session memory caps required. |
+
+### Density (50 concurrent sessions, one worker)
+
+From the v0.1 stub-workload benchmark (`tests/benchmarks/density.py`,
+results recorded at `docs/benchmarks/density-v0.1.md`):
+
+| Sessions | Successes | Peak RSS  | Elapsed | Within 4 GB budget |
+| --- | --- | --- | --- | --- |
+|  50 | 50  | 367 MB  | 1.04 s | ✓ |
+| 100 | 100 | 617 MB  | 1.10 s | ✓ |
+| 200 | 200 | 1073 MB | 1.19 s | ✓ |
+| 500 | 500 | 1370 MB | 1.30 s | ✓ |
+
+**Caveat:** the benchmark allocates ~5 MB per session to stress task
+scheduling, not a realistic ~60 MB/session WebRTC + LLM footprint.
+Validate against the §8.4 real-LiveKit integration test (which needs
+`docker compose -f docker-compose.test.yml up -d` and `OPENAI_API_KEY`)
+before quoting a per-session memory number to your operators.
+
 ## Routing
 
 One process hosts several agent classes, so each session must resolve to a single registered name. `AgentPool` resolves the agent in this order:
