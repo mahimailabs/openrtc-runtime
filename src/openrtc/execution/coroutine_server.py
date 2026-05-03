@@ -18,12 +18,16 @@ default.
 from __future__ import annotations
 
 import asyncio
+import logging
+from collections.abc import Callable
 from typing import Any
 
 import livekit.agents.ipc.proc_pool as _proc_pool_mod
 from livekit.agents import AgentServer
 
 from openrtc.execution.coroutine import CoroutinePool
+
+logger = logging.getLogger("openrtc.execution.coroutine_server")
 
 
 class _CoroutineAgentServer(AgentServer):
@@ -77,6 +81,59 @@ class _CoroutineAgentServer(AgentServer):
         """Return the constructed :class:`CoroutinePool` once :meth:`run` has built it."""
         return self._coroutine_pool
 
+    def _on_consecutive_failure_limit(self, failures: int) -> None:
+        """Supervisor callback fired by ``CoroutinePool`` at the trip limit.
+
+        Logs at ERROR and schedules :meth:`aclose` on the running loop so
+        the worker exits and the deployment platform restarts it. Returns
+        without action when no loop is running (e.g. the server has
+        already finished aclose).
+        """
+        logger.error(
+            "supervisor: %d consecutive session failures observed; "
+            "invoking AgentServer.aclose() so the worker can exit",
+            failures,
+        )
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        loop.create_task(self.aclose())
+
+    def _build_pool_factory(self) -> Callable[..., CoroutinePool]:
+        """Return the ProcPool replacement that builds our :class:`CoroutinePool`.
+
+        Captures the constructed pool on ``self._coroutine_pool`` so the
+        registered ``load_fnc`` and external callers (e.g. the
+        :attr:`coroutine_pool` property) see live state. Each call to the
+        returned factory replaces any previously captured pool, matching
+        ``AgentServer.run()``'s "fresh pool per run()" semantics.
+        """
+
+        def _factory(**pool_kwargs: Any) -> CoroutinePool:
+            pool = CoroutinePool(
+                **pool_kwargs,
+                max_concurrent_sessions=self._max_concurrent_sessions,
+                consecutive_failure_limit=self._consecutive_failure_limit,
+                on_consecutive_failure_limit=self._on_consecutive_failure_limit,
+            )
+            self._coroutine_pool = pool
+            return pool
+
+        return _factory
+
+    def _coroutine_load_fnc(self) -> float:
+        """Load reading reported to LiveKit dispatch.
+
+        ``0.0`` until the pool has been built (between server construction
+        and the first ``ProcPool`` instantiation inside ``run()``).
+        Otherwise the pool's :meth:`CoroutinePool.current_load`.
+        """
+        pool = self._coroutine_pool
+        if pool is None:
+            return 0.0
+        return pool.current_load()
+
     async def run(
         self,
         *,
@@ -86,55 +143,17 @@ class _CoroutineAgentServer(AgentServer):
         """Patch ``ipc.proc_pool.ProcPool`` and delegate to ``AgentServer.run``.
 
         The patch is scoped to one ``run()`` invocation. The factory
-        captures the constructed pool on ``self._coroutine_pool`` so
+        installs the constructed pool on ``self._coroutine_pool`` so
         callers (and the registered ``load_fnc``) can read live state.
         """
         original_proc_pool_cls = _proc_pool_mod.ProcPool
-        max_sess = self._max_concurrent_sessions
-        failure_limit = self._consecutive_failure_limit
-        captured: dict[str, CoroutinePool | None] = {"pool": None}
-
-        # Supervisor: when the pool reports that it has tripped the
-        # consecutive-failure limit, schedule self.aclose() so the worker
-        # exits and the deployment platform restarts it.
-        def _on_consecutive_failure_limit(failures: int) -> None:
-            import logging
-
-            logging.getLogger("openrtc.execution.coroutine_server").error(
-                "supervisor: %d consecutive session failures observed; "
-                "invoking AgentServer.aclose() so the worker can exit",
-                failures,
-            )
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                return
-            loop.create_task(self.aclose())
-
-        def _coroutine_pool_factory(**pool_kwargs: Any) -> CoroutinePool:
-            pool = CoroutinePool(
-                **pool_kwargs,
-                max_concurrent_sessions=max_sess,
-                consecutive_failure_limit=failure_limit,
-                on_consecutive_failure_limit=_on_consecutive_failure_limit,
-            )
-            captured["pool"] = pool
-            return pool
-
-        _proc_pool_mod.ProcPool = _coroutine_pool_factory  # type: ignore[assignment, misc]
-
-        def _coroutine_load_fnc() -> float:
-            pool = captured["pool"]
-            if pool is None:
-                return 0.0
-            return pool.current_load()
-
         previous_load_fnc = self._load_fnc
-        self._load_fnc = _coroutine_load_fnc
+
+        _proc_pool_mod.ProcPool = self._build_pool_factory()  # type: ignore[assignment, misc]
+        self._load_fnc = self._coroutine_load_fnc
 
         try:
             await super().run(devmode=devmode, unregistered=unregistered)
         finally:
             _proc_pool_mod.ProcPool = original_proc_pool_cls  # type: ignore[misc]
             self._load_fnc = previous_load_fnc
-            self._coroutine_pool = captured["pool"]

@@ -224,7 +224,24 @@ Tasks:
   `__init__.py` PackageNotFoundError fallback. The actual
   `0.1.0` version comes from tagging `v0.1.0` — handled in the
   next task.)
-- [ ] Tag `v0.1.0` and verify PyPI publish workflow succeeds.
+- [?] Tag `v0.1.0` and verify PyPI publish workflow succeeds.
+  Blocked on operator: tagging + pushing + creating a GitHub
+  release that triggers the publish.yml PyPI workflow requires
+  human credentials and intent (PyPI token + release notes).
+  All preparation is complete:
+  - changelog migration note staged in [Unreleased]
+    (docs/changelog.md);
+  - hatch-vcs fallback set to 0.1.0.dev0 (pyproject.toml +
+    src/openrtc/__init__.py); a `v0.1.0` git tag will yield
+    exactly `0.1.0` from hatch-vcs;
+  - publish.yml triggers on release and auto-prepends the
+    versioned section to docs/changelog.md (see workflow);
+  - all other §8 acceptance criteria are discharged in the
+    test suite + benchmarks + docs.
+  Operator runbook: cherry-pick / merge feat/light-websocket
+  into main, then `git tag v0.1.0 && git push --tags`, then
+  open a GitHub release on the tag pasting the relevant body
+  from the [Unreleased] block in docs/changelog.md.
 
 **Phase 2 success gate:** all 12 acceptance criteria in
 `docs/design/v0.1.md` §8 pass.

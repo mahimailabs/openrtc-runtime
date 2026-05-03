@@ -142,6 +142,40 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 19:35 UTC — refactor(coroutine_server): extract closures, lift coverage to 100% (§8.2)
+Files: src/openrtc/execution/coroutine_server.py: extracted the
+       three inline closures from run() to instance methods so
+       each is unit-testable:
+       - _on_consecutive_failure_limit(self, failures): the
+         supervisor callback. Logs at ERROR via a module-level
+         logger (added at module top) and schedules
+         loop.create_task(self.aclose()).
+       - _build_pool_factory(self) -> Callable: returns the
+         CoroutinePool factory closure that AgentServer calls
+         in worker.py:587. Captured pool now lives directly on
+         self._coroutine_pool (the previous `captured` dict was
+         redundant with that attribute).
+       - _coroutine_load_fnc(self) -> float: the bound load_fnc
+         that AgentServer's _invoke_load_fnc reads.
+       run() body shrank to: install factory + load_fnc, await
+       super().run(), restore in finally.
+       tests/test_coroutine_server.py: 7 new tests covering
+       the consecutive_failure_limit constructor validation
+       (default 5, override, three rejection paths), the bound
+       _coroutine_load_fnc method (zero before factory invoked,
+       reflects pool state after), the supervisor callback
+       (logs + schedules aclose; safe outside an event loop).
+Tests: 246/246 pass + 2 skipped (7 new coroutine_server tests).
+ruff: clean. mypy: clean.
+Coverage: src/openrtc/execution/coroutine.py 90%,
+src/openrtc/execution/coroutine_server.py 100%,
+TOTAL 91%. Both new modules clear the §8.2 80% threshold.
+Notes: §8.2 is now demonstrably satisfied. The refactor is
+also a real improvement: the closures were untestable in their
+inline form because run() requires AgentServer.run() to be
+callable end-to-end (real LIVEKIT_URL, etc.). Lifting them to
+methods is cleaner and more testable.
+
 ## 2026-05-03 19:18 UTC — chore(version): set fallback_version to 0.1.0.dev0
 Files: pyproject.toml: added
        `fallback_version = "0.1.0.dev0"` to

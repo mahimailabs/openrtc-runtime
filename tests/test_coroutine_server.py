@@ -121,6 +121,100 @@ def test_coroutine_server_load_fnc_reflects_pool_after_capture() -> None:
     assert _load_fnc() == 1.0
 
 
+def test_coroutine_server_default_consecutive_failure_limit_is_5() -> None:
+    server = _CoroutineAgentServer()
+    assert server._consecutive_failure_limit == 5
+
+
+def test_coroutine_server_consecutive_failure_limit_override() -> None:
+    server = _CoroutineAgentServer(consecutive_failure_limit=12)
+    assert server._consecutive_failure_limit == 12
+
+
+def test_coroutine_server_rejects_invalid_consecutive_failure_limit() -> None:
+    with pytest.raises(TypeError, match="must be an int"):
+        _CoroutineAgentServer(consecutive_failure_limit=4.0)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="must be an int"):
+        _CoroutineAgentServer(consecutive_failure_limit=True)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="must be >= 1"):
+        _CoroutineAgentServer(consecutive_failure_limit=0)
+
+
+def test_coroutine_server_load_fnc_method_returns_zero_before_pool_built() -> None:
+    server = _CoroutineAgentServer()
+    assert server._coroutine_load_fnc() == 0.0
+
+
+def test_coroutine_server_load_fnc_method_reflects_built_pool() -> None:
+    """The bound _coroutine_load_fnc method reads the captured pool's load."""
+    import multiprocessing as mp
+
+    server = _CoroutineAgentServer(max_concurrent_sessions=4)
+    factory = server._build_pool_factory()
+
+    pool_kwargs = {
+        "initialize_process_fnc": lambda _proc: None,
+        "job_entrypoint_fnc": lambda _ctx: None,
+        "session_end_fnc": None,
+        "num_idle_processes": 0,
+        "initialize_timeout": 5.0,
+        "close_timeout": 10.0,
+        "inference_executor": None,
+        "job_executor_type": None,
+        "mp_ctx": mp.get_context(),
+        "memory_warn_mb": 0.0,
+        "memory_limit_mb": 0.0,
+        "http_proxy": None,
+        "loop": asyncio.new_event_loop(),
+    }
+    pool = factory(**pool_kwargs)
+
+    assert isinstance(pool, CoroutinePool)
+    assert server._coroutine_pool is pool
+    assert server.coroutine_pool is pool
+    assert pool.max_concurrent_sessions == 4
+    # Idle pool reports 0.0; populate to verify the method tracks it.
+    assert server._coroutine_load_fnc() == 0.0
+    pool._executors.extend([object(), object()])  # type: ignore[list-item]
+    assert server._coroutine_load_fnc() == 0.5
+
+
+def test_coroutine_server_supervisor_callback_logs_and_schedules_aclose(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`_on_consecutive_failure_limit` logs at ERROR and schedules aclose."""
+    import logging
+
+    server = _CoroutineAgentServer()
+    aclose_calls: list[None] = []
+
+    async def _fake_aclose() -> None:  # type: ignore[no-untyped-def]
+        aclose_calls.append(None)
+
+    server.aclose = _fake_aclose  # type: ignore[method-assign]
+
+    async def _scenario() -> None:
+        with caplog.at_level(
+            logging.ERROR, logger="openrtc.execution.coroutine_server"
+        ):
+            server._on_consecutive_failure_limit(7)
+        # The scheduled task fires on the next loop iteration.
+        await asyncio.sleep(0)
+
+    asyncio.run(_scenario())
+
+    assert "supervisor: 7 consecutive session failures observed" in caplog.text
+    assert aclose_calls == [None]
+
+
+def test_coroutine_server_supervisor_callback_no_running_loop_returns_quietly() -> None:
+    """`_on_consecutive_failure_limit` is safe to call outside an event loop."""
+    server = _CoroutineAgentServer()
+    # Calling without an event loop (synchronous context) hits the
+    # `except RuntimeError: return` branch.
+    server._on_consecutive_failure_limit(3)
+
+
 def test_coroutine_server_factory_constructs_coroutine_pool_with_kwargs() -> None:
     """The factory closure produces a CoroutinePool with the right kwargs."""
     import multiprocessing as mp
