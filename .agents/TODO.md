@@ -298,6 +298,15 @@ priority.)
   updates the test that asserted the raise to assert the
   no-op state machine; updates the module docstring to drop
   "lifecycle methods land one iteration at a time" prose.)
+- [x] Close `cli/reporter.py` coverage gap (86% -> 100%):
+  2 tests in tests/test_metrics_stream.py exercising the
+  Rich-dashboard path that the existing JSONL-only tests
+  don't reach: a direct unit test of
+  `_build_dashboard_renderable` (returns a Rich Panel built
+  from the pool snapshot), and an integration test of the
+  `dashboard=True` branch through `_run` with a stub `Live`
+  monkeypatched into the reporter (covers the `live.update(...)`
+  periodic-tick branch and the JSON snapshot file write).
 - [x] Close `cli/commands.py` coverage gap (93% -> 100%):
   4 tests in tests/test_cli.py exercising the programmatic
   `main()` exit-code mapping: `argv=None` reads from sys.argv

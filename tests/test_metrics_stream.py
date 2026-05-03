@@ -331,3 +331,65 @@ def test_runtime_reporter_emits_jsonl_periodically(
     last = json.loads(lines[-1])
     assert first["schema_version"] == METRICS_STREAM_SCHEMA_VERSION
     assert last["seq"] > first["seq"]
+
+
+def test_runtime_reporter_build_dashboard_renderable_uses_pool_snapshot(
+    minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
+) -> None:
+    """``_build_dashboard_renderable`` returns a Rich Panel built from the snapshot."""
+    pool = _StubPool(minimal_pool_runtime_snapshot)
+    reporter = RuntimeReporter(
+        pool,
+        dashboard=False,
+        refresh_seconds=1.0,
+        json_output_path=None,
+    )
+
+    panel = reporter._build_dashboard_renderable()
+
+    from rich.panel import Panel
+
+    assert isinstance(panel, Panel)
+
+
+def test_runtime_reporter_dashboard_path_runs_one_tick(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
+) -> None:
+    """``dashboard=True`` enters the Rich Live context and ticks at least once."""
+    update_calls: list[object] = []
+
+    class _StubLive:
+        def __init__(self, renderable: object, **_kwargs: object) -> None:
+            update_calls.append(("init", renderable))
+
+        def __enter__(self) -> _StubLive:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def update(self, renderable: object) -> None:
+            update_calls.append(("update", renderable))
+
+    monkeypatch.setattr("openrtc.cli.reporter.Live", _StubLive)
+
+    json_path = tmp_path / "snapshot.json"
+    pool = _StubPool(minimal_pool_runtime_snapshot)
+    reporter = RuntimeReporter(
+        pool,
+        dashboard=True,
+        refresh_seconds=0.25,
+        json_output_path=json_path,
+    )
+    reporter.start()
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and not json_path.exists():
+        time.sleep(0.02)
+    reporter.stop()
+
+    assert json_path.exists()
+    kinds = [kind for kind, _ in update_calls]
+    assert kinds[0] == "init"
+    assert "update" in kinds

@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 23:00 UTC — test(reporter): close cli/reporter.py coverage gap (86% -> 100%)
+Files: tests/test_metrics_stream.py (+2 tests, ~60 LOC at end of
+file).
+Tests: 296/296 pass + 2 skipped. Coverage: cli/reporter.py 100%
+(was 86%); total 94.37% (was 93.67%). ruff: clean. mypy: clean.
+Notes: The existing reporter tests run with `dashboard=False`
+because Rich's `Live` writes to the terminal; the dashboard
+branch (lines 97-100, 107-116 in reporter.py) and
+`_build_dashboard_renderable` (122-123) were untested. The new
+test_runtime_reporter_build_dashboard_renderable_uses_pool_snapshot
+calls the helper directly and asserts a Rich Panel comes back.
+test_runtime_reporter_dashboard_path_runs_one_tick monkeypatches
+`openrtc.cli.reporter.Live` with a stub context manager that
+records init + update calls, runs the reporter with
+`dashboard=True` + a json_output_path, waits for the snapshot
+file to land, then stops. The stub is necessary because Rich's
+real `Live` opens a TTY-style alternate-screen on the test
+runner's terminal which corrupts pytest output. The assertion
+on the captured `("init", ...)` then `("update", ...)` sequence
+proves the periodic-tick branch fired at least once.
+
 ## 2026-05-03 22:45 UTC — test(cli): close cli/commands.py coverage gap (93% -> 100%)
 Files: tests/test_cli.py (+4 tests, ~60 LOC at end of file).
 Tests: 294/294 pass + 2 skipped. Coverage: cli/commands.py 100%
