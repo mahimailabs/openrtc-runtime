@@ -77,8 +77,33 @@ CI runs `mypy src/` on pull requests (see `.github/workflows/lint.yml`). Locally
 uv run mypy src/
 ```
 
+The mypy config in `pyproject.toml` enables `strict = true`, so untyped defs,
+implicit `Optional`, redundant casts, and `Any` returns are all hard failures.
 The wheel and sdist ship `src/openrtc/py.typed` (empty PEP 561 marker) so tools
 like mypy and pyright treat `openrtc` as a typed dependency.
+
+### Run every CI gate at once
+
+```bash
+make ci
+```
+
+Runs `lint format-check typecheck test` in the same order as CI. Cheapest checks
+first, so a broken lint short-circuits before the test suite. Use this before
+`git push` to catch every PR-blocking failure locally.
+
+### Pre-commit hooks
+
+The repo ships a pre-commit config (ruff, ruff-format, basic file hygiene, and
+`mypy --strict src/`). Install once:
+
+```bash
+uv run pre-commit install
+```
+
+Subsequent `git commit` runs the hooks automatically. The mypy hook only fires
+when source code or `pyproject.toml` change, so commits that only touch tests,
+docs, or workflow YAMLs skip the typecheck cost.
 
 ## Project architecture
 

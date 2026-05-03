@@ -250,6 +250,17 @@ Tasks:
 
 ## Discovered work
 
+- [x] Refresh CONTRIBUTING.md to reflect the v0.1 dev-workflow
+  improvements landed across this loop. New sections:
+  - Mention that `mypy` runs in `strict = true` mode (so
+    contributors know untyped defs / implicit Optional are
+    hard failures, not warnings).
+  - Document the `make ci` aggregate target as the one-shot
+    "did I break the PR?" command.
+  - Document the pre-commit setup (`uv run pre-commit install`),
+    explain the hooks (ruff + ruff-format + file hygiene +
+    `mypy --strict src/`), and call out the `files:` filter
+    that skips typecheck on tests/docs-only commits.
 - [x] Add `SECURITY.md` so vulnerability reports have a documented
   intake path (GitHub Security Advisories preferred, email
   fallback to `hello@mahimai.dev`). Includes the supported-versions

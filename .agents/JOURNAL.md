@@ -142,6 +142,27 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 05:15 UTC — docs(contributing): refresh for v0.1 dev workflow
+Files: CONTRIBUTING.md (~25 LOC added inside the "Common
+development commands" section).
+Tests: 374/374 pass + 2 skipped (no-op for tests).
+Coverage: 100.00%. ruff: clean. mypy --strict: clean.
+Notes: Three additions to the dev-workflow section:
+1. The mypy section now mentions `strict = true` so
+   contributors know to expect untyped-def / implicit-Optional
+   failures rather than warnings.
+2. New "Run every CI gate at once" subsection documents the
+   `make ci` aggregate target with the rationale (cheapest
+   checks first short-circuit on failure).
+3. New "Pre-commit hooks" subsection documents the
+   `uv run pre-commit install` one-time setup, lists the
+   hooks (ruff + ruff-format + file hygiene +
+   mypy --strict src/), and calls out that the mypy hook
+   skips when only tests/docs/workflows change.
+The CONTRIBUTING workflow now matches what newcomers will
+actually experience when they clone, install, and try to
+push their first PR.
+
 ## 2026-05-04 05:00 UTC — docs(security): add SECURITY.md vulnerability disclosure policy
 Files: SECURITY.md (new, ~50 LOC).
 Tests: 374/374 pass + 2 skipped (no-op for tests).
