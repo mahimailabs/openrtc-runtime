@@ -21,7 +21,7 @@ from openrtc.core.discovery import (
 )
 from openrtc.core.routing import _resolve_agent_config
 from openrtc.core.turn_handling import _build_session_kwargs
-from openrtc.resources import (
+from openrtc.observability.metrics import (
     MetricsStreamEvent,
     PoolRuntimeSnapshot,
     RuntimeMetricsStore,

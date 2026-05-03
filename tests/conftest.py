@@ -101,7 +101,7 @@ except ImportError:
 
 import pytest
 
-from openrtc.resources import (
+from openrtc.observability.metrics import (
     PoolRuntimeSnapshot,
     ProcessResidentSetInfo,
     SavingsEstimate,

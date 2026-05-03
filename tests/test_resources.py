@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from livekit.agents import Agent
 
-import openrtc.resources as resources_module
+import openrtc.observability.metrics as resources_module
 from openrtc.core.pool import AgentPool
-from openrtc.resources import (
+from openrtc.observability.metrics import (
     ProcessResidentSetInfo,
     agent_disk_footprints,
     file_size_bytes,

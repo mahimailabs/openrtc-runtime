@@ -76,7 +76,7 @@ Tasks:
   `__getstate__/__setstate__` helpers (currently `pool.py:573-646`).
 - [x] Extract `core/turn_handling.py` from `pool.py`: deprecated
   kwargs translation logic (currently `pool.py:42-53, 649-778`).
-- [ ] Create `observability/` package skeleton (empty
+- [x] Create `observability/` package skeleton (empty
   `__init__.py`) and rename `resources.py` →
   `observability/metrics.py`. Update all import sites.
 - [ ] Rename `metrics_stream.py` → `observability/stream.py`.

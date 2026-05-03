@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.text import Text
 
 from openrtc.core.config import AgentConfig
-from openrtc.resources import (
+from openrtc.observability.metrics import (
     PoolRuntimeSnapshot,
     agent_disk_footprints,
     estimate_shared_worker_savings,

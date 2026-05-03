@@ -142,6 +142,24 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 08:55 UTC — refactor: rename resources.py to observability/metrics.py
+Files: src/openrtc/observability/__init__.py (new, empty),
+       git mv src/openrtc/resources.py ->
+       src/openrtc/observability/metrics.py,
+       2 src import sites (cli_dashboard.py, core/pool.py,
+       metrics_stream.py — three actually),
+       6 test sites (test_cli.py, test_metrics_stream.py: 2 places,
+       test_resources.py: 2 lines, test_tui_app.py, conftest.py).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: Pure rename (subtask 1 of 3 from the observability split).
+The dynamic import pattern in tests/test_metrics_stream.py:200
+needed an additional rewrite (`from openrtc import resources as
+resources_mod` -> `from openrtc.observability import metrics as
+resources_mod`) since simple substring replace missed the
+`from openrtc import resources` style. test_resources.py kept its
+`resources_module` local alias (just rebound to the new module).
+Public API unchanged.
+
 ## 2026-05-03 08:40 UTC — chore: split observability extraction into three subtasks
 Files: .agents/TODO.md (one item replaced by three).
 Tests: not run (TODO-only edit).

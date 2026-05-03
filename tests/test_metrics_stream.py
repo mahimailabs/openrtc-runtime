@@ -18,7 +18,7 @@ from openrtc.metrics_stream import (
     parse_metrics_jsonl_line,
     snapshot_envelope,
 )
-from openrtc.resources import (
+from openrtc.observability.metrics import (
     MetricsStreamEvent,
     PoolRuntimeSnapshot,
 )
@@ -184,7 +184,7 @@ def test_jsonl_sink_writes_snapshot_then_event(
 
 
 def test_runtime_metrics_store_drains_stream_events() -> None:
-    from openrtc.resources import RuntimeMetricsStore
+    from openrtc.observability.metrics import RuntimeMetricsStore
 
     store = RuntimeMetricsStore()
     store.record_session_started("dental")
@@ -197,8 +197,8 @@ def test_runtime_metrics_store_overflow_emits_synthetic_on_drain(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    from openrtc import resources as resources_mod
-    from openrtc.resources import RuntimeMetricsStore
+    from openrtc.observability import metrics as resources_mod
+    from openrtc.observability.metrics import RuntimeMetricsStore
 
     monkeypatch.setattr(resources_mod, "_STREAM_EVENTS_MAXLEN", 3)
     store = RuntimeMetricsStore()
