@@ -142,6 +142,45 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 19:50 UTC — test(coverage): close defensive gaps in coroutine.py (90% -> 97%)
+Files: tests/test_coroutine_coverage.py (new, ~140 LOC, 10
+       tests targeting the specific uncovered branches the
+       higher-level test files don't naturally hit):
+       - _NoOpInferenceExecutor.do_inference raises clearly.
+       - _NOOP_INFERENCE_EXECUTOR singleton is the right type.
+       - CoroutinePool consecutive_failure_limit kwarg
+         validation (default = 5; rejects float, bool, 0, < 0).
+         These were tested at the AgentPool layer earlier; the
+         CoroutinePool-level wrapper code was uncovered.
+       - _on_executor_done is a no-op and emits no event when
+         called on an executor that was never tracked.
+       - _build_job_context REAL path with fake_job=True
+         (uses livekit.agents.ipc.mock_room.create_mock_room
+         and constructs a real JobContext referencing the
+         singleton JobProcess); previously only the override
+         path was exercised in the smoke test.
+       - _build_job_context before start() raises with the
+         expected message.
+       - launch_job re-raises and emits process_closed when
+         executor.launch_job itself raises (white-box test
+         monkey-patches _build_executor to inject an executor
+         whose launch_job is replaced with a coroutine that
+         raises). This covers the worker-accounting branch.
+Tests: 256/256 pass + 2 skipped (10 added). ruff: clean.
+mypy: clean.
+Coverage: src/openrtc/execution/coroutine.py 97% (was 90%),
+src/openrtc/execution/coroutine_server.py 100%, project total
+92%. The remaining 9 uncovered lines in coroutine.py are
+defensive `except Exception: pass` arms inside aclose() that
+the wrapper above already prevents from firing in normal
+flow — they are dead-code-style guards retained because the
+explicit except is more readable than a comment.
+Notes: Iteration was triggered by the Ralph loop firing again
+after task §8.12 was marked [?] blocked-on-operator. With no
+unblockable TODO items remaining, used the iteration to
+harden the coverage picture above and beyond the §8.2 80%
+threshold (which was already met at 90%/100%).
+
 ## 2026-05-03 19:35 UTC — refactor(coroutine_server): extract closures, lift coverage to 100% (§8.2)
 Files: src/openrtc/execution/coroutine_server.py: extracted the
        three inline closures from run() to instance methods so
