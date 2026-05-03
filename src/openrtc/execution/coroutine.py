@@ -42,6 +42,20 @@ EventTypes = Literal[
 _SKELETON_HINT = "v0.1 coroutine runtime is not implemented yet (skeleton)."
 
 
+def _consume_cancelled_task_exception(task: asyncio.Task[Any]) -> None:
+    """Mark a cancelled/failed task's exception as retrieved.
+
+    Without this, asyncio logs ``Task exception was never retrieved`` when
+    :meth:`CoroutineJobExecutor.kill` cancels a task without awaiting it.
+    """
+    try:
+        task.exception()
+    except asyncio.CancelledError:
+        pass
+    except asyncio.InvalidStateError:
+        pass
+
+
 class CoroutineJobExecutor:
     """Per-session executor satisfying the ``JobExecutor`` Protocol.
 
@@ -141,6 +155,30 @@ class CoroutineJobExecutor:
             except Exception:
                 # The launch_job wrapper will already have set status to FAILED.
                 pass
+            if self._status is JobStatus.RUNNING:
+                self._status = JobStatus.FAILED
+        self._started = False
+
+    def kill(self) -> None:
+        """Forcefully cancel the in-flight job task without awaiting cleanup.
+
+        Synchronous escalation path beyond :meth:`aclose`. Cancels the task
+        with a ``"killed"`` message, marks status :class:`JobStatus.FAILED`
+        immediately, and clears ``started``. A done callback consumes the
+        eventual :class:`asyncio.CancelledError` so the event loop does not
+        log an unhandled-exception warning.
+
+        Use when graceful shutdown is too slow (drain timeout exceeded,
+        supervisor escalation, etc.). Idempotent: safe to call before any
+        ``launch_job`` or after the task is already done.
+
+        Not part of the upstream ``JobExecutor`` Protocol; this is an
+        OpenRTC-internal escalation hook.
+        """
+        task = self._task
+        if task is not None and not task.done():
+            task.cancel("killed by CoroutineJobExecutor.kill()")
+            task.add_done_callback(_consume_cancelled_task_exception)
             if self._status is JobStatus.RUNNING:
                 self._status = JobStatus.FAILED
         self._started = False

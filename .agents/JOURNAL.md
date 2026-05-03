@@ -142,6 +142,31 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 13:10 UTC — feat(execution): add CoroutineJobExecutor.kill (forceful)
+Files: src/openrtc/execution/coroutine.py (new module-level helper
+       _consume_cancelled_task_exception that retrieves a task's
+       exception so asyncio doesn't log "Task exception was never
+       retrieved"; new synchronous CoroutineJobExecutor.kill()
+       method that cancels the in-flight task, attaches the
+       suppression callback, flips RUNNING -> FAILED only when a
+       task was actually cancelled, and clears started=False.
+       Idempotent + safe-on-idle).
+       tests/test_coroutine_skeleton.py (4 new tests: kill on
+       idle is safe, kill is idempotent, kill returns immediately
+       and marks FAILED on an in-flight task, kill preserves
+       SUCCESS when the task was already done).
+Tests: 168/168 pass (4 added). ruff: clean. mypy: clean.
+Notes: kill() is NOT part of the upstream JobExecutor Protocol at
+1.5.0 — confirmed by greps over job_executor.py, ProcJobExecutor,
+ThreadJobExecutor, and worker.py. It is an OpenRTC-internal
+forceful escalation hook beyond aclose(): synchronous (no await),
+cancels the task with a "killed" message, flips status FAILED
+immediately, and lets the loop drain the cancellation in the
+background. The supervisor work in Phase 2 will use it for
+escalation paths. Per-state status reporting was already correct
+via the property; this iteration verifies the four-state matrix
+(idle / in-flight / SUCCESS / FAILED) holds under kill.
+
 ## 2026-05-03 12:55 UTC — feat(execution): implement CoroutineJobExecutor.launch_job
 Files: src/openrtc/execution/coroutine.py (CoroutineJobExecutor
        __init__ now takes 4 optional kwargs: entrypoint_fnc,

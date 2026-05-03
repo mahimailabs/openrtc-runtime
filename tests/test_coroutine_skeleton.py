@@ -250,6 +250,82 @@ def test_coroutine_job_executor_launch_job_rejects_concurrent_launch() -> None:
     assert ex.running_job.job.id == "first"
 
 
+def test_coroutine_job_executor_kill_on_idle_executor_is_safe() -> None:
+    ex = CoroutineJobExecutor()
+
+    ex.kill()
+
+    # No task ran, so status stays at the construction default and no
+    # exception is raised.
+    assert ex.status is JobStatus.RUNNING
+    assert ex.started is False
+
+
+def test_coroutine_job_executor_kill_is_idempotent() -> None:
+    ex = CoroutineJobExecutor()
+
+    ex.kill()
+    ex.kill()
+
+    assert ex.status is JobStatus.RUNNING
+    assert ex.started is False
+
+
+def test_coroutine_job_executor_kill_returns_immediately_and_marks_failed() -> None:
+    async def _entry(_ctx: Any) -> None:
+        await asyncio.sleep(60)
+
+    ex = CoroutineJobExecutor(
+        entrypoint_fnc=_entry,
+        context_factory=lambda info: "ctx",  # type: ignore[return-value]
+    )
+
+    async def _scenario() -> tuple[bool, asyncio.Task[None] | None]:
+        await ex.launch_job(_stub_info())
+        await asyncio.sleep(0)  # let the task actually start
+        ex.kill()
+        # kill() is synchronous; it must not have awaited the task.
+        task = ex._task
+        was_done_at_kill_return = bool(task is not None and task.done())
+        # Drain the event loop so the cancellation takes effect.
+        await asyncio.sleep(0)
+        return was_done_at_kill_return, task
+
+    was_done_at_kill_return, task = asyncio.run(_scenario())
+
+    # Status flipped immediately even though the task may still be settling.
+    assert ex.status is JobStatus.FAILED
+    assert ex.started is False
+    # The task object exists and (after the loop yielded) is done.
+    assert task is not None and task.done()
+    # The kill() call itself returned before awaiting cancellation.
+    assert was_done_at_kill_return is False
+
+
+def test_coroutine_job_executor_kill_preserves_success_when_task_already_done() -> None:
+    async def _entry(_ctx: Any) -> None:
+        return None
+
+    ex = CoroutineJobExecutor(
+        entrypoint_fnc=_entry,
+        context_factory=lambda info: "ctx",  # type: ignore[return-value]
+    )
+
+    async def _scenario() -> None:
+        await ex.launch_job(_stub_info())
+        assert ex._task is not None
+        await ex._task
+
+    asyncio.run(_scenario())
+    assert ex.status is JobStatus.SUCCESS
+
+    ex.kill()
+
+    # kill() must not overwrite a SUCCESS status.
+    assert ex.status is JobStatus.SUCCESS
+    assert ex.started is False
+
+
 def test_coroutine_job_executor_aclose_cancels_in_flight_launch_job() -> None:
     async def _entry(_ctx: Any) -> None:
         await asyncio.sleep(60)

@@ -132,7 +132,12 @@ Tasks:
   delegated to a `context_factory` callable injected at executor
   construction time. The CoroutinePool will own the real factory
   once it's wired up; tests inject stubs.)
-- [ ] Implement `CoroutineJobExecutor.kill()` and status reporting.
+- [x] Implement `CoroutineJobExecutor.kill()` and status reporting.
+  (Note: `kill()` is NOT part of the upstream JobExecutor Protocol
+  at 1.5.0 — it is an OpenRTC-internal forceful escalation hook
+  beyond `aclose()`. Status reporting was already correct via the
+  property; the iteration verifies idle / in-flight / completed
+  semantics under kill.)
 - [ ] Implement `CoroutinePool.start()`: invoke `setup_fnc` once,
   populate the singleton `JobProcess.userdata` with shared models.
 - [ ] Implement `CoroutinePool.launch_job()`: instantiate a
