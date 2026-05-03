@@ -142,6 +142,35 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-04 02:15 UTC — test(branches): close batch 4 — all 3 tui/app.py branches (99.83% -> 99.96%)
+Files: tests/test_tui_app.py (+3 tests, ~70 LOC).
+Tests: 373/373 pass + 2 skipped. Combined coverage: 99.96%
+(was 99.83%); 1 branch remaining (was 4). ruff: clean.
+mypy: clean.
+Notes: Closed branches:
+(149->154) `_refresh_view` skips the float() wall-time block
+when `wall_time_unix` is missing entirely (None) — the existing
+test exercised the "string non-numeric" path which goes
+through the True branch + ValueError; this new test sets
+wall_time_unix absent so the False branch fires.
+(125->117) `_poll_file` skips records whose `kind` is neither
+SNAPSHOT nor EVENT — exercised by monkey-patching
+`parse_metrics_jsonl_line` in the tui module to return
+{"kind": "other-kind"}, since the production parser would
+reject such records before they reach the elif. The defensive
+double-check is what we're locking down.
+(127->117) `_poll_file` skips EVENT records whose payload
+isn't a dict — same monkey-patch trick to feed
+{"kind": KIND_EVENT, "payload": "not-a-dict"} past the
+parser. Asserts `_last_event` stays None.
+Both monkey-patch tests deliberately bypass
+`parse_metrics_jsonl_line`'s schema enforcement to lock the
+two defensive checks inside `_poll_file` against future
+parser regressions. Remaining branch
+(cli/__init__.py 32->36) needs an importlib.reload +
+monkeypatch combo and lives at the import boundary —
+deferred to the next iteration.
+
 ## 2026-05-04 02:00 UTC — test(branches): close batch 3 — all 6 execution/coroutine.py branches (99.57% -> 99.83%)
 Files: tests/test_coroutine_coverage.py (+6 tests, ~135 LOC).
 Tests: 370/370 pass + 2 skipped. Combined coverage: 99.83%

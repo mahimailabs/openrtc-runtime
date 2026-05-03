@@ -313,6 +313,77 @@ async def test_metrics_tui_wall_time_invalid_falls_back_to_na(
 
 
 @pytest.mark.asyncio
+async def test_metrics_tui_wall_time_missing_falls_back_to_na(
+    tmp_path: Path,
+    minimal_pool_runtime_snapshot: PoolRuntimeSnapshot,
+) -> None:
+    """Branch 149->154: ``wall_time_unix`` missing (None) skips the float() block."""
+    from openrtc.tui.app import MetricsTuiApp
+
+    path = tmp_path / "wall_missing.jsonl"
+    path.touch()
+    app = MetricsTuiApp(path, from_start=True)
+    snap = minimal_pool_runtime_snapshot
+    async with app.run_test() as pilot:
+        app._latest = {
+            "seq": 7,
+            "payload": snap.to_dict(),
+        }
+        app._refresh_view()
+        await pilot.pause()
+        assert "wall=n/a" in str(app.query_one("#status").renderable)
+
+
+@pytest.mark.asyncio
+async def test_metrics_tui_poll_file_skips_records_with_unknown_kind(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Branch 125->117: a parsed record whose ``kind`` is neither SNAPSHOT nor EVENT is ignored."""
+    from openrtc.tui import app as tui_module
+
+    path = tmp_path / "unknown_kind.jsonl"
+    path.write_text("any-line-the-parser-stub-will-handle\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        tui_module,
+        "parse_metrics_jsonl_line",
+        lambda _line: {"kind": "other-kind", "payload": {}},
+    )
+
+    app = tui_module.MetricsTuiApp(path, from_start=True)
+    async with app.run_test() as pilot:
+        app._poll_file()
+        await pilot.pause()
+        assert app._latest is None
+        assert app._last_event is None
+
+
+@pytest.mark.asyncio
+async def test_metrics_tui_poll_file_skips_event_with_non_dict_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Branch 127->117: an EVENT record whose payload isn't a dict is ignored."""
+    from openrtc.tui import app as tui_module
+
+    path = tmp_path / "bad_event_payload.jsonl"
+    path.write_text("any-line-the-parser-stub-will-handle\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        tui_module,
+        "parse_metrics_jsonl_line",
+        lambda _line: {"kind": tui_module.KIND_EVENT, "payload": "not-a-dict"},
+    )
+
+    app = tui_module.MetricsTuiApp(path, from_start=True)
+    async with app.run_test() as pilot:
+        app._poll_file()
+        await pilot.pause()
+        assert app._last_event is None
+
+
+@pytest.mark.asyncio
 async def test_metrics_tui_action_quit_exits(tmp_path: Path) -> None:
     from openrtc.tui.app import MetricsTuiApp
 

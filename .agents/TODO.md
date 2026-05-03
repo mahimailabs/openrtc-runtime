@@ -270,9 +270,13 @@ Tasks:
   571->578 (launch_job emits process_job_launched even when
   executor sets no _task); 679->exit (failure-limit branch
   tolerates None callback). (99.57% -> 99.83%)
-  Remaining 4 branches: cli/__init__.py 32->36
-  (needs importlib.reload + monkeypatch); tui/app.py 125->117,
-  127->117, 149->154 (Textual stream-parsing).
+  **Batch 4 closed (3 branches):** tui/app.py 149->154
+  (wall_time_unix missing maps to "n/a"); 125->117 (record
+  with unknown `kind` skipped via parser monkeypatch);
+  127->117 (EVENT record with non-dict payload skipped via
+  parser monkeypatch). (99.83% -> 99.96%)
+  Remaining 1 branch: cli/__init__.py 32->36
+  (needs importlib.reload + monkeypatch).
 
 ## Old discovered work
 
