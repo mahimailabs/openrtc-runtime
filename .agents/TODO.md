@@ -108,7 +108,7 @@ sessions in 4 GB.
 
 Tasks:
 - [x] Pin `livekit-agents~=1.5` exactly in `pyproject.toml`.
-- [ ] Read `livekit/agents/ipc/job_executor.py` at the pinned
+- [x] Read `livekit/agents/ipc/job_executor.py` at the pinned
   version. Document the `JobExecutor` Protocol surface in
   `docs/design/job-executor-protocol.md`.
 - [ ] Read `livekit/agents/ipc/proc_pool.py`. Document the

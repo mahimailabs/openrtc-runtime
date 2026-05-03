@@ -142,6 +142,21 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 11:08 UTC — docs: capture JobExecutor Protocol surface
+Files: docs/design/job-executor-protocol.md (new, ~120 LOC).
+Tests: not run (docs-only).
+Notes: Read
+.venv/lib/python3.13/site-packages/livekit/agents/ipc/job_executor.py
+(45 LOC) at the pinned 1.5.0 release, plus its proc_pool.py
+neighbor (256 LOC), and wrote a contract reference for our
+upcoming CoroutineJobExecutor + CoroutinePool. Captures: the
+verbatim Protocol body, a method-by-method contract table, the
+RunningJobInfo dataclass shape that launch_job receives, and the
+ProcPool surface AgentServer expects (so CoroutinePool can be a
+drop-in replacement). Includes implementation notes (event names
+to emit, JobStatus mapping for cancellation, running_job
+semantics).
+
 ## 2026-05-03 10:55 UTC — chore: pin livekit-agents~=1.5 (Phase 1 task 1)
 Files: pyproject.toml (~=1.4 -> ~=1.5 on the
        livekit-agents[openai,silero,turn-detector] dependency),
