@@ -142,6 +142,42 @@ Public API unchanged. Note: the previous iteration's commit
 (b1d9307) shipped the code already; this entry catches the journal
 up after a hook blocked the inline edit.
 
+## 2026-05-03 21:30 UTC — feat(execution): implement CoroutineJobExecutor.start (last NotImplementedError)
+Files: src/openrtc/execution/coroutine.py:
+       - Module docstring: dropped the now-stale "Lifecycle
+         methods land one iteration at a time; remaining stubs
+         raise NotImplementedError" prose.
+       - Removed the _SKELETON_HINT module-level constant
+         (no longer referenced).
+       - CoroutineJobExecutor.start: replaced the
+         NotImplementedError raise with a no-op that flips
+         self._started = True. Idempotent. Documented why
+         (coroutine mode has no subprocess to spawn; the pool
+         never calls this since we don't pre-warm executors,
+         but the JobExecutor Protocol requires the method).
+       tests/test_coroutine_skeleton.py:
+       - Module docstring: dropped the "real runtime arrives
+         in later iterations" / "raise NotImplementedError"
+         prose.
+       - Removed the parametrized
+         test_coroutine_job_executor_lifecycle_methods_are_unimplemented
+         (no remaining unimplemented methods to assert
+         against). Replaced with
+         test_coroutine_job_executor_start_is_a_no_op_setting_started_true
+         that exercises the new behavior.
+       - Ruff auto-removed the now-unused `inspect` import.
+Tests: 256/256 pass + 2 skipped. ruff: clean. mypy: clean.
+Coverage: src/openrtc/execution/coroutine.py 97% (unchanged
+since the line count dropped by 1 and one previously-uncovered
+line is now exercised). Total project 92%.
+Notes: Spotted by greping src/ for TODO/FIXME/skeleton tokens.
+The `start` raise was the last lingering "skeleton" surface;
+keeping it as NotImplementedError was a real correctness risk
+because the JobExecutor Protocol declares it and a future
+caller (or a future LiveKit code path) might call it. Now
+matches the same "no-op state-machine flip" pattern as
+`initialize`.
+
 ## 2026-05-03 21:15 UTC — docs(site): link density benchmark in sidebar
 Files: docs/.vitepress/config.ts: added a new
        "Density benchmark (v0.1)" entry under the Reference

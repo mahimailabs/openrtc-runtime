@@ -1,9 +1,8 @@
 """Coroutine-mode worker executor and pool.
 
 Implements the structural surface that ``livekit.agents.AgentServer`` and
-``livekit.agents.ipc.proc_pool.ProcPool`` expose, so a future
-``isolation="coroutine"`` AgentPool can swap our types in. Lifecycle methods
-land one iteration at a time; remaining stubs raise ``NotImplementedError``.
+``livekit.agents.ipc.proc_pool.ProcPool`` expose so an
+``isolation="coroutine"`` :class:`AgentPool` can swap our types in.
 
 Contracts derived from:
 
@@ -60,8 +59,6 @@ EventTypes = Literal[
     "process_closed",
     "process_job_launched",
 ]
-
-_SKELETON_HINT = "v0.1 coroutine runtime is not implemented yet (skeleton)."
 
 
 def _consume_cancelled_task_exception(task: asyncio.Task[Any]) -> None:
@@ -143,7 +140,17 @@ class CoroutineJobExecutor:
         return self._status
 
     async def start(self) -> None:
-        raise NotImplementedError(_SKELETON_HINT)
+        """No-op startup hook (coroutine mode has no subprocess to spawn).
+
+        Process-mode executors fork or thread their child here; coroutine
+        mode runs in the same loop, so ``start`` simply flips
+        :attr:`started` to ``True``. Idempotent. Our :class:`CoroutinePool`
+        never calls this (we do not pre-warm executors — each
+        :meth:`CoroutinePool.launch_job` builds a fresh one), but the
+        upstream ``JobExecutor`` Protocol requires it and any caller
+        that does invoke it must observe a coherent state machine.
+        """
+        self._started = True
 
     async def join(self) -> None:
         """Wait until the in-flight entrypoint task finishes.

@@ -290,3 +290,11 @@ priority.)
   numbers without having to open the GitHub repo. The release
   runbook intentionally stays repo-only — operator-facing,
   not user-facing.)
+- [x] Replace the lone remaining `NotImplementedError` stub
+  with its real (no-op) implementation. (`CoroutineJobExecutor.start`
+  was the last "skeleton" raise; coroutine mode has no
+  subprocess to spawn so `start` flips `started=True` and
+  returns. Drops the `_SKELETON_HINT` constant entirely;
+  updates the test that asserted the raise to assert the
+  no-op state machine; updates the module docstring to drop
+  "lifecycle methods land one iteration at a time" prose.)

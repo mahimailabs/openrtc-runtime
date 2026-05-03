@@ -1,17 +1,15 @@
-"""Shape tests for the coroutine executor / pool skeletons.
+"""Shape and lifecycle tests for the coroutine executor / pool.
 
-The real runtime arrives in later iterations. These tests verify only that
-:class:`CoroutineJobExecutor` and :class:`CoroutinePool` expose the
-structural surface ``AgentServer``/``ProcPool`` need (per
+Verifies that :class:`CoroutineJobExecutor` and :class:`CoroutinePool`
+expose the structural surface ``AgentServer`` / ``ProcPool`` need (per
 ``docs/design/job-executor-protocol.md`` and
-``docs/design/proc-pool-surface.md``), and that the unimplemented methods
-raise :class:`NotImplementedError` with a helpful hint.
+``docs/design/proc-pool-surface.md``) and that each lifecycle method
+behaves correctly.
 """
 
 from __future__ import annotations
 
 import asyncio
-import inspect
 import multiprocessing as mp
 from typing import Any
 
@@ -74,15 +72,17 @@ def test_coroutine_job_executor_logging_extra_is_dict() -> None:
     assert extra["executor_id"] == ex.id
 
 
-@pytest.mark.parametrize("method_name", ["start"])
-def test_coroutine_job_executor_lifecycle_methods_are_unimplemented(
-    method_name: str,
-) -> None:
+def test_coroutine_job_executor_start_is_a_no_op_setting_started_true() -> None:
+    """`start` is a no-op in coroutine mode (no subprocess to spawn)."""
     ex = CoroutineJobExecutor()
-    method = getattr(ex, method_name)
-    assert inspect.iscoroutinefunction(method)
-    with pytest.raises(NotImplementedError, match="skeleton"):
-        asyncio.run(method())
+    assert ex.started is False
+
+    asyncio.run(ex.start())
+
+    assert ex.started is True
+    # Idempotent.
+    asyncio.run(ex.start())
+    assert ex.started is True
 
 
 def test_coroutine_job_executor_launch_job_requires_entrypoint() -> None:
