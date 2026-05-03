@@ -67,7 +67,7 @@ Tasks:
 - [x] Create `core/` package. Move `pool.py` into it (no split yet).
 - [x] Extract `core/config.py` from `pool.py`: `AgentConfig`,
   `AgentDiscoveryConfig`, `agent_config` decorator.
-- [ ] Extract `core/routing.py` from `pool.py`: `_resolve_agent_config`
+- [x] Extract `core/routing.py` from `pool.py`: `_resolve_agent_config`
   and routing helpers (currently `pool.py:781-853`).
 - [ ] Extract `core/discovery.py` from `pool.py`: `discover()`
   module loading helpers (currently `pool.py:378-431`).

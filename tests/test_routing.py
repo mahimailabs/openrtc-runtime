@@ -8,7 +8,8 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
-from openrtc.core.pool import _resolve_agent_config, _run_universal_session
+from openrtc.core.pool import _run_universal_session
+from openrtc.core.routing import _resolve_agent_config
 
 
 class RestaurantAgent(Agent):

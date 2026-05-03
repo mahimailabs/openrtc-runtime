@@ -70,3 +70,19 @@ import with core.pool. These late imports are temporary — they
 collapse to module-level imports when core/serialization.py is
 extracted in the next refactor task. Comment in the file explains.
 Public API unchanged.
+
+## 2026-05-03 07:30 UTC — refactor: extract core/routing.py from pool.py
+Files: src/openrtc/core/routing.py (new, 91 LOC: _resolve_agent_config,
+       _agent_name_from_metadata, _agent_name_from_mapping,
+       _get_registered_agent, _METADATA_AGENT_KEYS),
+       src/openrtc/core/pool.py (-77 LOC: removed those functions and
+       the constant; now imports _resolve_agent_config from .routing.
+       ruff auto-removed the unused json import.),
+       tests/test_routing.py (split the import — _resolve_agent_config
+       now from openrtc.core.routing, _run_universal_session still
+       from openrtc.core.pool).
+Tests: 130/130 pass. ruff: clean. mypy: clean.
+Notes: routing.py imports AgentConfig from core.config (no cycle)
+and JobContext from livekit.agents. _run_universal_session in
+pool.py keeps using _resolve_agent_config via the new import.
+Public API unchanged.
