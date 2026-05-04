@@ -6,8 +6,6 @@ on:
       - main
     paths:
       - 'docs/**'
-      - 'package.json'
-      - 'package-lock.json'
       - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 
@@ -26,6 +24,9 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: docs
 
     steps:
       - name: Check out repository
@@ -36,7 +37,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: docs/package-lock.json
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

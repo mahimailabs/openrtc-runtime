@@ -2,6 +2,7 @@
 __pycache__/
 *.py[codz]
 *$py.class
+.agents
 
 # C extensions
 *.so
@@ -224,3 +225,10 @@ src/openrtc/_version.py
 
 .DS_Store
 .cursor
+
+# VitePress build/cache output (docs/ ships package.json + scripts).
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# Throwaway uv venv used by the wheel-smoke-install CI step (build.yml).
+.smoke/

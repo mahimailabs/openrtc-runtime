@@ -83,6 +83,8 @@ Use `agent_config(...)` to attach discovery metadata to a standard LiveKit
 Create a pool that manages multiple LiveKit agents in one worker process.
 
 ```python
+from typing import Literal
+
 from livekit.plugins import openai
 
 pool = AgentPool(
@@ -90,11 +92,39 @@ pool = AgentPool(
     default_llm=openai.responses.LLM(model="gpt-4.1-mini"),
     default_tts=openai.TTS(model="gpt-4o-mini-tts"),
     default_greeting="Hello from OpenRTC.",
+    isolation="coroutine",
+    max_concurrent_sessions=50,
+    consecutive_failure_limit=5,
 )
 ```
 
 Constructor defaults are used when an agent registration or discovered agent
 module omits those values.
+
+### Constructor kwargs
+
+| Argument | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `default_stt` / `default_llm` / `default_tts` | `ProviderValue \| None` | `None` | Provider used when `add()` / `discover()` omits one. |
+| `default_greeting` | `str \| None` | `None` | Greeting used when none is configured per agent. |
+| `isolation` | `Literal["coroutine", "process"]` | `"coroutine"` | Worker isolation mode. **`"coroutine"`** is the v0.1 default and runs every session as an `asyncio.Task` in one worker process; **`"process"`** preserves v0.0.17 behavior (one OS subprocess per session via `livekit-agents`'s `ProcPool`). See [Architecture → Coroutine-mode lifecycle](../concepts/architecture#coroutine-mode-lifecycle). |
+| `max_concurrent_sessions` | `int` | `50` | Coroutine-mode backpressure threshold. The worker reports `current_load >= 1.0` to LiveKit dispatch once this many sessions are in flight, so new jobs route elsewhere. Must be `>= 1`. Ignored in process mode (livekit-agents' own load math applies there). |
+| `consecutive_failure_limit` | `int` | `5` | After this many non-`SUCCESS` session terminations in a row, the coroutine pool's supervisor schedules `aclose()` so the deployment platform restarts the worker (bounded blast radius for systemic bugs). Must be `>= 1`. Ignored in process mode. |
+
+### Read-only properties
+
+| Property | Returns | Notes |
+| --- | --- | --- |
+| `pool.isolation` | `Literal["coroutine", "process"]` | The configured isolation mode (set in the constructor). |
+| `pool.max_concurrent_sessions` | `int` | The configured backpressure threshold. |
+| `pool.consecutive_failure_limit` | `int` | The configured supervisor threshold. |
+
+### Migration note
+
+Existing code that does `pool = AgentPool()` keeps working but now runs every
+session in coroutine mode by default. Pass `isolation="process"` to stay on the
+v0.0.17 process-per-session model. The full migration block lives in the v0.1.0
+section of [the changelog](../changelog).
 
 ## `server`
 
@@ -102,7 +132,11 @@ module omits those values.
 server = pool.server
 ```
 
-Returns the underlying LiveKit `AgentServer` instance.
+Returns the underlying LiveKit `AgentServer` instance. Under
+`isolation="coroutine"`, this is an internal `_CoroutineAgentServer` subclass
+that swaps `livekit.agents.ipc.proc_pool.ProcPool` for an `openrtc.execution.coroutine.CoroutinePool`
+during `run()`. Under `isolation="process"`, this is the vanilla
+`livekit.agents.AgentServer`.
 
 ## `add()`
 
@@ -213,11 +247,17 @@ Removes and returns a registered `AgentConfig`.
 pool.run()
 ```
 
-Starts the LiveKit worker application.
+Starts the LiveKit worker application by handing the configured
+[`server`](#server) to `livekit.agents.cli.run_app`. Under
+`isolation="coroutine"` (the v0.1 default), the worker hosts every session as
+an `asyncio.Task` inside one process; under `isolation="process"` it spawns
+one OS subprocess per session, matching v0.0.17 behavior.
 
 ### Raises
 
-- `RuntimeError` if called before any agents are registered
+- `RuntimeError` if called before any agents are registered. The same guard
+  fires inside `_prewarm_worker` if a worker process spawns with an empty
+  registry.
 
 ## `runtime_snapshot()`
 
@@ -276,3 +316,12 @@ pool = AgentPool(
 pool.discover(Path("./agents"))
 pool.run()
 ```
+
+## See also
+
+- [Architecture → Coroutine-mode lifecycle](../concepts/architecture#coroutine-mode-lifecycle)
+  for the per-session task lifecycle, supervisor, drain, and
+  `current_load` semantics.
+- [Density benchmark (v0.1)](../benchmarks/density-v0.1) for the
+  ≥50-sessions-per-worker numbers backing the default `max_concurrent_sessions`.
+- [Changelog](../changelog) for the v0.1.0 migration block.
