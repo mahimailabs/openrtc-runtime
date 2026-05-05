@@ -56,6 +56,23 @@ _LATENCY_SAMPLE_INTERVAL_SECONDS = 0.01
 
 
 @dataclass
+class SchedulerLatency:
+    samples: int
+    median: float
+    p99: float
+    max: float  # noqa: A003 — keep the JSON key stable for downstream consumers
+
+
+@dataclass
+class Hardware:
+    cpu_model: str
+    cpu_count: int | None
+    total_ram_gb: float
+    kernel: str
+    python_version: str
+
+
+@dataclass
 class DensityResult:
     sessions: int
     successes: int
@@ -66,22 +83,22 @@ class DensityResult:
     delta_rss_mb: float | None
     elapsed_seconds: float
     rss_within_budget: bool
-    scheduler_latency_ms: dict[str, float] = field(default_factory=dict)
-    hardware: dict[str, Any] = field(default_factory=dict)
+    scheduler_latency_ms: SchedulerLatency | None = None
+    hardware: Hardware | None = None
     notes: list[str] = field(default_factory=list)
 
 
-def _hardware_fingerprint() -> dict[str, Any]:
+def _hardware_fingerprint() -> Hardware:
     """Capture the host signature so benchmark results stay reproducible."""
     uname = platform.uname()
     total_ram_bytes = psutil.virtual_memory().total
-    return {
-        "cpu_model": platform.processor() or uname.machine,
-        "cpu_count": os.cpu_count(),
-        "total_ram_gb": round(total_ram_bytes / (1024**3), 2),
-        "kernel": f"{uname.system} {uname.release}",
-        "python_version": platform.python_version(),
-    }
+    return Hardware(
+        cpu_model=platform.processor() or uname.machine,
+        cpu_count=os.cpu_count(),
+        total_ram_gb=round(total_ram_bytes / (1024**3), 2),
+        kernel=f"{uname.system} {uname.release}",
+        python_version=platform.python_version(),
+    )
 
 
 def _stub_running_job_info(job_id: str) -> Any:
@@ -159,8 +176,10 @@ async def _sample_loop_latency(stop: asyncio.Event, samples: list[float]) -> Non
     """
     while not stop.is_set():
         target = time.monotonic() + _LATENCY_SAMPLE_INTERVAL_SECONDS
-        with contextlib.suppress(asyncio.CancelledError):
-            await asyncio.sleep(_LATENCY_SAMPLE_INTERVAL_SECONDS)
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(
+                stop.wait(), timeout=_LATENCY_SAMPLE_INTERVAL_SECONDS
+            )
         actual = time.monotonic()
         samples.append(max(0.0, (actual - target) * 1000.0))
 
@@ -233,15 +252,16 @@ async def run_density_benchmark(
 
     rss_within_budget = peak_rss_mb is None or peak_rss_mb <= rss_budget_mb
 
+    scheduler_latency_ms: SchedulerLatency | None
     if latency_samples:
-        scheduler_latency_ms = {
-            "samples": float(len(latency_samples)),
-            "median": round(statistics.median(latency_samples), 3),
-            "p99": round(_percentile(latency_samples, 99.0), 3),
-            "max": round(max(latency_samples), 3),
-        }
+        scheduler_latency_ms = SchedulerLatency(
+            samples=len(latency_samples),
+            median=round(statistics.median(latency_samples), 3),
+            p99=round(_percentile(latency_samples, 99.0), 3),
+            max=round(max(latency_samples), 3),
+        )
     else:
-        scheduler_latency_ms = {}
+        scheduler_latency_ms = None
         notes.append("scheduler latency unavailable: no samples collected.")
 
     return DensityResult(
@@ -275,20 +295,27 @@ def _format_human(result: DensityResult) -> str:
         f"within budget:     {result.rss_within_budget}",
         f"elapsed:           {result.elapsed_seconds:.2f} s",
     ]
-    if result.scheduler_latency_ms:
+    if result.scheduler_latency_ms is not None:
         lines.extend(
             [
                 "scheduler latency (ms):",
-                f"  samples:         {int(result.scheduler_latency_ms['samples'])}",
-                f"  median:          {result.scheduler_latency_ms['median']:.3f}",
-                f"  p99:             {result.scheduler_latency_ms['p99']:.3f}",
-                f"  max:             {result.scheduler_latency_ms['max']:.3f}",
+                f"  samples:         {result.scheduler_latency_ms.samples}",
+                f"  median:          {result.scheduler_latency_ms.median:.3f}",
+                f"  p99:             {result.scheduler_latency_ms.p99:.3f}",
+                f"  max:             {result.scheduler_latency_ms.max:.3f}",
             ]
         )
-    if result.hardware:
-        lines.append("hardware:")
-        for key, value in result.hardware.items():
-            lines.append(f"  {key}: {value}")
+    if result.hardware is not None:
+        lines.extend(
+            [
+                "hardware:",
+                f"  cpu_model: {result.hardware.cpu_model}",
+                f"  cpu_count: {result.hardware.cpu_count}",
+                f"  total_ram_gb: {result.hardware.total_ram_gb}",
+                f"  kernel: {result.hardware.kernel}",
+                f"  python_version: {result.hardware.python_version}",
+            ]
+        )
     if result.notes:
         lines.append("notes:")
         lines.extend(f"  - {note}" for note in result.notes)
