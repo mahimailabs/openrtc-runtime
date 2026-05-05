@@ -7,7 +7,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Literal
 
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli
 
 from openrtc.core.config import (
     AgentConfig,
@@ -21,6 +21,7 @@ from openrtc.core.discovery import (
 )
 from openrtc.core.routing import _resolve_agent_config
 from openrtc.core.turn_handling import _build_session_kwargs
+from openrtc.execution.prewarm import _prewarm_worker
 from openrtc.observability.metrics import (
     MetricsStreamEvent,
     RuntimeMetricsStore,
@@ -47,18 +48,6 @@ class _PoolRuntimeState:
 
     agents: dict[str, AgentConfig]
     metrics: RuntimeMetricsStore = field(default_factory=RuntimeMetricsStore)
-
-
-def _prewarm_worker(
-    runtime_state: _PoolRuntimeState,
-    proc: JobProcess,
-) -> None:
-    """Load shared runtime assets into ``proc.userdata`` once per worker."""
-    if not runtime_state.agents:
-        raise RuntimeError("Register at least one agent before calling run().")
-    silero_module, turn_detector_model = _load_shared_runtime_dependencies()
-    proc.userdata["vad"] = silero_module.VAD.load()
-    proc.userdata["turn_detection_factory"] = turn_detector_model
 
 
 async def _run_universal_session(
@@ -430,17 +419,3 @@ class AgentPool:
         if direct_session_kwargs is not None:
             merged_kwargs.update(direct_session_kwargs)
         return merged_kwargs
-
-
-def _load_shared_runtime_dependencies() -> tuple[Any, type[Any]]:
-    """Load the optional LiveKit runtime dependencies used during prewarm."""
-    try:
-        from livekit.plugins import silero
-        from livekit.plugins.turn_detector.multilingual import MultilingualModel
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "OpenRTC requires the LiveKit Silero and turn-detector plugins. "
-            "Reinstall openrtc, or install livekit-agents[silero,turn-detector]."
-        ) from exc
-
-    return silero, MultilingualModel

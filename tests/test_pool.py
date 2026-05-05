@@ -13,6 +13,7 @@ from livekit.agents import Agent
 import openrtc.core.discovery as discovery_module
 import openrtc.core.pool as pool_module
 import openrtc.core.serialization as serialization_module
+import openrtc.execution.prewarm as prewarm_module
 from openrtc import AgentPool
 
 
@@ -468,7 +469,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
         VAD = FakeVAD
 
     monkeypatch.setattr(
-        "openrtc.core.pool._load_shared_runtime_dependencies",
+        "openrtc.execution.prewarm._load_shared_runtime_dependencies",
         lambda: (FakeSilero, FakeTurnDetector),
     )
     setup_callback(process)
@@ -843,7 +844,7 @@ def test_prewarm_worker_raises_when_runtime_state_has_no_agents() -> None:
     proc = SimpleNamespace(userdata={})
 
     with pytest.raises(RuntimeError, match="Register at least one agent"):
-        pool_module._prewarm_worker(pool._runtime_state, proc)
+        prewarm_module._prewarm_worker(pool._runtime_state, proc)
 
 
 def test_run_universal_session_raises_when_no_agents_registered() -> None:
@@ -881,7 +882,7 @@ def test_load_shared_runtime_dependencies_raises_when_plugin_missing(
     monkeypatch.setattr(builtins, "__import__", _import_without_silero)
 
     with pytest.raises(RuntimeError, match="silero"):
-        pool_module._load_shared_runtime_dependencies()
+        prewarm_module._load_shared_runtime_dependencies()
 
 
 def test_merge_session_kwargs_skips_direct_when_none() -> None:
@@ -898,7 +899,7 @@ def test_load_shared_runtime_dependencies_returns_silero_and_turn_detector() -> 
     pytest.importorskip("livekit.plugins.silero")
     pytest.importorskip("livekit.plugins.turn_detector.multilingual")
 
-    silero, multilingual = pool_module._load_shared_runtime_dependencies()
+    silero, multilingual = prewarm_module._load_shared_runtime_dependencies()
 
     assert hasattr(silero, "VAD")
     assert multilingual.__name__ == "MultilingualModel"
