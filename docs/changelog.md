@@ -147,6 +147,20 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.1.0] - 2026-05-06
+
+## What's Changed
+* Feat: light websocket by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/30
+* docs: bring docs/ in sync with v0.1 surface by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/35
+* Feat: struc refac by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/36
+* Feat/coroutine pool by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/37
+* Feat/coroutine pool prod by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/38
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.0.17...v0.1.0
+
+---
+
 ## [0.0.17] - 2026-04-03
 
 ## What's Changed
