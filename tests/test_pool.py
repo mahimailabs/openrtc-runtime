@@ -77,6 +77,45 @@ def test_max_concurrent_sessions_rejects_bool() -> None:
         AgentPool(max_concurrent_sessions=True)  # type: ignore[arg-type]
 
 
+def test_drain_timeout_defaults_to_30() -> None:
+    pool = AgentPool()
+
+    assert pool.drain_timeout == 30
+
+
+def test_drain_timeout_accepts_override() -> None:
+    pool = AgentPool(drain_timeout=120)
+
+    assert pool.drain_timeout == 120
+
+
+def test_drain_timeout_rejects_non_int() -> None:
+    with pytest.raises(TypeError, match="must be an int"):
+        AgentPool(drain_timeout=30.0)  # type: ignore[arg-type]
+
+
+def test_drain_timeout_rejects_bool() -> None:
+    with pytest.raises(TypeError, match="must be an int"):
+        AgentPool(drain_timeout=True)  # type: ignore[arg-type]
+
+
+def test_drain_timeout_rejects_zero() -> None:
+    with pytest.raises(ValueError, match="drain_timeout must be >= 1"):
+        AgentPool(drain_timeout=0)
+
+
+def test_drain_timeout_threads_to_coroutine_server() -> None:
+    pool = AgentPool(drain_timeout=42)
+
+    assert pool.server._drain_timeout == 42  # type: ignore[attr-defined]
+
+
+def test_drain_timeout_threads_to_process_server() -> None:
+    pool = AgentPool(isolation="process", drain_timeout=99)
+
+    assert pool.server._drain_timeout == 99  # type: ignore[attr-defined]
+
+
 def test_isolation_coroutine_constructs_coroutine_agent_server() -> None:
     from openrtc.execution.coroutine_server import _CoroutineAgentServer
 
