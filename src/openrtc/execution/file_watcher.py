@@ -62,9 +62,11 @@ class FileChange:
     """A single filesystem change event.
 
     Frozen so instances are hashable and can be deduplicated in sets.
-    Paths are absolute. ``change_type`` is one of ``"created"``,
-    ``"modified"``, or ``"deleted"`` (mapped from watchfiles' ``Change``
-    enum at the watcher boundary).
+    Paths emitted by :class:`FileWatcher` are absolutized (via
+    ``Path.resolve(strict=False)``) at the watcher boundary; instances
+    constructed by callers directly carry whatever path they pass in.
+    ``change_type`` is one of ``"created"``, ``"modified"``, or
+    ``"deleted"`` (mapped from watchfiles' ``Change`` enum).
     """
 
     path: Path
@@ -187,8 +189,11 @@ class FileWatcher:
         self._state: WatcherState = "new"
         # Filled in on start(). _pending collects changes between
         # debounce flushes; _flush_task fires the trailing-edge flush.
+        # _restart_event signals the watch loop to recreate awatch with
+        # the latest self._paths after refresh_paths() mutates them.
         self._pending: list[FileChange] = []
         self._stop_event: asyncio.Event | None = None
+        self._restart_event: asyncio.Event | None = None
         self._watch_task: asyncio.Task[None] | None = None
         self._flush_task: asyncio.Task[None] | None = None
 
@@ -206,20 +211,26 @@ class FileWatcher:
         """Re-snapshot ``sys.modules`` for the auto-discover watcher.
 
         Side effects:
-            Replaces ``self._paths`` with a fresh discovery snapshot
-            when the watcher was constructed with ``paths=None``.
-            No-op when explicit paths were supplied (the caller owns
-            the list).
+            - Replaces ``self._paths`` with a fresh discovery snapshot
+              when the watcher was constructed with ``paths=None``.
+              No-op when explicit paths were supplied (the caller owns
+              the list).
+            - When the watcher is running, sets ``_restart_event`` so
+              the watch loop tears down the current ``awatch`` iterator
+              and recreates it with the new path set on the next
+              iteration boundary.
 
         Notes:
             Synchronous because rebuilding the path set is a fast
-            in-process snapshot. The live watch loop picks up the
-            change on its next iteration boundary; this method does
-            not restart the watcher.
+            in-process snapshot. The live recreate happens
+            asynchronously in the watch loop, typically within a few
+            milliseconds.
         """
         if not self._auto_discover:
             return
         self._paths = _discover_user_modules()
+        if self._restart_event is not None:
+            self._restart_event.set()
 
     async def start(self) -> None:
         """Begin watching. Idempotent.
@@ -245,6 +256,7 @@ class FileWatcher:
             )
         self._state = "running"
         self._stop_event = asyncio.Event()
+        self._restart_event = asyncio.Event()
         self._watch_task = asyncio.create_task(
             self._run_watch_loop(),
             name=f"openrtc.file_watcher[{id(self):#x}]",
@@ -273,6 +285,10 @@ class FileWatcher:
         self._state = "stopped"
         if self._stop_event is not None:
             self._stop_event.set()
+        if self._restart_event is not None:
+            # Wake any awaiter blocked on the restart side of the mirror
+            # task so the watch loop can observe stop.
+            self._restart_event.set()
         if self._flush_task is not None:
             self._flush_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -284,44 +300,100 @@ class FileWatcher:
                 await self._watch_task
             self._watch_task = None
         self._stop_event = None
+        self._restart_event = None
         self._pending.clear()
 
     async def _run_watch_loop(self) -> None:
         """Background task: consume ``watchfiles.awatch`` and feed the debounce.
 
+        Wraps ``watchfiles.awatch`` in an outer loop so :meth:`refresh_paths`
+        can swap the watched path set without restarting the whole
+        watcher: when ``_restart_event`` fires, the inner ``awatch``
+        iterator's ``stop_event`` is tripped, the loop tears it down,
+        and the next iteration creates a fresh ``awatch`` over the
+        latest ``self._paths``.
+
         Each batch from watchfiles is converted to ``FileChange``
-        instances and handed to :meth:`_handle_change_batch`, which
-        extends ``self._pending`` and (re)schedules the trailing flush.
+        instances (with absolutized paths) and handed to
+        :meth:`_handle_change_batch`, which extends ``self._pending``
+        and (re)schedules the trailing flush.
         """
-        if not self._paths:
-            # No paths to watch — block until stop().
-            assert self._stop_event is not None
-            await self._stop_event.wait()
-            return
         assert self._stop_event is not None
-        try:
-            async for changes in watchfiles.awatch(
-                *self._paths,
-                stop_event=self._stop_event,
-            ):
-                batch: list[FileChange] = []
-                for change_kind, raw_path in changes:
-                    change_type = _WATCHFILES_CHANGE_MAP.get(change_kind)
-                    if change_type is None:
-                        # watchfiles may add new variants; ignore unknowns.
-                        continue
-                    batch.append(
-                        FileChange(
-                            path=Path(raw_path),
-                            change_type=change_type,
+        assert self._restart_event is not None
+        while not self._stop_event.is_set():
+            # Snapshot paths at iteration start. refresh_paths() mutates
+            # self._paths and sets _restart_event; the next iteration
+            # picks up the new list.
+            current_paths = list(self._paths)
+            iter_done = asyncio.Event()
+            mirror = asyncio.create_task(
+                self._mirror_signals(iter_done),
+                name=f"openrtc.file_watcher.mirror[{id(self):#x}]",
+            )
+            try:
+                if current_paths:
+                    try:
+                        async for changes in watchfiles.awatch(
+                            *current_paths,
+                            stop_event=iter_done,
+                        ):
+                            batch: list[FileChange] = []
+                            for change_kind, raw_path in changes:
+                                change_type = _WATCHFILES_CHANGE_MAP.get(change_kind)
+                                if change_type is None:
+                                    # watchfiles may add new variants;
+                                    # ignore unknowns.
+                                    continue
+                                batch.append(
+                                    FileChange(
+                                        path=Path(raw_path).resolve(strict=False),
+                                        change_type=change_type,
+                                    )
+                                )
+                            if batch:
+                                self._handle_change_batch(batch)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:  # noqa: BLE001 — logged and swallowed
+                        _log.exception(
+                            "FileWatcher loop crashed; events will stop firing",
                         )
-                    )
-                if batch:
-                    self._handle_change_batch(batch)
-        except asyncio.CancelledError:
-            raise
-        except Exception:  # noqa: BLE001 — logged and swallowed
-            _log.exception("FileWatcher loop crashed; events will stop firing")
+                        return
+                else:
+                    # No paths to watch — wait for stop or restart.
+                    await iter_done.wait()
+            finally:
+                mirror.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await mirror
+            # Drain whichever signal triggered iter_done. If stop fired,
+            # the while-condition exits us. Otherwise clear the restart
+            # flag and loop back to recreate awatch over the new paths.
+            if self._restart_event.is_set() and not self._stop_event.is_set():
+                self._restart_event.clear()
+
+    async def _mirror_signals(self, target: asyncio.Event) -> None:
+        """Set *target* when either ``_stop_event`` or ``_restart_event`` fires.
+
+        Used to translate the watcher's two lifecycle signals into the
+        single ``stop_event`` that ``watchfiles.awatch`` accepts.
+        """
+        assert self._stop_event is not None
+        assert self._restart_event is not None
+        stop_wait = asyncio.create_task(self._stop_event.wait())
+        restart_wait = asyncio.create_task(self._restart_event.wait())
+        try:
+            await asyncio.wait(
+                {stop_wait, restart_wait},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            target.set()
+        finally:
+            for task in (stop_wait, restart_wait):
+                if not task.done():
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
 
     def _handle_change_batch(self, batch: list[FileChange]) -> None:
         """Buffer one batch and (re)schedule the trailing debounce flush.

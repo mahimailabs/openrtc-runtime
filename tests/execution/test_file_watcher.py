@@ -321,6 +321,86 @@ class TestFileWatcherEventWiring:
         await watcher.stop()
         assert watcher.state == "stopped"
 
+    async def test_emitted_paths_are_absolute(self, tmp_path: Path) -> None:
+        target = tmp_path / "agent.py"
+        target.write_text("# initial\n")
+        watcher = FileWatcher(_noop_callback, paths=[target])
+        await watcher.start()
+        try:
+            await asyncio.sleep(0.1)
+            target.write_text("# modified\n")
+            arrived = await _wait_until(
+                lambda: bool(watcher._pending),  # noqa: SLF001
+                timeout_s=3.0,
+            )
+            assert arrived
+            for fc in watcher._pending:  # noqa: SLF001
+                assert fc.path.is_absolute(), (
+                    f"emitted FileChange.path must be absolute, got {fc.path!r}"
+                )
+        finally:
+            await watcher.stop()
+
+    async def test_refresh_paths_during_run_swaps_watched_set(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Two files in DIFFERENT directories so watchfiles' parent-
+        # directory-watch doesn't accidentally surface file_b's edits
+        # while we're still watching only file_a.
+        dir_a = tmp_path / "dir_a"
+        dir_b = tmp_path / "dir_b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+        file_a = dir_a / "a.py"
+        file_a.write_text("# initial\n")
+        file_b = dir_b / "b.py"
+        file_b.write_text("# initial\n")
+
+        # Auto-discover watcher: discovery returns only file_a initially.
+        monkeypatch.setattr(
+            "openrtc.execution.file_watcher._discover_user_modules",
+            lambda: [file_a],
+        )
+
+        received: list[list[FileChange]] = []
+
+        async def on_change(changes: list[FileChange]) -> None:
+            received.append(list(changes))
+
+        watcher = FileWatcher(on_change, debounce_ms=100, paths=None)
+        assert watcher.paths == [file_a]
+        await watcher.start()
+        try:
+            await asyncio.sleep(0.15)
+
+            # Edit file_b while only file_a is watched: must NOT fire.
+            file_b.write_text("# v2\n")
+            await asyncio.sleep(0.4)
+            assert received == [], (
+                f"file_b shouldn't fire before refresh; got {received!r}"
+            )
+
+            # Switch discovery to include file_b and refresh.
+            monkeypatch.setattr(
+                "openrtc.execution.file_watcher._discover_user_modules",
+                lambda: [file_a, file_b],
+            )
+            watcher.refresh_paths()
+            assert watcher.paths == [file_a, file_b]
+            # Give the watch loop a beat to recreate awatch over the new set.
+            await asyncio.sleep(0.3)
+
+            # Now editing file_b SHOULD fire.
+            file_b.write_text("# v3\n")
+            arrived = await _wait_until(lambda: bool(received), timeout_s=3.0)
+            assert arrived, "file_b edit didn't fire after refresh_paths()"
+            paths_seen = {fc.path.resolve() for batch in received for fc in batch}
+            assert file_b.resolve() in paths_seen
+        finally:
+            await watcher.stop()
+            assert watcher.state == "stopped"
+            assert watcher._watch_task is None  # noqa: SLF001
+
 
 class TestCollapseChanges:
     """``_collapse_changes`` enforces the design.md §3.4 collapse rules."""
