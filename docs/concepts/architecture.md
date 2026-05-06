@@ -129,6 +129,12 @@ Key invariants in coroutine mode:
   launches) and awaits every executor's `join()`; `aclose()` then
   cancels anything still pending and clears state. After both, the
   worker's asyncio loop has no residual tasks belonging to the pool.
+  Upstream `AgentServer` installs the SIGTERM/SIGINT handler and
+  invokes `aclose()` when one fires; the wait window is bounded by
+  `AgentPool(drain_timeout=N)` (default 30 seconds). Sessions that
+  exceed the budget are cancelled with a `WARNING` log and the
+  per-executor `kill()` escalation runs so the worker can finish
+  shutting down.
 - **Supervisor.** After
   `consecutive_failure_limit` (default 5) consecutive non-SUCCESS
   terminations, the pool fires its registered callback. The default
@@ -140,6 +146,27 @@ In process mode, the per-session lifecycle is unchanged from v0.0.x:
 each session is its own subprocess via `livekit-agents`'s default
 `ProcPool`, with its own `JobProcess`, its own setup_fnc invocation,
 and its own `rtc.Room`.
+
+## Configuration precedence
+
+Worker-runtime settings (`isolation`, `max_concurrent_sessions`) can
+be supplied at three layers, in order of priority:
+
+1. **CLI flag** — `--isolation`, `--max-concurrent-sessions`. Passed
+   on the `openrtc start` / `dev` / `console` command line, this wins
+   over everything else.
+2. **Environment variable** — `OPENRTC_ISOLATION`,
+   `OPENRTC_MAX_CONCURRENT_SESSIONS`. Read at startup when the
+   matching flag is not provided.
+3. **Library default** — `isolation="coroutine"`,
+   `max_concurrent_sessions=50`. Baked into `AgentPool.__init__`
+   when neither the flag nor the env var is set.
+
+The same precedence applies to the LiveKit connection settings the
+CLI exposes (`--url` / `LIVEKIT_URL`, `--api-key` / `LIVEKIT_API_KEY`,
+`--api-secret` / `LIVEKIT_API_SECRET`, `--log-level` /
+`LIVEKIT_LOG_LEVEL`); those follow the upstream `livekit-agents`
+naming convention.
 
 ## Shared runtime dependencies
 
