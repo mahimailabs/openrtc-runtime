@@ -147,6 +147,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.2.1] - 2026-05-06
+
+## What's Changed
+* [v0.2.1] File watcher infrastructure for agent code (MAH-80) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/39
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.1.0...v0.2.1
+
+---
+
 ## [0.1.0] - 2026-05-06
 
 ## What's Changed
