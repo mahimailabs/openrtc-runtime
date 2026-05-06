@@ -204,23 +204,35 @@ pool = AgentPool(
 | Backpressure | `current_load() = active / max_concurrent_sessions` reported as worker load; LiveKit dispatch routes elsewhere at `>= load_threshold` | `livekit-agents` default load math (CPU-based) |
 | When to pick | High density on a single host; cost-sensitive deployments. | Regulatory/compliance requires hard process isolation; per-session memory caps required. |
 
-### Density (50 concurrent sessions, one worker)
+### Density: coroutine vs process at 10/25/50/100 sessions
 
 From the v0.1 stub-workload benchmark (`tests/benchmarks/density.py`,
 results recorded at `docs/benchmarks/density-v0.1.md`):
 
-| Sessions | Successes | Peak RSS  | Elapsed | Within 4 GB budget |
-| --- | --- | --- | --- | --- |
-|  50 | 50  | 367 MB  | 1.04 s | ✓ |
-| 100 | 100 | 617 MB  | 1.10 s | ✓ |
-| 200 | 200 | 1073 MB | 1.19 s | ✓ |
-| 500 | 500 | 1370 MB | 1.30 s | ✓ |
+| Sessions | `coroutine` peak RSS | `process` est. peak RSS | Within 4 GB budget |
+| ---: | ---: | ---: | :---: |
+|  10 |   165 MB | ~30 GB  | coroutine ✓ / process ✗ |
+|  25 |   230 MB | ~75 GB  | coroutine ✓ / process ✗ |
+|  50 |   367 MB | ~150 GB | coroutine ✓ / process ✗ |
+| 100 |   617 MB | ~300 GB | coroutine ✓ / process ✗ |
 
-**Caveat:** the benchmark allocates ~5 MB per session to stress task
-scheduling, not a realistic ~60 MB/session WebRTC + LLM footprint.
-Validate against the §8.4 real-LiveKit integration test (which needs
-`docker compose -f docker-compose.test.yml up -d` and `OPENAI_API_KEY`)
-before quoting a per-session memory number to your operators.
+The same harness scales cleanly to 200 sessions (1073 MB) and 500
+sessions (1370 MB) without breaching the 4 GB budget — see the full
+results doc for the headroom sweep.
+
+**How the process column was estimated.** Each `livekit-agents`
+subprocess loads the Silero VAD + turn-detector models per worker
+process (~250-400 MB of model weights) plus the WebRTC peer connection
+and Python runtime, settling at the **~3 GB per process** baseline
+documented in `docs/audit-2026-05-02.md`. Multiply by `N` for the
+total. We do not run process mode at N>2 in CI for this reason.
+
+**Stub-workload caveat.** The benchmark allocates ~5 MB per session to
+stress task scheduling, not a realistic ~60 MB/session WebRTC + LLM
+footprint. Validate against the §8.4 real-LiveKit integration test
+(which needs `docker compose -f docker-compose.test.yml up -d` and
+`OPENAI_API_KEY`) before quoting a per-session memory number to your
+operators.
 
 ## Routing
 
