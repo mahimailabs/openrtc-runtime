@@ -1,14 +1,34 @@
-"""File watcher infrastructure for user agent code.
+"""File watcher infrastructure for user agent code (MAH-80, v0.2.1).
 
 The watcher monitors user-edited Python modules and emits debounced
 change events. Reload, re-import, and session re-binding are out of
 scope here — see MAH-81 onward. This module provides the foundation:
 discovery, event shape, and a callback API.
 
+Contract summary
+----------------
+
+- The watcher discovers user-editable modules from ``sys.modules`` at
+  construction (when ``paths=None``) and ignores anything under
+  ``site-packages`` / ``sys.prefix``.
+- Filesystem events are consumed via ``watchfiles.awatch`` and mapped
+  to :class:`FileChange` instances.
+- Rapid events are coalesced through a trailing-edge debounce
+  (``debounce_ms``, default 200) before the user callback fires, so
+  multi-write editor saves produce a single dispatch.
+- The user callback is awaited inside a try/except: exceptions are
+  logged at ERROR and swallowed, leaving the watcher running.
+- ``stop()`` cancels the in-flight watch and flush tasks, drops the
+  pending buffer, and is safe to call repeatedly.
+
 Public API (locked at design.md §3.5):
 
 - :class:`FileChange` — frozen dataclass describing a single change
-- :class:`FileWatcher` — async watcher with ``start()``/``stop()``/``refresh_paths()``
+- :class:`FileWatcher` — async watcher with
+  ``start()`` / ``stop()`` / ``refresh_paths()``
+
+Both names are re-exported from the package root, so callers can write
+``from openrtc import FileWatcher, FileChange``.
 """
 
 from __future__ import annotations
@@ -135,6 +155,23 @@ class FileWatcher:
         debounce_ms: int = 200,
         paths: list[Path] | None = None,
     ) -> None:
+        """Construct a watcher; does not start watching until :meth:`start`.
+
+        Args:
+            on_change: Async callable invoked with the coalesced
+                ``list[FileChange]`` after each debounce window.
+                Exceptions raised by this callable are logged and
+                swallowed.
+            debounce_ms: Trailing-edge debounce window. Must be > 0.
+            paths: Explicit list of files or directories to watch. When
+                ``None`` (default), the watcher snapshots
+                ``sys.modules`` and excludes anything under the
+                interpreter / site-packages roots — :meth:`refresh_paths`
+                only re-runs discovery in this auto-discover mode.
+
+        Raises:
+            ValueError: ``debounce_ms`` is not strictly positive.
+        """
         if debounce_ms <= 0:
             raise ValueError(
                 f"debounce_ms must be > 0, got {debounce_ms}.",
@@ -166,22 +203,39 @@ class FileWatcher:
         return self._state
 
     def refresh_paths(self) -> None:
-        """Re-discover user modules when constructed with ``paths=None``.
+        """Re-snapshot ``sys.modules`` for the auto-discover watcher.
 
-        No-op when explicit paths were supplied at construction (the
-        caller manages that list). Synchronous because rebuilding the
-        path set is a fast in-process snapshot; the live watcher loop
-        picks up the change on its next event boundary.
+        Side effects:
+            Replaces ``self._paths`` with a fresh discovery snapshot
+            when the watcher was constructed with ``paths=None``.
+            No-op when explicit paths were supplied (the caller owns
+            the list).
+
+        Notes:
+            Synchronous because rebuilding the path set is a fast
+            in-process snapshot. The live watch loop picks up the
+            change on its next iteration boundary; this method does
+            not restart the watcher.
         """
         if not self._auto_discover:
             return
         self._paths = _discover_user_modules()
 
     async def start(self) -> None:
-        """Begin watching. Idempotent: a second call while running is a no-op.
+        """Begin watching. Idempotent.
 
-        Raises ``RuntimeError`` if called after :meth:`stop` — construct
-        a new watcher instead.
+        Side effects:
+            Creates an ``asyncio.Event`` (``_stop_event``) and an
+            ``asyncio.Task`` running :meth:`_run_watch_loop`, then
+            transitions the state to ``running``.
+
+        Raises:
+            RuntimeError: Called after :meth:`stop`. A stopped watcher
+                cannot be restarted; construct a new instance.
+
+        Notes:
+            A second call while ``running`` is a no-op (does not spawn
+            a duplicate watch task).
         """
         if self._state == "running":
             return
@@ -197,12 +251,22 @@ class FileWatcher:
         )
 
     async def stop(self) -> None:
-        """Stop watching. Idempotent: safe to call multiple times.
+        """Stop watching. Idempotent and graceful.
 
-        Calling ``stop()`` on a fresh (never-started) watcher transitions
-        it directly to ``stopped`` so the no-restart invariant still
-        holds. A pending debounce flush is cancelled cleanly without
-        firing the callback.
+        Side effects:
+            - Transitions state to ``stopped`` (terminal — :meth:`start`
+              will raise).
+            - Sets ``_stop_event`` so ``watchfiles.awatch`` exits its
+              async iterator.
+            - Cancels and awaits the in-flight watch task and any
+              pending flush task; ``CancelledError`` is suppressed.
+            - Drops ``self._pending`` (any unflushed events are lost).
+
+        Notes:
+            Calling ``stop()`` on a fresh (never-started) watcher still
+            moves it to ``stopped`` so the no-restart invariant holds.
+            A pending debounce flush is cancelled without invoking the
+            user callback.
         """
         if self._state == "stopped":
             return
