@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import site
 import sys
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 ChangeType = Literal["created", "modified", "deleted"]
+WatcherState = Literal["new", "running", "stopped"]
 
 
 @dataclass(frozen=True)
@@ -99,3 +101,82 @@ def _discover_user_modules() -> list[Path]:
         seen.add(resolved)
         discovered.append(resolved)
     return discovered
+
+
+class FileWatcher:
+    """Watch user-edited Python modules and emit debounced change events.
+
+    Public API is locked at design.md §3.5. The watcher is async-native:
+    ``start()`` schedules a background watch task, ``stop()`` cancels
+    it gracefully, and ``refresh_paths()`` rebuilds the auto-discovered
+    path set without restarting.
+
+    Lifecycle: a watcher transitions ``new → running → stopped``. A
+    stopped watcher cannot be restarted — construct a new one.
+    """
+
+    def __init__(
+        self,
+        on_change: Callable[[list[FileChange]], Awaitable[None]],
+        *,
+        debounce_ms: int = 200,
+        paths: list[Path] | None = None,
+    ) -> None:
+        if debounce_ms <= 0:
+            raise ValueError(
+                f"debounce_ms must be > 0, got {debounce_ms}.",
+            )
+        self._on_change = on_change
+        self._debounce_ms = debounce_ms
+        # ``paths is None`` → auto-discover, and refresh_paths() will
+        # re-run discovery. Explicit paths short-circuit discovery.
+        self._auto_discover = paths is None
+        self._paths: list[Path] = (
+            list(paths) if paths is not None else _discover_user_modules()
+        )
+        self._state: WatcherState = "new"
+
+    @property
+    def paths(self) -> list[Path]:
+        """Return the current snapshot of watched paths."""
+        return list(self._paths)
+
+    @property
+    def state(self) -> WatcherState:
+        """Return the current lifecycle state."""
+        return self._state
+
+    def refresh_paths(self) -> None:
+        """Re-discover user modules when constructed with ``paths=None``.
+
+        No-op when explicit paths were supplied at construction (the
+        caller manages that list). Synchronous because rebuilding the
+        path set is a fast in-process snapshot; the live watcher loop
+        picks up the change on its next event boundary.
+        """
+        if not self._auto_discover:
+            return
+        self._paths = _discover_user_modules()
+
+    async def start(self) -> None:
+        """Begin watching. Idempotent: a second call while running is a no-op.
+
+        Raises ``RuntimeError`` if called after :meth:`stop` — construct
+        a new watcher instead.
+        """
+        if self._state == "running":
+            return
+        if self._state == "stopped":
+            raise RuntimeError(
+                "FileWatcher cannot be restarted after stop(); construct a new watcher.",
+            )
+        self._state = "running"
+
+    async def stop(self) -> None:
+        """Stop watching. Idempotent: safe to call multiple times.
+
+        Calling ``stop()`` on a fresh (never-started) watcher transitions
+        it directly to ``stopped`` so the no-restart invariant still
+        holds.
+        """
+        self._state = "stopped"

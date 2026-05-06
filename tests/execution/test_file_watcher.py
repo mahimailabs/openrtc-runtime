@@ -12,9 +12,14 @@ import pytest
 
 from openrtc.execution.file_watcher import (
     FileChange,
+    FileWatcher,
     _discover_user_modules,
     _interpreter_excluded_roots,
 )
+
+
+async def _noop_callback(_changes: list[FileChange]) -> None:
+    """Default callback for lifecycle tests that don't care about events."""
 
 
 class TestFileChange:
@@ -141,3 +146,112 @@ class TestDiscoverUserModules:
         assert all(absolute)
         # The shared file appears at most once.
         assert discovered.count(shared_file.resolve()) == 1
+
+
+class TestFileWatcherLifecycle:
+    """The :class:`FileWatcher` skeleton — construction, state machine, restart guard.
+
+    These tests exercise the lifecycle contract; debounce + watchfiles
+    wiring land in later steps.
+    """
+
+    def test_construction_with_explicit_paths(self, tmp_path: Path) -> None:
+        explicit = [tmp_path / "agent.py"]
+        watcher = FileWatcher(_noop_callback, paths=explicit)
+        assert watcher.paths == explicit
+        assert watcher.state == "new"
+
+    def test_construction_with_none_triggers_discovery(self) -> None:
+        watcher = FileWatcher(_noop_callback, paths=None)
+        # Discovery returns whatever user-edited modules are loaded;
+        # the guarantee is that some snapshot was captured (even an
+        # empty list is fine — the contract is "discovery ran").
+        assert isinstance(watcher.paths, list)
+        # Modules outside site-packages should include the test file
+        # itself; verify by checking absoluteness.
+        assert all(p.is_absolute() for p in watcher.paths)
+
+    def test_default_debounce_is_200ms(self, tmp_path: Path) -> None:
+        watcher = FileWatcher(_noop_callback, paths=[tmp_path / "agent.py"])
+        # The default is part of the public API contract (design.md §3.5).
+        assert watcher._debounce_ms == 200  # noqa: SLF001 — testing the public default
+
+    def test_rejects_non_positive_debounce(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="debounce_ms"):
+            FileWatcher(_noop_callback, debounce_ms=0, paths=[tmp_path / "x.py"])
+        with pytest.raises(ValueError, match="debounce_ms"):
+            FileWatcher(_noop_callback, debounce_ms=-1, paths=[tmp_path / "x.py"])
+
+    def test_paths_is_a_copy(self, tmp_path: Path) -> None:
+        explicit = [tmp_path / "agent.py"]
+        watcher = FileWatcher(_noop_callback, paths=explicit)
+        # Mutating the original must not mutate the watcher's view.
+        explicit.append(tmp_path / "extra.py")
+        assert watcher.paths == [tmp_path / "agent.py"]
+
+
+@pytest.mark.asyncio
+class TestFileWatcherAsyncLifecycle:
+    """``start`` / ``stop`` are async; assert idempotency and the no-restart rule."""
+
+    async def test_start_is_idempotent(self, tmp_path: Path) -> None:
+        watcher = FileWatcher(_noop_callback, paths=[tmp_path / "agent.py"])
+        await watcher.start()
+        assert watcher.state == "running"
+        # Second start: no-op, no error.
+        await watcher.start()
+        assert watcher.state == "running"
+        await watcher.stop()
+
+    async def test_stop_is_idempotent(self, tmp_path: Path) -> None:
+        watcher = FileWatcher(_noop_callback, paths=[tmp_path / "agent.py"])
+        await watcher.start()
+        await watcher.stop()
+        assert watcher.state == "stopped"
+        # Second stop: no-op, no error.
+        await watcher.stop()
+        assert watcher.state == "stopped"
+
+    async def test_stop_on_fresh_watcher(self, tmp_path: Path) -> None:
+        watcher = FileWatcher(_noop_callback, paths=[tmp_path / "agent.py"])
+        # Never started → still safe to stop. Guarantees the no-restart
+        # invariant: a fresh+stopped watcher cannot be revived.
+        await watcher.stop()
+        assert watcher.state == "stopped"
+        with pytest.raises(RuntimeError, match="cannot be restarted"):
+            await watcher.start()
+
+    async def test_start_after_stop_raises(self, tmp_path: Path) -> None:
+        watcher = FileWatcher(_noop_callback, paths=[tmp_path / "agent.py"])
+        await watcher.start()
+        await watcher.stop()
+        with pytest.raises(RuntimeError, match="cannot be restarted"):
+            await watcher.start()
+
+
+class TestFileWatcherRefreshPaths:
+    """``refresh_paths`` only re-runs discovery for auto-discover watchers."""
+
+    def test_refresh_with_auto_discover(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        watcher = FileWatcher(_noop_callback, paths=None)
+        sentinel = [Path("/tmp/refresh_marker.py")]
+        monkeypatch.setattr(
+            "openrtc.execution.file_watcher._discover_user_modules",
+            lambda: list(sentinel),
+        )
+        watcher.refresh_paths()
+        assert watcher.paths == sentinel
+
+    def test_refresh_with_explicit_paths_is_noop(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        explicit = [tmp_path / "agent.py"]
+        watcher = FileWatcher(_noop_callback, paths=explicit)
+        # Even if discovery would return something, refresh must not
+        # touch an explicitly-managed path list.
+        monkeypatch.setattr(
+            "openrtc.execution.file_watcher._discover_user_modules",
+            lambda: [Path("/tmp/should_not_appear.py")],
+        )
+        watcher.refresh_paths()
+        assert watcher.paths == explicit
