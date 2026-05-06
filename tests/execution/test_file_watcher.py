@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import importlib.util
+import logging
 import sys
+import time
 import types
 from collections.abc import Callable
 from pathlib import Path
@@ -15,6 +17,7 @@ import pytest
 from openrtc.execution.file_watcher import (
     FileChange,
     FileWatcher,
+    _collapse_changes,
     _discover_user_modules,
     _interpreter_excluded_roots,
 )
@@ -317,3 +320,181 @@ class TestFileWatcherEventWiring:
         assert watcher.state == "running"
         await watcher.stop()
         assert watcher.state == "stopped"
+
+
+class TestCollapseChanges:
+    """``_collapse_changes`` enforces the design.md §3.4 collapse rules."""
+
+    def test_single_modified_passthrough(self) -> None:
+        result = _collapse_changes(
+            [FileChange(path=Path("/tmp/a.py"), change_type="modified")]
+        )
+        assert result == [FileChange(path=Path("/tmp/a.py"), change_type="modified")]
+
+    def test_created_plus_modified_collapses_to_created(self) -> None:
+        result = _collapse_changes(
+            [
+                FileChange(path=Path("/tmp/a.py"), change_type="created"),
+                FileChange(path=Path("/tmp/a.py"), change_type="modified"),
+            ]
+        )
+        assert result == [FileChange(path=Path("/tmp/a.py"), change_type="created")]
+
+    def test_modified_plus_deleted_collapses_to_deleted(self) -> None:
+        result = _collapse_changes(
+            [
+                FileChange(path=Path("/tmp/a.py"), change_type="modified"),
+                FileChange(path=Path("/tmp/a.py"), change_type="deleted"),
+            ]
+        )
+        assert result == [FileChange(path=Path("/tmp/a.py"), change_type="deleted")]
+
+    def test_deleted_dominates_created(self) -> None:
+        # Created and deleted in the same window: the file is gone, so
+        # report deleted (final-state-wins for the deletion case).
+        result = _collapse_changes(
+            [
+                FileChange(path=Path("/tmp/a.py"), change_type="created"),
+                FileChange(path=Path("/tmp/a.py"), change_type="deleted"),
+            ]
+        )
+        assert result == [FileChange(path=Path("/tmp/a.py"), change_type="deleted")]
+
+    def test_multiple_paths_preserved_in_first_seen_order(self) -> None:
+        result = _collapse_changes(
+            [
+                FileChange(path=Path("/tmp/b.py"), change_type="modified"),
+                FileChange(path=Path("/tmp/a.py"), change_type="modified"),
+                FileChange(path=Path("/tmp/b.py"), change_type="modified"),
+            ]
+        )
+        assert result == [
+            FileChange(path=Path("/tmp/b.py"), change_type="modified"),
+            FileChange(path=Path("/tmp/a.py"), change_type="modified"),
+        ]
+
+    def test_empty_input_returns_empty(self) -> None:
+        assert _collapse_changes([]) == []
+
+
+@pytest.mark.asyncio
+class TestDebounceAndDispatch:
+    """Step 7 — trailing-edge debounce coalesces rapid events into one callback."""
+
+    async def test_one_save_one_callback_after_200ms(self, tmp_path: Path) -> None:
+        events: list[tuple[float, list[FileChange]]] = []
+
+        async def on_change(changes: list[FileChange]) -> None:
+            events.append((time.monotonic(), list(changes)))
+
+        watcher = FileWatcher(on_change, debounce_ms=200, paths=[tmp_path / "a.py"])
+        # Don't run the watch loop; drive the seam directly.
+        watcher._state = "running"  # noqa: SLF001
+        start = time.monotonic()
+        watcher._handle_change_batch(  # noqa: SLF001
+            [FileChange(path=tmp_path / "a.py", change_type="modified")]
+        )
+        # Wait past the debounce window.
+        await asyncio.sleep(0.35)
+
+        assert len(events) == 1
+        elapsed_ms = (events[0][0] - start) * 1000
+        assert 150 < elapsed_ms < 350, f"flush at {elapsed_ms:.0f}ms not within 200±150"
+        assert events[0][1] == [
+            FileChange(path=tmp_path / "a.py", change_type="modified"),
+        ]
+        await watcher.stop()
+
+    async def test_five_rapid_saves_one_callback(self, tmp_path: Path) -> None:
+        events: list[tuple[float, list[FileChange]]] = []
+
+        async def on_change(changes: list[FileChange]) -> None:
+            events.append((time.monotonic(), list(changes)))
+
+        watcher = FileWatcher(on_change, debounce_ms=200, paths=[tmp_path / "a.py"])
+        watcher._state = "running"  # noqa: SLF001
+        start = time.monotonic()
+        # Five batches within 50ms, all for the same file.
+        for _ in range(5):
+            watcher._handle_change_batch(  # noqa: SLF001
+                [FileChange(path=tmp_path / "a.py", change_type="modified")]
+            )
+            await asyncio.sleep(0.005)
+        last_event_time = time.monotonic()
+
+        await asyncio.sleep(0.4)
+
+        assert len(events) == 1, (
+            f"expected exactly 1 callback, got {len(events)}: {events!r}"
+        )
+        # Callback should fire ~200ms after the LAST event, not after the first.
+        elapsed_after_last_ms = (events[0][0] - last_event_time) * 1000
+        assert 150 < elapsed_after_last_ms < 300, (
+            f"flush at {elapsed_after_last_ms:.0f}ms after last event, "
+            "expected 200ms ±50ms"
+        )
+        # All five events collapsed to one (same path, all modified).
+        assert events[0][1] == [
+            FileChange(path=tmp_path / "a.py", change_type="modified"),
+        ]
+        # Sanity: total elapsed from FIRST event is at least 200ms.
+        elapsed_total_ms = (events[0][0] - start) * 1000
+        assert elapsed_total_ms >= 200
+        await watcher.stop()
+
+    async def test_callback_exception_does_not_break_subsequent_dispatches(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        call_log: list[list[FileChange]] = []
+        raise_on_first = True
+
+        async def on_change(changes: list[FileChange]) -> None:
+            nonlocal raise_on_first
+            call_log.append(list(changes))
+            if raise_on_first:
+                raise_on_first = False
+                raise RuntimeError("boom")
+
+        watcher = FileWatcher(on_change, debounce_ms=100, paths=[tmp_path / "a.py"])
+        watcher._state = "running"  # noqa: SLF001
+        with caplog.at_level(logging.ERROR, logger="openrtc.execution.file_watcher"):
+            watcher._handle_change_batch(  # noqa: SLF001
+                [FileChange(path=tmp_path / "a.py", change_type="modified")]
+            )
+            await asyncio.sleep(0.25)
+            # First flush fired and raised; the watcher must still be alive.
+            assert len(call_log) == 1
+            assert any("on_change raised" in rec.message for rec in caplog.records)
+
+            # Fire a second batch; the watcher should still dispatch.
+            watcher._handle_change_batch(  # noqa: SLF001
+                [FileChange(path=tmp_path / "b.py", change_type="created")]
+            )
+            await asyncio.sleep(0.25)
+            assert len(call_log) == 2
+            assert call_log[1] == [
+                FileChange(path=tmp_path / "b.py", change_type="created")
+            ]
+        await watcher.stop()
+
+    async def test_stop_during_pending_flush_cancels_cleanly(
+        self, tmp_path: Path
+    ) -> None:
+        events: list[list[FileChange]] = []
+
+        async def on_change(changes: list[FileChange]) -> None:
+            events.append(list(changes))
+
+        watcher = FileWatcher(on_change, debounce_ms=300, paths=[tmp_path / "a.py"])
+        watcher._state = "running"  # noqa: SLF001
+        watcher._handle_change_batch(  # noqa: SLF001
+            [FileChange(path=tmp_path / "a.py", change_type="modified")]
+        )
+        # Stop BEFORE the flush window elapses.
+        await asyncio.sleep(0.05)
+        await watcher.stop()
+        # Wait long enough that any leaked flush would have fired.
+        await asyncio.sleep(0.4)
+        assert events == []
+        # No leaked tasks.
+        assert watcher._flush_task is None  # noqa: SLF001

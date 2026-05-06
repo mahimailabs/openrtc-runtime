@@ -149,10 +149,11 @@ class FileWatcher:
         )
         self._state: WatcherState = "new"
         # Filled in on start(). _pending collects changes between
-        # debounce flushes; the trailing-edge debounce lands in Step 7.
+        # debounce flushes; _flush_task fires the trailing-edge flush.
         self._pending: list[FileChange] = []
         self._stop_event: asyncio.Event | None = None
         self._watch_task: asyncio.Task[None] | None = None
+        self._flush_task: asyncio.Task[None] | None = None
 
     @property
     def paths(self) -> list[Path]:
@@ -200,26 +201,33 @@ class FileWatcher:
 
         Calling ``stop()`` on a fresh (never-started) watcher transitions
         it directly to ``stopped`` so the no-restart invariant still
-        holds.
+        holds. A pending debounce flush is cancelled cleanly without
+        firing the callback.
         """
         if self._state == "stopped":
             return
         self._state = "stopped"
         if self._stop_event is not None:
             self._stop_event.set()
+        if self._flush_task is not None:
+            self._flush_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._flush_task
+            self._flush_task = None
         if self._watch_task is not None:
             self._watch_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._watch_task
             self._watch_task = None
         self._stop_event = None
+        self._pending.clear()
 
     async def _run_watch_loop(self) -> None:
-        """Background task: consume ``watchfiles.awatch`` and buffer events.
+        """Background task: consume ``watchfiles.awatch`` and feed the debounce.
 
-        Step 6 lands the buffer; Step 7 swaps appends for the trailing
-        debounce flush. Until then, every change just lands in
-        ``self._pending`` so tests can verify the wiring.
+        Each batch from watchfiles is converted to ``FileChange``
+        instances and handed to :meth:`_handle_change_batch`, which
+        extends ``self._pending`` and (re)schedules the trailing flush.
         """
         if not self._paths:
             # No paths to watch — block until stop().
@@ -232,18 +240,97 @@ class FileWatcher:
                 *self._paths,
                 stop_event=self._stop_event,
             ):
+                batch: list[FileChange] = []
                 for change_kind, raw_path in changes:
                     change_type = _WATCHFILES_CHANGE_MAP.get(change_kind)
                     if change_type is None:
                         # watchfiles may add new variants; ignore unknowns.
                         continue
-                    self._pending.append(
+                    batch.append(
                         FileChange(
                             path=Path(raw_path),
                             change_type=change_type,
                         )
                     )
+                if batch:
+                    self._handle_change_batch(batch)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 — logged and swallowed
             _log.exception("FileWatcher loop crashed; events will stop firing")
+
+    def _handle_change_batch(self, batch: list[FileChange]) -> None:
+        """Buffer one batch and (re)schedule the trailing debounce flush.
+
+        Called from the watchfiles loop for each emitted batch and from
+        unit tests directly. The semantics: extend ``_pending``, cancel
+        any in-flight flush task, schedule a fresh flush
+        ``debounce_ms / 1000`` seconds from now. If five rapid batches
+        arrive, only the last reschedule survives — the prior four
+        flush tasks are cancelled before they fire.
+        """
+        self._pending.extend(batch)
+        if self._flush_task is not None and not self._flush_task.done():
+            self._flush_task.cancel()
+        self._flush_task = asyncio.create_task(
+            self._flush_after(self._debounce_ms / 1000.0),
+            name=f"openrtc.file_watcher.flush[{id(self):#x}]",
+        )
+
+    async def _flush_after(self, delay_s: float) -> None:
+        """Wait *delay_s* seconds then flush ``_pending`` through ``on_change``.
+
+        Cancellation before the timer fires drops the in-flight flush
+        without firing the callback (used both by the debounce reschedule
+        and by ``stop()`` for clean shutdown). Exceptions raised by the
+        user callback are logged and swallowed so the watch loop keeps
+        running for subsequent events.
+        """
+        try:
+            await asyncio.sleep(delay_s)
+        except asyncio.CancelledError:
+            raise
+        # Snapshot + clear under the same logical step. If new events
+        # arrive while on_change is awaiting, _handle_change_batch will
+        # schedule the next flush around them.
+        collapsed = _collapse_changes(self._pending)
+        self._pending.clear()
+        if not collapsed:
+            return
+        try:
+            await self._on_change(collapsed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 — user callback isolation
+            _log.exception(
+                "FileWatcher.on_change raised; continuing to watch",
+            )
+
+
+def _collapse_changes(changes: list[FileChange]) -> list[FileChange]:
+    """Coalesce multiple events for the same path into one ``FileChange``.
+
+    Per design.md §3.4, the salient state wins:
+
+    - any ``deleted`` in the path's window → emit ``deleted`` (the file
+      is gone now, regardless of intermediate states)
+    - else any ``created`` in the window → emit ``created`` (the file is
+      new; downstream consumers must register it for the first time)
+    - otherwise → emit ``modified``
+
+    Output preserves the first-seen order of paths in *changes*.
+    """
+    by_path: dict[Path, list[ChangeType]] = {}
+    for change in changes:
+        by_path.setdefault(change.path, []).append(change.change_type)
+    collapsed: list[FileChange] = []
+    for path, types in by_path.items():
+        chosen: ChangeType
+        if "deleted" in types:
+            chosen = "deleted"
+        elif "created" in types:
+            chosen = "created"
+        else:
+            chosen = "modified"
+        collapsed.append(FileChange(path=path, change_type=chosen))
+    return collapsed
