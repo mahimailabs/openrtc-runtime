@@ -498,3 +498,46 @@ class TestDebounceAndDispatch:
         assert events == []
         # No leaked tasks.
         assert watcher._flush_task is None  # noqa: SLF001
+
+
+class TestPackageReExports:
+    """``from openrtc import FileWatcher, FileChange`` is part of the public API."""
+
+    def test_fresh_process_can_import_top_level_names(self) -> None:
+        import subprocess
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from openrtc import FileWatcher, FileChange; "
+                    "print(FileWatcher.__name__, FileChange.__name__)"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert proc.returncode == 0, (
+            f"fresh-process import failed: stderr={proc.stderr!r}"
+        )
+        assert "FileWatcher FileChange" in proc.stdout
+
+    def test_names_appear_in_dunder_all(self) -> None:
+        import openrtc
+
+        assert "FileWatcher" in openrtc.__all__
+        assert "FileChange" in openrtc.__all__
+
+    def test_re_exports_are_the_same_objects(self) -> None:
+        import openrtc
+        from openrtc.execution.file_watcher import (
+            FileChange as InnerFileChange,
+        )
+        from openrtc.execution.file_watcher import (
+            FileWatcher as InnerFileWatcher,
+        )
+
+        assert openrtc.FileWatcher is InnerFileWatcher
+        assert openrtc.FileChange is InnerFileChange

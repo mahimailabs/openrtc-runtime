@@ -4,6 +4,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from .core.config import AgentConfig, AgentDiscoveryConfig, agent_config
 from .core.pool import AgentPool
+from .execution.file_watcher import FileChange, FileWatcher
 from .types import ProviderValue
 
 try:
@@ -18,6 +19,8 @@ __all__ = [
     "AgentConfig",
     "AgentDiscoveryConfig",
     "AgentPool",
+    "FileChange",
+    "FileWatcher",
     "ProviderValue",
     "__version__",
     "agent_config",
