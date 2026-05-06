@@ -1,0 +1,63 @@
+name: Integration tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+# Integration tests bring up a local LiveKit dev server via docker
+# compose and exercise the §8 acceptance scenarios. The suite skips
+# cleanly when the server is unreachable or the provider credentials
+# (OPENAI_API_KEY) are absent, so this job is informational on PRs from
+# forks where secrets are not exposed.
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Start LiveKit dev server
+        run: docker compose -f docker-compose.test.yml up -d
+
+      - name: Wait for LiveKit to become healthy
+        run: |
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' openrtc-livekit-test 2>/dev/null || echo "starting")
+            if [ "$status" = "healthy" ]; then
+              echo "LiveKit healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "LiveKit did not become healthy in 30s"
+          docker compose -f docker-compose.test.yml logs livekit
+          exit 1
+
+      - name: Run integration suite
+        env:
+          # Match the ``--dev`` defaults baked into docker-compose.test.yml.
+          LIVEKIT_URL: ws://localhost:7880
+          LIVEKIT_API_KEY: devkey
+          LIVEKIT_API_SECRET: secret
+          # Provider key for the §8.4 real-call test. Tests skip gracefully
+          # when this is unset (e.g. PRs from forks).
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: uv run pytest -m integration -v
+
+      - name: Tear down LiveKit dev server
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
