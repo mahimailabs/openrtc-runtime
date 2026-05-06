@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   integration-against-latest:
@@ -76,3 +77,23 @@ jobs:
         run: |
           uv pip show livekit-agents
           uv pip show livekit
+
+      - name: Open or update canary tracking issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          body=$(printf 'Canary against latest livekit-agents failed on %s.\n\nRun: %s\n\nSee workflow logs for the resolved livekit-agents version and the pytest summary.\n' "$(date -u +%FT%TZ)" "${RUN_URL}")
+          existing=$(gh issue list --label canary-failure --state open --json number --jq '.[0].number' || true)
+          if [ -n "${existing}" ]; then
+            echo "Commenting on existing canary issue #${existing}"
+            gh issue comment "${existing}" --body "${body}"
+          else
+            echo "Opening new canary issue"
+            gh issue create \
+              --title "Canary failed: livekit-agents drift detected" \
+              --label canary-failure \
+              --body "${body}"
+          fi
