@@ -80,3 +80,23 @@ def test_shared_livekit_worker_options_isolation_and_max_propagate() -> None:
     kwargs = opts.agent_pool_kwargs()
     assert kwargs["isolation"] == "process"
     assert kwargs["max_concurrent_sessions"] == 12
+
+
+def test_isolation_arg_reads_openrtc_isolation_envvar() -> None:
+    """``--isolation`` falls back to ``OPENRTC_ISOLATION`` env var."""
+    import typing
+
+    from openrtc.cli.types import IsolationArg
+
+    _annotation, option_info = typing.get_args(IsolationArg)
+    assert option_info.envvar == "OPENRTC_ISOLATION"
+
+
+def test_max_concurrent_sessions_arg_reads_envvar() -> None:
+    """``--max-concurrent-sessions`` falls back to ``OPENRTC_MAX_CONCURRENT_SESSIONS``."""
+    import typing
+
+    from openrtc.cli.types import MaxConcurrentSessionsArg
+
+    _annotation, option_info = typing.get_args(MaxConcurrentSessionsArg)
+    assert option_info.envvar == "OPENRTC_MAX_CONCURRENT_SESSIONS"
