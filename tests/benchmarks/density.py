@@ -29,12 +29,16 @@ import asyncio
 import contextlib
 import json
 import multiprocessing as mp
+import os
+import platform
+import statistics
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from types import SimpleNamespace
 from typing import Any
 
+import psutil
 from livekit.agents import JobExecutorType
 
 from openrtc.execution.coroutine import CoroutinePool
@@ -48,6 +52,24 @@ _SESSION_ALLOCATION_BYTES = 5 * 1024 * 1024  # 5 MB
 
 _RSS_SAMPLE_INTERVAL_SECONDS = 0.05
 _SESSION_HOLD_SECONDS = 1.0
+_LATENCY_SAMPLE_INTERVAL_SECONDS = 0.01
+
+
+@dataclass
+class SchedulerLatency:
+    samples: int
+    median: float
+    p99: float
+    max: float  # noqa: A003 — keep the JSON key stable for downstream consumers
+
+
+@dataclass
+class Hardware:
+    cpu_model: str
+    cpu_count: int | None
+    total_ram_gb: float
+    kernel: str
+    python_version: str
 
 
 @dataclass
@@ -61,7 +83,22 @@ class DensityResult:
     delta_rss_mb: float | None
     elapsed_seconds: float
     rss_within_budget: bool
-    notes: list[str]
+    scheduler_latency_ms: SchedulerLatency | None = None
+    hardware: Hardware | None = None
+    notes: list[str] = field(default_factory=list)
+
+
+def _hardware_fingerprint() -> Hardware:
+    """Capture the host signature so benchmark results stay reproducible."""
+    uname = platform.uname()
+    total_ram_bytes = psutil.virtual_memory().total
+    return Hardware(
+        cpu_model=platform.processor() or uname.machine,
+        cpu_count=os.cpu_count(),
+        total_ram_gb=round(total_ram_bytes / (1024**3), 2),
+        kernel=f"{uname.system} {uname.release}",
+        python_version=platform.python_version(),
+    )
 
 
 def _stub_running_job_info(job_id: str) -> Any:
@@ -129,6 +166,38 @@ async def _sample_rss(stop: asyncio.Event, samples: list[int]) -> None:
             await asyncio.wait_for(stop.wait(), timeout=_RSS_SAMPLE_INTERVAL_SECONDS)
 
 
+async def _sample_loop_latency(stop: asyncio.Event, samples: list[float]) -> None:
+    """Background task: measure scheduler wakeup latency in milliseconds.
+
+    A small ``asyncio.sleep`` is requested every interval; the delta between
+    the requested wakeup time and the actual return time is the loop's
+    scheduling latency. Under heavy task pressure this rises and signals
+    starvation of the event loop.
+    """
+    while not stop.is_set():
+        target = time.monotonic() + _LATENCY_SAMPLE_INTERVAL_SECONDS
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(
+                stop.wait(), timeout=_LATENCY_SAMPLE_INTERVAL_SECONDS
+            )
+        actual = time.monotonic()
+        samples.append(max(0.0, (actual - target) * 1000.0))
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    """Linear-interpolation percentile (no numpy dependency)."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (pct / 100.0) * (len(ordered) - 1)
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = rank - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+
 async def run_density_benchmark(
     *,
     sessions: int,
@@ -144,7 +213,11 @@ async def run_density_benchmark(
     pool = _build_pool(max_concurrent_sessions=sessions)
     stop_event = asyncio.Event()
     samples: list[int] = []
+    latency_samples: list[float] = []
     sampler = asyncio.create_task(_sample_rss(stop_event, samples))
+    latency_sampler = asyncio.create_task(
+        _sample_loop_latency(stop_event, latency_samples)
+    )
 
     start = time.monotonic()
     try:
@@ -162,6 +235,7 @@ async def run_density_benchmark(
         elapsed = time.monotonic() - start
         stop_event.set()
         await sampler
+        await latency_sampler
 
     bookkeeping = pool._density_results  # type: ignore[attr-defined]
     successes = len(bookkeeping["successes"])
@@ -178,6 +252,18 @@ async def run_density_benchmark(
 
     rss_within_budget = peak_rss_mb is None or peak_rss_mb <= rss_budget_mb
 
+    scheduler_latency_ms: SchedulerLatency | None
+    if latency_samples:
+        scheduler_latency_ms = SchedulerLatency(
+            samples=len(latency_samples),
+            median=round(statistics.median(latency_samples), 3),
+            p99=round(_percentile(latency_samples, 99.0), 3),
+            max=round(max(latency_samples), 3),
+        )
+    else:
+        scheduler_latency_ms = None
+        notes.append("scheduler latency unavailable: no samples collected.")
+
     return DensityResult(
         sessions=sessions,
         successes=successes,
@@ -188,6 +274,8 @@ async def run_density_benchmark(
         delta_rss_mb=delta_rss_mb,
         elapsed_seconds=elapsed,
         rss_within_budget=rss_within_budget,
+        scheduler_latency_ms=scheduler_latency_ms,
+        hardware=_hardware_fingerprint(),
         notes=notes,
     )
 
@@ -207,6 +295,27 @@ def _format_human(result: DensityResult) -> str:
         f"within budget:     {result.rss_within_budget}",
         f"elapsed:           {result.elapsed_seconds:.2f} s",
     ]
+    if result.scheduler_latency_ms is not None:
+        lines.extend(
+            [
+                "scheduler latency (ms):",
+                f"  samples:         {result.scheduler_latency_ms.samples}",
+                f"  median:          {result.scheduler_latency_ms.median:.3f}",
+                f"  p99:             {result.scheduler_latency_ms.p99:.3f}",
+                f"  max:             {result.scheduler_latency_ms.max:.3f}",
+            ]
+        )
+    if result.hardware is not None:
+        lines.extend(
+            [
+                "hardware:",
+                f"  cpu_model: {result.hardware.cpu_model}",
+                f"  cpu_count: {result.hardware.cpu_count}",
+                f"  total_ram_gb: {result.hardware.total_ram_gb}",
+                f"  kernel: {result.hardware.kernel}",
+                f"  python_version: {result.hardware.python_version}",
+            ]
+        )
     if result.notes:
         lines.append("notes:")
         lines.extend(f"  - {note}" for note in result.notes)
