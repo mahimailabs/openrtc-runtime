@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import importlib.util
 import sys
 import types
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -255,3 +257,63 @@ class TestFileWatcherRefreshPaths:
         )
         watcher.refresh_paths()
         assert watcher.paths == explicit
+
+
+async def _wait_until(
+    predicate: Callable[[], bool],
+    *,
+    timeout_s: float = 2.0,
+    poll_s: float = 0.02,
+) -> bool:
+    """Poll until *predicate* is True or *timeout_s* elapses."""
+    deadline = asyncio.get_running_loop().time() + timeout_s
+    while asyncio.get_running_loop().time() < deadline:
+        if predicate():
+            return True
+        await asyncio.sleep(poll_s)
+    return predicate()
+
+
+@pytest.mark.asyncio
+class TestFileWatcherEventWiring:
+    """Step 6 — events from watchfiles land in the watcher buffer."""
+
+    async def test_writes_produce_buffered_filechange(self, tmp_path: Path) -> None:
+        target = tmp_path / "agent.py"
+        target.write_text("# initial\n")
+        watcher = FileWatcher(_noop_callback, paths=[target])
+        await watcher.start()
+        try:
+            # watchfiles takes a few ms to install the OS-level watch on
+            # macOS; give it a small head start before mutating the file.
+            await asyncio.sleep(0.1)
+            target.write_text("# modified\n")
+            arrived = await _wait_until(
+                lambda: any(
+                    fc.path.resolve() == target.resolve()
+                    for fc in watcher._pending  # noqa: SLF001 — buffer is internal pre-debounce
+                ),
+                timeout_s=3.0,
+            )
+            assert arrived, f"No FileChange for target; pending={watcher._pending!r}"  # noqa: SLF001
+        finally:
+            await watcher.stop()
+
+    async def test_stop_cancels_watch_task_cleanly(self, tmp_path: Path) -> None:
+        target = tmp_path / "agent.py"
+        target.write_text("# initial\n")
+        watcher = FileWatcher(_noop_callback, paths=[target])
+        await watcher.start()
+        # Give awatch a moment to install.
+        await asyncio.sleep(0.05)
+        await watcher.stop()
+        assert watcher.state == "stopped"
+        # Internal task field is cleared after a clean shutdown.
+        assert watcher._watch_task is None  # noqa: SLF001
+
+    async def test_empty_path_list_starts_and_stops(self) -> None:
+        watcher = FileWatcher(_noop_callback, paths=[])
+        await watcher.start()
+        assert watcher.state == "running"
+        await watcher.stop()
+        assert watcher.state == "stopped"

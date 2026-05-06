@@ -13,6 +13,9 @@ Public API (locked at design.md §3.5):
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
 import site
 import sys
 from collections.abc import Awaitable, Callable
@@ -20,8 +23,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import watchfiles
+
 ChangeType = Literal["created", "modified", "deleted"]
 WatcherState = Literal["new", "running", "stopped"]
+
+_log = logging.getLogger(__name__)
+
+_WATCHFILES_CHANGE_MAP: dict[watchfiles.Change, ChangeType] = {
+    watchfiles.Change.added: "created",
+    watchfiles.Change.modified: "modified",
+    watchfiles.Change.deleted: "deleted",
+}
 
 
 @dataclass(frozen=True)
@@ -135,6 +148,11 @@ class FileWatcher:
             list(paths) if paths is not None else _discover_user_modules()
         )
         self._state: WatcherState = "new"
+        # Filled in on start(). _pending collects changes between
+        # debounce flushes; the trailing-edge debounce lands in Step 7.
+        self._pending: list[FileChange] = []
+        self._stop_event: asyncio.Event | None = None
+        self._watch_task: asyncio.Task[None] | None = None
 
     @property
     def paths(self) -> list[Path]:
@@ -171,6 +189,11 @@ class FileWatcher:
                 "FileWatcher cannot be restarted after stop(); construct a new watcher.",
             )
         self._state = "running"
+        self._stop_event = asyncio.Event()
+        self._watch_task = asyncio.create_task(
+            self._run_watch_loop(),
+            name=f"openrtc.file_watcher[{id(self):#x}]",
+        )
 
     async def stop(self) -> None:
         """Stop watching. Idempotent: safe to call multiple times.
@@ -179,4 +202,48 @@ class FileWatcher:
         it directly to ``stopped`` so the no-restart invariant still
         holds.
         """
+        if self._state == "stopped":
+            return
         self._state = "stopped"
+        if self._stop_event is not None:
+            self._stop_event.set()
+        if self._watch_task is not None:
+            self._watch_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._watch_task
+            self._watch_task = None
+        self._stop_event = None
+
+    async def _run_watch_loop(self) -> None:
+        """Background task: consume ``watchfiles.awatch`` and buffer events.
+
+        Step 6 lands the buffer; Step 7 swaps appends for the trailing
+        debounce flush. Until then, every change just lands in
+        ``self._pending`` so tests can verify the wiring.
+        """
+        if not self._paths:
+            # No paths to watch — block until stop().
+            assert self._stop_event is not None
+            await self._stop_event.wait()
+            return
+        assert self._stop_event is not None
+        try:
+            async for changes in watchfiles.awatch(
+                *self._paths,
+                stop_event=self._stop_event,
+            ):
+                for change_kind, raw_path in changes:
+                    change_type = _WATCHFILES_CHANGE_MAP.get(change_kind)
+                    if change_type is None:
+                        # watchfiles may add new variants; ignore unknowns.
+                        continue
+                    self._pending.append(
+                        FileChange(
+                            path=Path(raw_path),
+                            change_type=change_type,
+                        )
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 — logged and swallowed
+            _log.exception("FileWatcher loop crashed; events will stop firing")
