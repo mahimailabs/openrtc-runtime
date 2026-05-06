@@ -1347,6 +1347,7 @@ name = "openrtc"
 source = { editable = "." }
 dependencies = [
     { name = "livekit-agents", extra = ["openai", "silero", "turn-detector"] },
+    { name = "watchfiles" },
 ]
 
 [package.optional-dependencies]
@@ -1383,6 +1384,7 @@ requires-dist = [
     { name = "textual", marker = "extra == 'tui'", specifier = ">=0.47,<2" },
     { name = "typer", marker = "extra == 'cli'", specifier = ">=0.12" },
     { name = "typer", marker = "extra == 'tui'", specifier = ">=0.12" },
+    { name = "watchfiles", specifier = ">=0.21,<2" },
 ]
 provides-extras = ["cli", "tui"]
 
