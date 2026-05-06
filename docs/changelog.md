@@ -34,8 +34,17 @@ Changes that have landed on `main` but have not yet been tagged for release.
   threshold. After this many non-`SUCCESS` session terminations the
   worker calls `aclose()` so the deployment platform can restart it
   (bounded blast radius for systemic bugs). Ignored in process mode.
+- `AgentPool(drain_timeout=30)` bounds the graceful-drain window.
+  When SIGTERM (or SIGINT) is delivered, upstream `AgentServer`'s
+  signal handler calls `aclose()`; `drain_timeout` is the per-pool
+  budget for in-flight sessions to finish. Sessions that exceed it
+  are cancelled with a `WARNING` log and the per-executor `kill()`
+  escalation runs. Honored in both isolation modes (forwarded to
+  upstream `AgentServer` via the constructor kwarg).
 - New CLI flags `--isolation` and `--max-concurrent-sessions` on
-  `start` / `dev` / `console`.
+  `start` / `dev` / `console`. Both also read environment variables
+  (`OPENRTC_ISOLATION`, `OPENRTC_MAX_CONCURRENT_SESSIONS`); precedence
+  is CLI flag > env var > library default.
 - New `openrtc.execution.coroutine.CoroutinePool` and
   `CoroutineJobExecutor` (internal). Both implement the
   `livekit.agents.ipc.proc_pool.ProcPool` / `JobExecutor` shapes;
