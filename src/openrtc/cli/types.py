@@ -85,10 +85,12 @@ IsolationArg = Annotated[
         "--isolation",
         case_sensitive=False,
         click_type=click.Choice(["coroutine", "process"], case_sensitive=False),
+        envvar="OPENRTC_ISOLATION",
         help=(
             "Worker isolation mode (default 'coroutine'). 'coroutine' runs "
             "every session as an asyncio.Task in one worker for high density; "
-            "'process' is the v0.0.x default of one OS process per session."
+            "'process' is the v0.0.x default of one OS process per session. "
+            "Precedence: CLI flag > OPENRTC_ISOLATION > library default."
         ),
         rich_help_panel=PANEL_OPENRTC,
     ),
@@ -99,10 +101,12 @@ MaxConcurrentSessionsArg = Annotated[
     typer.Option(
         "--max-concurrent-sessions",
         min=1,
+        envvar="OPENRTC_MAX_CONCURRENT_SESSIONS",
         help=(
             "Coroutine-mode backpressure threshold (default 50). The worker "
             "reports load >= 1.0 to LiveKit dispatch once this many sessions "
-            "are in flight; ignored under --isolation process."
+            "are in flight; ignored under --isolation process. "
+            "Precedence: CLI flag > OPENRTC_MAX_CONCURRENT_SESSIONS > library default."
         ),
         rich_help_panel=PANEL_OPENRTC,
     ),

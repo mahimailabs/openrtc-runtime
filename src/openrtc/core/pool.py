@@ -102,6 +102,7 @@ class AgentPool:
         isolation: IsolationMode = "coroutine",
         max_concurrent_sessions: int = 50,
         consecutive_failure_limit: int = 5,
+        drain_timeout: int = 30,
     ) -> None:
         """Create a pool with shared defaults, prewarm, and a universal entrypoint.
 
@@ -133,6 +134,13 @@ class AgentPool:
                 so the deployment platform restarts it. Default ``5`` per
                 docs/design/v0.1.md §6.8. Ignored in ``"process"`` mode
                 (each subprocess crashes and is restarted independently).
+            drain_timeout: Maximum seconds the worker waits for in-flight
+                sessions to finish after a SIGTERM (or other graceful-shutdown
+                signal) before cancelling them. Forwarded to
+                ``AgentServer(drain_timeout=...)`` so the upstream signal
+                handler honors it; sessions exceeding the budget are
+                cancelled with a ``WARNING`` log. Default ``30`` per
+                docs/design/v0.1.md §6.4.
         """
         if isolation not in ("coroutine", "process"):
             raise ValueError(
@@ -161,9 +169,16 @@ class AgentPool:
                 "consecutive_failure_limit must be >= 1, "
                 f"got {consecutive_failure_limit}."
             )
+        if not isinstance(drain_timeout, int) or isinstance(drain_timeout, bool):
+            raise TypeError(
+                f"drain_timeout must be an int, got {type(drain_timeout).__name__}."
+            )
+        if drain_timeout < 1:
+            raise ValueError(f"drain_timeout must be >= 1, got {drain_timeout}.")
         self._isolation: IsolationMode = isolation
         self._max_concurrent_sessions: int = max_concurrent_sessions
         self._consecutive_failure_limit: int = consecutive_failure_limit
+        self._drain_timeout: int = drain_timeout
         self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(agents=self._agents)
@@ -191,8 +206,9 @@ class AgentPool:
             return _CoroutineAgentServer(
                 max_concurrent_sessions=self._max_concurrent_sessions,
                 consecutive_failure_limit=self._consecutive_failure_limit,
+                drain_timeout=self._drain_timeout,
             )
-        return AgentServer()
+        return AgentServer(drain_timeout=self._drain_timeout)
 
     @property
     def isolation(self) -> IsolationMode:
@@ -208,6 +224,11 @@ class AgentPool:
     def consecutive_failure_limit(self) -> int:
         """Return the coroutine-mode supervisor failure threshold."""
         return self._consecutive_failure_limit
+
+    @property
+    def drain_timeout(self) -> int:
+        """Return the seconds the worker waits for in-flight sessions on SIGTERM."""
+        return self._drain_timeout
 
     @property
     def server(self) -> AgentServer:

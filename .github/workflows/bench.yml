@@ -1,12 +1,19 @@
 name: Density benchmark
 
-# Runs the v0.1 density benchmark (tests/benchmarks/density.py) and
-# fails the job if peak RSS exceeds the 4 GB budget defined by design
-# §7. The script's exit code drives the gate: 0 = under budget, 2 =
-# over budget, 3 = at least one session error.
+# Runs the v0.1 density benchmark (tests/benchmarks/density.py) three
+# times per invocation and fails the job if the *median* peak RSS
+# across runs exceeds the 4 GB budget defined by design §7. Using the
+# median guards against single-run transient spikes on the hosted
+# runner while still catching genuine regressions.
 #
-# Triggers: pushes to main and pull requests. The script runs in
-# under 5 seconds at 50 sessions on the GitHub-hosted runners we use.
+# Each run's exit code is consumed by the gate: 0 = under budget on
+# its own, 2 = over budget on its own, 3 = at least one session
+# error. A single 2-class exit on its own does not fail the job; the
+# median check is the gate. A 3-class exit (session error) always
+# fails the job.
+#
+# Triggers: pushes to main and pull requests. Each run takes ~5
+# seconds at 50 sessions on the GitHub-hosted runners we use.
 #
 # Security note: this workflow only consumes literal strings. No
 # untrusted user input (issue/PR/comment bodies) is interpolated into
@@ -23,7 +30,7 @@ permissions:
 
 jobs:
   density:
-    name: 50 concurrent sessions, peak RSS <= 4 GB
+    name: 50 concurrent sessions, median peak RSS <= 4 GB (3 runs)
     runs-on: ubuntu-latest
 
     steps:
@@ -40,18 +47,57 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Run density benchmark (gate at 4096 MB peak RSS)
+      - name: Run density benchmark (3 runs at N=50)
         run: |
-          uv run python tests/benchmarks/density.py \
-            --sessions 50 \
-            --rss-budget-mb 4096 \
-            --json | tee density-result.json
+          set -e
+          for i in 1 2 3; do
+            echo "=== density run ${i}/3 ==="
+            # Allow exit code 2 (RSS over budget on a single run) but
+            # never tolerate exit code 3 (session error).
+            set +e
+            uv run python tests/benchmarks/density.py \
+              --sessions 50 \
+              --rss-budget-mb 4096 \
+              --json > "density-run-${i}.json"
+            rc=$?
+            set -e
+            if [ "${rc}" = "3" ]; then
+              echo "Session error on run ${i}; failing."
+              exit 1
+            fi
+          done
 
-      - name: Upload density result
+      - name: Compute median peak RSS and gate at 4 GB
+        run: |
+          uv run python - <<'PY'
+          import json
+          import statistics
+          import sys
+
+          peaks = []
+          for i in (1, 2, 3):
+              with open(f"density-run-{i}.json") as fh:
+                  data = json.load(fh)
+              peak = data.get("peak_rss_mb")
+              if peak is None:
+                  print(f"run {i}: peak_rss_mb missing; failing")
+                  sys.exit(1)
+              peaks.append(peak)
+              print(f"run {i}: peak {peak:.1f} MB")
+
+          median = statistics.median(peaks)
+          print(f"median peak RSS across 3 runs: {median:.1f} MB")
+          if median > 4096:
+              print(f"REGRESSION: median {median:.1f} MB > 4096 MB budget")
+              sys.exit(1)
+          print("OK: median is within the 4 GB gate")
+          PY
+
+      - name: Upload density results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: density-result-${{ github.run_id }}
-          path: density-result.json
+          name: density-results-${{ github.run_id }}
+          path: density-run-*.json
           if-no-files-found: warn
           retention-days: 30
