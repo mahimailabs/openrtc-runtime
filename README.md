@@ -234,6 +234,71 @@ footprint. Validate against the §8.4 real-LiveKit integration test
 `OPENAI_API_KEY`) before quoting a per-session memory number to your
 operators.
 
+### Throughput: steady-state event-loop p99
+
+Memory density is only half the question. N sessions share one event loop and
+one GIL, so the other half is whether the loop keeps up.
+`tests/benchmarks/throughput.py` drives N concurrent sessions through the real
+Silero VAD over synthetic 16 kHz PCM at 50 fps (the continuous on-loop CPU cost)
+and measures event-loop p99 latency, separating the startup burst from steady
+state.
+
+```bash
+uv run python tests/benchmarks/throughput.py --sessions 1,10,25,50,100
+```
+
+Sample sweep (Apple M-series laptop, `vad` workload, steady state):
+
+| Sessions | steady-state loop p99 | peak RSS |
+| ---: | ---: | ---: |
+|   1 | 0.9 ms | 160 MB |
+|  10 | 1.3 ms | 160 MB |
+|  25 | 1.2 ms | 160 MB |
+|  50 | 1.1 ms | 160 MB |
+| 100 | 2.8 ms | 160 MB |
+
+Steady-state VAD inference stays well under a 100 ms loop-latency budget to 100
+sessions, with flat resident memory (the model loads once). The expensive,
+bursty part is session *startup* (each `session.start()` plus greeting), which
+the benchmark reports as a separate `startup_p99` column and which dominates
+early-life latency. This workload models the continuous VAD path, not the full
+STT/LLM/TTS orchestration, so read it as the on-loop-CPU ceiling rather than a
+full-pipeline guarantee. Run it on your own hardware before quoting a
+sessions-per-worker number.
+
+### Prove it on your machine
+
+The process column above is estimated. This script measures both models for
+real on your laptop: it spawns one subprocess per session for the
+process-per-session model, runs the same number of sessions as `asyncio`
+tasks in a single process for the coroutine model, then prints the memory
+used each way. No LiveKit server, no API keys, no model download.
+
+```bash
+uv run python examples/density_demo.py                 # 16 sessions
+uv run python examples/density_demo.py --sessions 32   # the gap widens with N
+uv run python examples/density_demo.py --sessions 50 --load-vad   # adds the shared Silero VAD model
+```
+
+Sample output (Apple M-series laptop, import-only mode):
+
+```text
+Hosting 16 concurrent voice sessions. Measuring resident memory.
+
+  livekit-agents (process per session):     1861 MB total   ( 116.3 MB/session)
+  OpenRTC coroutine pool (one process):      195 MB total   (  12.2 MB/session)
+
+  OpenRTC uses 9.5x less memory for the same 16 sessions.
+```
+
+Your numbers vary by machine, and the ratio grows as you raise `--sessions`
+(the coroutine pool pays the import cost once and amortizes it across every
+session). This default mode counts only the `livekit-agents` import cost, so
+it is a conservative lower bound: `--load-vad` adds the shared Silero VAD
+model weights (paid once in the pool, once per process otherwise), and
+`tests/benchmarks/density.py --sessions 50` proves the 50-sessions-under-4-GB
+ceiling. The full script is [examples/density_demo.py](examples/density_demo.py).
+
 ## Routing
 
 One process hosts several agent classes, so each session must resolve to a single registered name. `AgentPool` resolves the agent in this order:
