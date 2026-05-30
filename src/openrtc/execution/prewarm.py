@@ -10,12 +10,20 @@ Adding a new shared resource means adding it to ``_prewarm_worker``.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from livekit.agents import JobProcess
 
+from openrtc.observability.metrics import (
+    format_prewarm_savings,
+    process_resident_set_bytes,
+)
+
 if TYPE_CHECKING:
     from openrtc.core.pool import _PoolRuntimeState
+
+logger = logging.getLogger("openrtc.execution.prewarm")
 
 
 def _prewarm_worker(
@@ -28,6 +36,16 @@ def _prewarm_worker(
     silero_module, turn_detector_model = _load_shared_runtime_dependencies()
     proc.userdata["vad"] = silero_module.VAD.load()
     proc.userdata["turn_detection_factory"] = turn_detector_model
+
+    # Day-one payoff: surface the fleet-collapse idle-baseline saving once per
+    # worker, post-prewarm (RSS is now the per-worker baseline), so existing
+    # livekit-agents users see the win on first run without --dashboard.
+    logger.info(
+        format_prewarm_savings(
+            agent_count=len(runtime_state.agents),
+            shared_worker_bytes=process_resident_set_bytes(),
+        )
+    )
 
 
 def _load_shared_runtime_dependencies() -> tuple[Any, type[Any]]:
