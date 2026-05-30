@@ -147,6 +147,21 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.2.2] - 2026-05-30
+
+### Fixed
+- Coroutine mode now establishes the LiveKit job context for the session duration, so `get_job_context()` works inside agents and sessions and shutdown callbacks run (MAH-158).
+- Coroutine sessions are held open until the call ends (room disconnect or `ctx.shutdown()`) instead of being marked SUCCESS when the entrypoint returns, so `max_concurrent_sessions` backpressure and runtime session counts are accurate (MAH-160).
+
+### Added
+- Real-audio throughput benchmark (`tests/benchmarks/throughput.py`) reporting steady-state event-loop p99 vs session count, separating startup from steady state (MAH-163).
+- `examples/density_demo.py`: a no-server demo comparing process-per-session vs coroutine-pool resident memory.
+
+### Changed
+- The coroutine real-room integration test is now a correctness gate (job context plus no-failure); throughput moved to the dedicated benchmark.
+
+---
+
 ## [0.2.1] - 2026-05-06
 
 ## What's Changed
