@@ -147,6 +147,14 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.2.3] - 2026-05-30
+
+### Added
+- Day-one savings readout: each worker logs the fleet-collapse idle-baseline memory saved (N agents in one shared-prewarm worker vs N separate livekit-agents workers) once at startup, for both `pool.run()` and `openrtc dev/start`, with no `--dashboard` flag. The line claims only idle baseline saved (not per-session density), stays neutral for a single agent, degrades gracefully when RSS is unavailable, and names its equal-baseline assumption.
+- README: a one-screen "Migrating from livekit-agents" recipe (N per-agent workers to one AgentPool).
+
+---
+
 ## [0.2.2] - 2026-05-30
 
 ### Fixed
