@@ -14,6 +14,8 @@ Contracts derived from:
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import contextvars
 import inspect
 import logging
 import uuid
@@ -25,7 +27,7 @@ from livekit import rtc
 from livekit.agents import JobContext, JobExecutorType, JobProcess, utils
 from livekit.agents.ipc import inference_executor as inference_executor_mod
 from livekit.agents.ipc.job_executor import JobStatus
-from livekit.agents.job import RunningJobInfo
+from livekit.agents.job import RunningJobInfo, _JobContextVar
 
 if TYPE_CHECKING:
     from livekit.agents.ipc.job_executor import JobExecutor
@@ -114,6 +116,7 @@ class CoroutineJobExecutor:
         self._session_end_fnc = session_end_fnc
         self._context_factory = context_factory
         self._loop = loop
+        self._shutdown_fut: asyncio.Future[str] | None = None
 
     @property
     def id(self) -> str:
@@ -271,22 +274,79 @@ class CoroutineJobExecutor:
         self._task = loop.create_task(self._run_entrypoint(ctx))
 
     async def _run_entrypoint(self, ctx: JobContext) -> None:
+        """Run the session lifecycle, mirroring upstream ``_run_job_task``.
+
+        Establishes the job context (so ``get_job_context()`` resolves inside
+        the entrypoint and the session), holds the session open until shutdown
+        is requested (room disconnect, ``ctx.shutdown()``, or an entrypoint
+        crash), then runs the teardown sequence. Every ``JobContext`` hook is
+        treated as optional so the executor still runs with the bare stub
+        contexts that unit tests and the density benchmark pass directly.
+        """
         assert self._entrypoint_fnc is not None  # checked in launch_job
+        loop = asyncio.get_running_loop()
+        shutdown_fut: asyncio.Future[str] = loop.create_future()
+        self._shutdown_fut = shutdown_fut
+
+        def _request_shutdown(reason: str = "shutdown") -> None:
+            if not shutdown_fut.done():
+                shutdown_fut.set_result(reason)
+
+        # Per-job log fields, then the contextvar (the MAH-158 fix).
+        _on_setup = getattr(ctx, "_on_setup", None)
+        if callable(_on_setup):
+            _on_setup()
+        token: contextvars.Token[JobContext] | None = None
+        with contextlib.suppress(Exception):
+            token = _JobContextVar.set(ctx)
+
+        # Shutdown triggers (all optional for stub contexts): ctx.shutdown()
+        # via on_shutdown, and the room "disconnected" event (mirrors
+        # job_proc_lazy_main's room-disconnected handler).
+        if hasattr(ctx, "_on_shutdown"):
+
+            def _on_shutdown(reason: str = "") -> None:
+                _request_shutdown(reason or "shutdown")
+
+            ctx._on_shutdown = _on_shutdown
+        _room_on = getattr(getattr(ctx, "room", None), "on", None)
+        if callable(_room_on):
+            _room_on("disconnected", lambda *_a: _request_shutdown("room disconnected"))
+
         try:
-            await self._entrypoint_fnc(ctx)
+            try:
+                await self._entrypoint_fnc(ctx)
+            except asyncio.CancelledError:
+                if self._status is JobStatus.RUNNING:
+                    self._status = JobStatus.FAILED
+                raise
+            except Exception:
+                if self._status is JobStatus.RUNNING:
+                    self._status = JobStatus.FAILED
+                logger.exception(
+                    "entrypoint raised in CoroutineJobExecutor",
+                    extra=self.logging_extra(),
+                )
+                return
+            # Entrypoint returned cleanly. Hold a real job open until the call
+            # ends (the MAH-160 fix), then run teardown. A setup-only entrypoint
+            # (no live session) or a fake job (simulate_job, which has no live
+            # room to disconnect) completes on return instead.
+            _is_fake = getattr(ctx, "is_fake_job", None)
+            fake_job = bool(_is_fake()) if callable(_is_fake) else False
+            if (
+                getattr(ctx, "_primary_agent_session", None) is not None
+                and not fake_job
+            ):
+                try:
+                    await shutdown_fut
+                except asyncio.CancelledError:
+                    if self._status is JobStatus.RUNNING:
+                        self._status = JobStatus.FAILED
+                    raise
+                await self._teardown(ctx, shutdown_fut.result())
             if self._status is JobStatus.RUNNING:
                 self._status = JobStatus.SUCCESS
-        except asyncio.CancelledError:
-            if self._status is JobStatus.RUNNING:
-                self._status = JobStatus.FAILED
-            raise
-        except Exception:
-            if self._status is JobStatus.RUNNING:
-                self._status = JobStatus.FAILED
-            logger.exception(
-                "entrypoint raised in CoroutineJobExecutor",
-                extra=self.logging_extra(),
-            )
         finally:
             if self._session_end_fnc is not None:
                 try:
@@ -296,6 +356,43 @@ class CoroutineJobExecutor:
                         "session_end_fnc raised in CoroutineJobExecutor",
                         extra=self.logging_extra(),
                     )
+            if token is not None:
+                with contextlib.suppress(Exception):
+                    _JobContextVar.reset(token)
+
+    async def _teardown(self, ctx: JobContext, reason: str) -> None:
+        """Run the post-shutdown lifecycle (mirrors upstream ``_run_job_task``).
+
+        Closes the primary ``AgentSession``, runs ``_on_session_end`` and the
+        registered shutdown callbacks, cancels pending tasks, and cleans up.
+        Every hook is optional so stub contexts in tests and benchmarks are
+        tolerated.
+        """
+        primary = getattr(ctx, "_primary_agent_session", None)
+        if primary is not None and hasattr(primary, "aclose"):
+            with contextlib.suppress(Exception):
+                await primary.aclose()
+        _on_session_end = getattr(ctx, "_on_session_end", None)
+        if callable(_on_session_end):
+            with contextlib.suppress(Exception):
+                await _on_session_end()
+        for callback in list(getattr(ctx, "_shutdown_callbacks", None) or []):
+            try:
+                await callback(reason)
+            except Exception:
+                logger.exception(
+                    "shutdown callback raised in CoroutineJobExecutor",
+                    extra=self.logging_extra(),
+                )
+        pending = list(getattr(ctx, "_pending_tasks", None) or [])
+        if pending:
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+        _on_cleanup = getattr(ctx, "_on_cleanup", None)
+        if callable(_on_cleanup):
+            with contextlib.suppress(Exception):
+                _on_cleanup()
 
     def logging_extra(self) -> dict[str, Any]:
         return {"executor_id": self._id}
