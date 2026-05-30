@@ -171,6 +171,76 @@ If a module has no `@agent_config`, the agent name defaults to the filename stem
 
 Discovered agents work with `livekit dev` and spawn-based workers on macOS. For `add()`, define agent classes at module scope so worker reload can import them.
 
+## Migrating from livekit-agents
+
+Already running one or more `livekit-agents` workers? Each is its own process that
+loads the same VAD and turn-detector models. Collapse them into one `AgentPool`
+worker without changing your agents.
+
+**Before** (one worker per agent, N processes):
+
+```python
+# restaurant_worker.py  (plus a near-identical dental_worker.py, support_worker.py, ...)
+from livekit import agents
+from livekit.agents import Agent, AgentSession
+from livekit.plugins import openai, silero
+
+
+class RestaurantAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions="You help callers book tables.")
+
+
+async def entrypoint(ctx: agents.JobContext) -> None:
+    session = AgentSession(
+        stt=openai.STT(), llm=openai.LLM(), tts=openai.TTS(), vad=silero.VAD.load()
+    )
+    await session.start(agent=RestaurantAgent(), room=ctx.room)
+    await ctx.connect()
+
+
+if __name__ == "__main__":
+    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))
+```
+
+**After** (one worker, N agents, one shared prewarm):
+
+```python
+# worker.py
+from livekit.agents import Agent
+from livekit.plugins import openai
+from openrtc import AgentPool
+
+
+class RestaurantAgent(Agent):  # unchanged
+    def __init__(self) -> None:
+        super().__init__(instructions="You help callers book tables.")
+
+
+class DentalAgent(Agent):  # unchanged
+    def __init__(self) -> None:
+        super().__init__(instructions="You help callers manage appointments.")
+
+
+pool = AgentPool(default_stt=openai.STT(), default_llm=openai.LLM(), default_tts=openai.TTS())
+pool.add("restaurant", RestaurantAgent)
+pool.add("dental", DentalAgent)
+pool.run()
+```
+
+Your `Agent` subclasses, tools, and provider objects are unchanged. You delete the
+per-worker boilerplate (`entrypoint`, `AgentSession` wiring, `cli.run_app`) and
+register the agents on one pool; OpenRTC owns prewarm, routing, and per-call
+session construction. On the first run the worker logs the win, for example:
+
+```text
+OpenRTC: 2 agents in 1 worker (baseline ~410 MB). 2 separate livekit-agents
+workers would cost ~820 MB; sharing one worker saves ~410 MB of idle baseline
+(assumes equal per-worker baselines).
+```
+
+See [Routing](#routing) for how each incoming call resolves to one registered agent.
+
 ## Memory: before and after
 
 Assume an illustrative **~400 MB** idle baseline per worker for the shared stack (VAD, turn detector, and similar). Your measured RSS will differ by provider, model, and OS.

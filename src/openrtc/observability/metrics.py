@@ -352,6 +352,43 @@ def estimate_shared_worker_savings(
     )
 
 
+def format_prewarm_savings(*, agent_count: int, shared_worker_bytes: int | None) -> str:
+    """One honest, human-readable line about the shared-worker idle-baseline win.
+
+    Emitted once per worker at prewarm so the fleet-collapse saving is visible on
+    first run. It claims only idle-baseline memory saved by hosting N per-agent
+    workers as one shared worker; it never implies per-session density or a speed
+    multiple, and it names its equal-baseline assumption whenever it shows a
+    number. Stays graceful when RSS is unavailable (e.g. Windows).
+    """
+    estimate = estimate_shared_worker_savings(
+        agent_count=agent_count, shared_worker_bytes=shared_worker_bytes
+    )
+    agents = "1 agent" if agent_count == 1 else f"{agent_count} agents"
+
+    if estimate.shared_worker_bytes is None or estimate.estimated_saved_bytes is None:
+        return (
+            f"OpenRTC: {agents} in 1 worker; per-worker memory estimate "
+            "unavailable on this platform."
+        )
+
+    baseline_mb = estimate.shared_worker_bytes / (1024 * 1024)
+    if agent_count <= 1:
+        return (
+            f"OpenRTC: {agents} in this worker (baseline ~{baseline_mb:.0f} MB). "
+            "Register more agents on the pool to amortize the shared prewarm."
+        )
+
+    separate_mb = (estimate.estimated_separate_workers_bytes or 0) / (1024 * 1024)
+    saved_mb = estimate.estimated_saved_bytes / (1024 * 1024)
+    return (
+        f"OpenRTC: {agents} in 1 worker (baseline ~{baseline_mb:.0f} MB). "
+        f"{agent_count} separate livekit-agents workers would cost "
+        f"~{separate_mb:.0f} MB; sharing one worker saves ~{saved_mb:.0f} MB "
+        "of idle baseline (assumes equal per-worker baselines)."
+    )
+
+
 def _linux_rss_bytes() -> int | None:
     """Read VmRSS (kiB in procfs) and convert to bytes."""
     try:
