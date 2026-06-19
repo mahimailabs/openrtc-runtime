@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+import sys
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -26,6 +27,13 @@ from openrtc.observability.metrics import (
     MetricsStreamEvent,
     RuntimeMetricsStore,
 )
+from openrtc.observability.observer import (
+    SessionObserver,
+    _build_session_info,
+    _build_session_outcome,
+    _notify_session_end,
+    _notify_session_start,
+)
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.types import ProviderValue
 
@@ -48,6 +56,8 @@ class _PoolRuntimeState:
 
     agents: dict[str, AgentConfig]
     metrics: RuntimeMetricsStore = field(default_factory=RuntimeMetricsStore)
+    observers: list[SessionObserver] = field(default_factory=list)
+    observer_timeout: float = 30.0
 
 
 async def _run_universal_session(
@@ -66,6 +76,7 @@ async def _run_universal_session(
         vad=ctx.proc.userdata["vad"],
         **session_kwargs,
     )
+    info = _build_session_info(config.name, ctx)
     try:
         runtime_state.metrics.record_session_started(config.name)
         await session.start(
@@ -73,6 +84,12 @@ async def _run_universal_session(
             room=ctx.room,
         )
         await ctx.connect()
+        await _notify_session_start(
+            runtime_state.observers,
+            info,
+            session,
+            timeout=runtime_state.observer_timeout,
+        )
 
         if config.greeting is not None:
             logger.debug("Generating greeting for agent '%s'.", config.name)
@@ -82,6 +99,13 @@ async def _run_universal_session(
         raise
     finally:
         runtime_state.metrics.record_session_finished(config.name)
+        outcome = _build_session_outcome(info, sys.exc_info()[1])
+        await _notify_session_end(
+            runtime_state.observers,
+            info,
+            outcome,
+            timeout=runtime_state.observer_timeout,
+        )
 
 
 class AgentPool:
@@ -99,6 +123,7 @@ class AgentPool:
         default_llm: ProviderValue | None = None,
         default_tts: ProviderValue | None = None,
         default_greeting: str | None = None,
+        observers: Sequence[SessionObserver] | None = None,
         isolation: IsolationMode = "coroutine",
         max_concurrent_sessions: int = 50,
         consecutive_failure_limit: int = 5,
@@ -181,7 +206,13 @@ class AgentPool:
         self._drain_timeout: int = drain_timeout
         self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
-        self._runtime_state = _PoolRuntimeState(agents=self._agents)
+        self._runtime_state = _PoolRuntimeState(
+            agents=self._agents,
+            observer_timeout=float(self._drain_timeout),
+        )
+        if observers is not None:
+            for observer in observers:
+                self.add_observer(observer)
         self._default_stt = default_stt
         self._default_llm = default_llm
         self._default_tts = default_tts
@@ -408,6 +439,26 @@ class AgentPool:
             raise KeyError(f"Unknown agent '{name}'.") from exc
         logger.debug("Removed agent '%s'.", name)
         return removed
+
+    def add_observer(self, observer: SessionObserver) -> None:
+        """Register a session observer notified for every session in the pool.
+
+        Call before ``run()``. The observer is notified on the session's own task
+        when the session goes live and when it ends. A raising or slow observer is
+        logged and skipped, never crashing the session.
+
+        Args:
+            observer: An object implementing the ``SessionObserver`` protocol.
+
+        Raises:
+            TypeError: If ``observer`` does not implement the protocol.
+        """
+        if not isinstance(observer, SessionObserver):
+            raise TypeError(
+                "observer must implement on_session_start and on_session_end "
+                f"(SessionObserver protocol); got {type(observer).__name__}."
+            )
+        self._runtime_state.observers.append(observer)
 
     def run(self) -> None:
         """Run the LiveKit worker for the registered agents.
