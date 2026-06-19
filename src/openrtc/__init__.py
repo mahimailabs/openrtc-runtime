@@ -5,6 +5,12 @@ from importlib.metadata import PackageNotFoundError, version
 from .core.config import AgentConfig, AgentDiscoveryConfig, agent_config
 from .core.pool import AgentPool
 from .execution.file_watcher import FileChange, FileWatcher
+from .observability.observer import (
+    SessionInfo,
+    SessionObserver,
+    SessionOutcome,
+    SessionStatus,
+)
 from .types import ProviderValue
 
 try:
@@ -22,6 +28,10 @@ __all__ = [
     "FileChange",
     "FileWatcher",
     "ProviderValue",
+    "SessionInfo",
+    "SessionObserver",
+    "SessionOutcome",
+    "SessionStatus",
     "__version__",
     "agent_config",
 ]

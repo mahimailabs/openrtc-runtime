@@ -298,3 +298,18 @@ def test_no_observers_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
     ctx = _ctx_with_proc()
     asyncio.run(_run_universal_session(pool._runtime_state, ctx))
     assert pool._runtime_state.metrics.total_sessions_started == 1
+
+
+def test_public_exports() -> None:
+    import openrtc
+    from openrtc import SessionInfo as TopInfo
+    from openrtc import SessionObserver as TopObserver
+    from openrtc import SessionOutcome as TopOutcome
+    from openrtc import SessionStatus as TopStatus
+    from openrtc.observability import SessionInfo as SubInfo
+
+    assert SubInfo is TopInfo
+    assert TopInfo is SessionInfo
+    assert {TopObserver, TopOutcome, TopStatus}  # imported names are referenced
+    for name in ("SessionObserver", "SessionInfo", "SessionOutcome", "SessionStatus"):
+        assert name in openrtc.__all__
