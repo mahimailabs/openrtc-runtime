@@ -7,7 +7,8 @@ session and a typed ``SessionInfo`` to the observer and defines no per-turn even
 schema of its own.
 
 Observer calls are isolated: a raising or slow observer is logged and skipped and
-never crashes the session, its siblings, or the worker.
+never crashes the session, its siblings, or the worker. Genuine cancellation of
+the session's own task still propagates.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Awaitable, Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -78,7 +79,12 @@ class SessionObserver(Protocol):
         ...
 
     async def on_session_end(self, info: SessionInfo, outcome: SessionOutcome) -> None:
-        """Handle a session ending, for any terminal outcome."""
+        """Handle a session ending, for any terminal outcome.
+
+        May be called without a preceding ``on_session_start`` when the session
+        fails before going live (``session.start()`` or ``connect()`` raised), so
+        a stateful observer must tolerate an end with no paired start.
+        """
         ...
 
 
@@ -143,6 +149,45 @@ def _build_session_outcome(
     )
 
 
+async def _invoke_observer(
+    awaitable: Awaitable[None],
+    *,
+    observer: SessionObserver,
+    hook: str,
+    agent_name: str,
+    timeout: float,
+) -> None:
+    """Run one observer hook with isolation, bounded by ``timeout``.
+
+    A fault in the observer (any ``Exception``, including a timeout) is logged
+    and skipped so it never reaches the session. An observer that raises
+    ``CancelledError`` on its own is isolated too; only a genuine cancellation of
+    the session's own task (``task.cancelling() > 0``) is allowed to propagate.
+    """
+    try:
+        await asyncio.wait_for(awaitable, timeout)
+    except asyncio.CancelledError:
+        task = asyncio.current_task()
+        if task is None:  # pragma: no cover - always inside a running task
+            raise
+        if task.cancelling() > 0:
+            raise  # the worker is cancelling this session; propagate
+        logger.warning(
+            "session observer %r cancelled %s for agent '%s'",
+            observer,
+            hook,
+            agent_name,
+        )
+    except Exception:  # noqa: BLE001 - observer faults must not reach the session
+        logger.warning(
+            "session observer %r failed %s for agent '%s'",
+            observer,
+            hook,
+            agent_name,
+            exc_info=True,
+        )
+
+
 async def _notify_session_start(
     observers: Iterable[SessionObserver],
     info: SessionInfo,
@@ -152,15 +197,13 @@ async def _notify_session_start(
 ) -> None:
     """Notify every observer that the session is live; isolate failures."""
     for observer in observers:
-        try:
-            await asyncio.wait_for(observer.on_session_start(info, session), timeout)
-        except Exception:  # noqa: BLE001 - observer faults must not reach the session
-            logger.warning(
-                "session observer %r failed on_session_start for agent '%s'",
-                observer,
-                info.agent_name,
-                exc_info=True,
-            )
+        await _invoke_observer(
+            observer.on_session_start(info, session),
+            observer=observer,
+            hook="on_session_start",
+            agent_name=info.agent_name,
+            timeout=timeout,
+        )
 
 
 async def _notify_session_end(
@@ -172,12 +215,10 @@ async def _notify_session_end(
 ) -> None:
     """Notify every observer that the session ended; isolate failures."""
     for observer in observers:
-        try:
-            await asyncio.wait_for(observer.on_session_end(info, outcome), timeout)
-        except Exception:  # noqa: BLE001 - observer faults must not reach the session
-            logger.warning(
-                "session observer %r failed on_session_end for agent '%s'",
-                observer,
-                info.agent_name,
-                exc_info=True,
-            )
+        await _invoke_observer(
+            observer.on_session_end(info, outcome),
+            observer=observer,
+            hook="on_session_end",
+            agent_name=info.agent_name,
+            timeout=timeout,
+        )

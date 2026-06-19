@@ -313,3 +313,109 @@ def test_public_exports() -> None:
     assert {TopObserver, TopOutcome, TopStatus}  # imported names are referenced
     for name in ("SessionObserver", "SessionInfo", "SessionOutcome", "SessionStatus"):
         assert name in openrtc.__all__
+
+
+class _StartFailingSession(_FakeSession):
+    async def start(self, *, agent: object, room: object) -> None:
+        raise ValueError("start failed")
+
+
+def test_end_fires_without_start_when_session_start_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """on_session_end fires with no paired on_session_start if start() fails."""
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", _StartFailingSession)
+    obs = _RecordingObserver()
+    pool = AgentPool(observers=[obs])
+    pool.add("restaurant", _Agent, greeting="hi")
+    ctx = _ctx_with_proc()
+    with pytest.raises(ValueError, match="start failed"):
+        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    assert obs.starts == []  # start never fired (no live session)
+    assert len(obs.ends) == 1
+    assert obs.ends[0].status is SessionStatus.FAILED
+
+
+def test_observer_raising_cancellederror_is_isolated(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An observer that raises CancelledError on its own does not crash the session."""
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+
+    class _CancelObserver:
+        async def on_session_start(self, info: object, session: object) -> None:
+            raise asyncio.CancelledError()
+
+        async def on_session_end(self, info: object, outcome: object) -> None:
+            return None
+
+    good = _RecordingObserver()
+    pool = AgentPool(observers=[_CancelObserver(), good])
+    pool.add("restaurant", _Agent, greeting="hi")
+    ctx = _ctx_with_proc()
+    with caplog.at_level(logging.WARNING, logger="openrtc"):
+        asyncio.run(_run_universal_session(pool._runtime_state, ctx))  # no crash
+    assert len(good.ends) == 1  # the well-behaved observer still got its end
+    assert "on_session_start" in caplog.text
+
+
+def test_start_notification_uses_short_timeout_not_drain(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The hot-path start notify is bounded by a short timeout, not the drain budget."""
+    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.pool._OBSERVER_START_TIMEOUT_SECONDS", 0.01)
+
+    class _SlowStart:
+        async def on_session_start(self, info: object, session: object) -> None:
+            await asyncio.sleep(5.0)
+
+        async def on_session_end(self, info: object, outcome: object) -> None:
+            return None
+
+    # Large drain budget: if start used it, the greeting would block for seconds.
+    pool = AgentPool(observers=[_SlowStart()], drain_timeout=300)
+    pool.add("restaurant", _Agent, greeting="hi")
+    ctx = _ctx_with_proc()
+    with caplog.at_level(logging.WARNING, logger="openrtc"):
+        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    assert "failed on_session_start" in caplog.text
+
+
+def test_genuine_task_cancellation_propagates_through_invoke_observer() -> None:
+    """A real cancellation of the session task propagates (it is not swallowed)."""
+    from openrtc.observability.observer import _invoke_observer
+
+    class _Hang:
+        async def on_session_end(self, info: object, outcome: object) -> None:
+            await asyncio.sleep(10.0)
+
+    info = SessionInfo("a", "r", "j", {}, started_at=0.0)
+    outcome = _build_session_outcome(info, None)
+    hang = _Hang()
+
+    async def _run() -> None:
+        await _invoke_observer(
+            hang.on_session_end(info, outcome),
+            observer=hang,  # type: ignore[arg-type]
+            hook="on_session_end",
+            agent_name="a",
+            timeout=30.0,
+        )
+
+    async def _driver() -> None:
+        task = asyncio.ensure_future(_run())
+        await asyncio.sleep(0)  # let it reach the inner await
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(_driver())
+
+
+def test_runtime_state_with_observer_is_picklable() -> None:
+    """process-isolation contract: _PoolRuntimeState pickles with an observer registered."""
+    pool = AgentPool(observers=[_RecordingObserver()])
+    restored = pickle.loads(pickle.dumps(pool._runtime_state))
+    assert len(restored.observers) == 1
+    assert isinstance(restored.observers[0], _RecordingObserver)

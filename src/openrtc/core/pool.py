@@ -49,6 +49,11 @@ logger = logging.getLogger("openrtc")
 
 IsolationMode = Literal["coroutine", "process"]
 
+# The on_session_start notification runs in the interactive hot path (before the
+# greeting), so it is bounded by this short timeout rather than the larger drain
+# budget that bounds the on_session_end notification at teardown.
+_OBSERVER_START_TIMEOUT_SECONDS = 5.0
+
 
 @dataclass(slots=True)
 class _PoolRuntimeState:
@@ -88,7 +93,9 @@ async def _run_universal_session(
             runtime_state.observers,
             info,
             session,
-            timeout=runtime_state.observer_timeout,
+            timeout=min(
+                runtime_state.observer_timeout, _OBSERVER_START_TIMEOUT_SECONDS
+            ),
         )
 
         if config.greeting is not None:
@@ -445,7 +452,10 @@ class AgentPool:
 
         Call before ``run()``. The observer is notified on the session's own task
         when the session goes live and when it ends. A raising or slow observer is
-        logged and skipped, never crashing the session.
+        logged and skipped, never crashing the session. In ``process`` isolation
+        mode the observer must be picklable (it rides the serializable worker
+        state), so build any live resources lazily on the first
+        ``on_session_start`` rather than in the observer's constructor.
 
         Args:
             observer: An object implementing the ``SessionObserver`` protocol.
