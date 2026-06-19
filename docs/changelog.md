@@ -59,6 +59,14 @@ Changes that have landed on `main` but have not yet been tagged for release.
   `livekit-agents` and is allowed to fail.
 - New `docker-compose.test.yml` + `tests/integration/conftest.py`
   fixture harness for local and CI integration runs.
+- Public `SessionObserver` protocol (`openrtc.SessionObserver`,
+  `SessionInfo`, `SessionOutcome`, `SessionStatus`) plus
+  `AgentPool(observers=[...])` and `AgentPool.add_observer(...)`. External
+  telemetry attaches to each live session through the pool:
+  `on_session_start` hands the live `AgentSession`, `on_session_end` the
+  terminal outcome. Observer faults are isolated (logged and skipped,
+  bounded by a timeout) and never crash the session. Additive and backward
+  compatible; the built-in metrics store is unchanged.
 
 **Changed**
 
@@ -185,7 +193,7 @@ contributor onboarding matches what's in the repo.
 ## What's Changed
 * Feat: light websocket by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/30
 * docs: bring docs/ in sync with v0.1 surface by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/35
-* Feat: struc refac by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/36
+* Feat: structural refactor by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/36
 * Feat/coroutine pool by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/37
 * Feat/coroutine pool prod by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/38
 

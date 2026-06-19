@@ -411,6 +411,27 @@ Pass instantiated provider objects through to `livekit-agents` unchanged, for ex
 
 If you pass strings such as `openai/gpt-4.1-mini`, OpenRTC leaves them as-is and the LiveKit runtime interprets them for your deployment.
 
+## Session observers
+
+Attach external telemetry to every session without subclassing or touching OpenRTC internals. Any object with two async methods is a `SessionObserver` (structural typing, no base class):
+
+```python
+from openrtc import AgentPool, SessionInfo, SessionOutcome
+
+
+class LoggingObserver:
+    async def on_session_start(self, info: SessionInfo, session: object) -> None:
+        print(f"live: {info.agent_name} in {info.room_name}")
+
+    async def on_session_end(self, info: SessionInfo, outcome: SessionOutcome) -> None:
+        print(f"done: {info.agent_name} -> {outcome.status.value}")
+
+
+pool = AgentPool(observers=[LoggingObserver()])  # or pool.add_observer(...)
+```
+
+`on_session_start` receives the live `AgentSession`, which is where you subscribe to its metrics. `on_session_end` receives the terminal outcome (`SUCCESS`, `FAILED`, or `CANCELLED`). Observer calls are isolated: a raising or slow observer is logged and skipped, never crashing the session. In `process` isolation mode an observer must be picklable, so build live resources lazily on the first `on_session_start`.
+
 ## CLI and TUI
 
 Install `openrtc[cli]` to get `openrtc` on your PATH. Subcommands follow the LiveKit Agents CLI shape (`dev`, `start`, `console`, `connect`, `download-files`), plus `list` and `tui`. For most commands you can pass the agents directory (or, for `tui`, the metrics JSONL file) as the first path argument instead of `--agents-dir` / `--watch`.
