@@ -12,13 +12,19 @@ never crashes the session, its siblings, or the worker.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import asyncio
+import json
+import logging
+import time
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from livekit.agents import AgentSession
+    from livekit.agents import AgentSession, JobContext
+
+logger = logging.getLogger("openrtc")
 
 
 class SessionStatus(Enum):
@@ -74,3 +80,104 @@ class SessionObserver(Protocol):
     async def on_session_end(self, info: SessionInfo, outcome: SessionOutcome) -> None:
         """Handle a session ending, for any terminal outcome."""
         ...
+
+
+def _coerce_metadata(raw: Any) -> dict[str, str]:
+    """Parse one metadata value (JSON string, mapping, or absent) into a str map."""
+    decoded: Any = raw
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if not stripped:
+            return {}
+        try:
+            decoded = json.loads(stripped)
+        except json.JSONDecodeError:
+            return {}
+    if isinstance(decoded, Mapping):
+        return {str(key): str(value) for key, value in decoded.items()}
+    return {}
+
+
+def _merge_metadata(ctx: JobContext) -> dict[str, str]:
+    """Merge room metadata then job metadata (job wins) into one str map."""
+    room = getattr(ctx, "room", None)
+    job = getattr(ctx, "job", None)
+    merged = _coerce_metadata(getattr(room, "metadata", None))
+    merged.update(_coerce_metadata(getattr(job, "metadata", None)))
+    return merged
+
+
+def _build_session_info(agent_name: str, ctx: JobContext) -> SessionInfo:
+    """Build a ``SessionInfo`` from the resolved agent and the job context.
+
+    Uses defensive attribute access so a missing room name or job id can never
+    turn a healthy session into a failed one.
+    """
+    room = getattr(ctx, "room", None)
+    job = getattr(ctx, "job", None)
+    return SessionInfo(
+        agent_name=agent_name,
+        room_name=getattr(room, "name", "") or "",
+        job_id=getattr(job, "id", "") or "",
+        metadata=_merge_metadata(ctx),
+        started_at=time.time(),
+    )
+
+
+def _build_session_outcome(
+    info: SessionInfo, error: BaseException | None
+) -> SessionOutcome:
+    """Classify the terminal outcome from the in-flight exception, if any."""
+    if error is None:
+        status = SessionStatus.SUCCESS
+    elif isinstance(error, asyncio.CancelledError):
+        status = SessionStatus.CANCELLED
+    else:
+        status = SessionStatus.FAILED
+    ended_at = time.time()
+    return SessionOutcome(
+        status=status,
+        error=error,
+        ended_at=ended_at,
+        duration_seconds=max(ended_at - info.started_at, 0.0),
+    )
+
+
+async def _notify_session_start(
+    observers: Iterable[SessionObserver],
+    info: SessionInfo,
+    session: AgentSession[Any],
+    *,
+    timeout: float,
+) -> None:
+    """Notify every observer that the session is live; isolate failures."""
+    for observer in observers:
+        try:
+            await asyncio.wait_for(observer.on_session_start(info, session), timeout)
+        except Exception:  # noqa: BLE001 - observer faults must not reach the session
+            logger.warning(
+                "session observer %r failed on_session_start for agent '%s'",
+                observer,
+                info.agent_name,
+                exc_info=True,
+            )
+
+
+async def _notify_session_end(
+    observers: Iterable[SessionObserver],
+    info: SessionInfo,
+    outcome: SessionOutcome,
+    *,
+    timeout: float,
+) -> None:
+    """Notify every observer that the session ended; isolate failures."""
+    for observer in observers:
+        try:
+            await asyncio.wait_for(observer.on_session_end(info, outcome), timeout)
+        except Exception:  # noqa: BLE001 - observer faults must not reach the session
+            logger.warning(
+                "session observer %r failed on_session_end for agent '%s'",
+                observer,
+                info.agent_name,
+                exc_info=True,
+            )
