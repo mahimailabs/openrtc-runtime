@@ -155,6 +155,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.3.0] - 2026-06-19
+
+## What's Changed
+* feat: public SessionObserver protocol for per-session telemetry by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/42
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.2.3...v0.3.0
+
+---
+
 ## [0.2.3] - 2026-05-30
 
 ### Added
