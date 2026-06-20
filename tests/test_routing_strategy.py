@@ -8,6 +8,8 @@ from openrtc.core.routing import (
     _ROUTING_STRATEGIES,
     RoutingStrategy,
     _DefaultFallbackStrategy,
+    _MetadataStrategy,
+    _RoomNamePrefixStrategy,
 )
 
 
@@ -17,13 +19,13 @@ def test_concrete_strategies_conform_to_protocol() -> None:
 
 
 def test_strategy_order_is_job_then_room_then_prefix_then_default() -> None:
-    kinds = [type(s).__name__ for s in _ROUTING_STRATEGIES]
-    assert kinds == [
-        "_MetadataStrategy",
-        "_MetadataStrategy",
-        "_RoomNamePrefixStrategy",
-        "_DefaultFallbackStrategy",
-    ]
+    job, room, prefix, default = _ROUTING_STRATEGIES
+    assert isinstance(job, _MetadataStrategy)
+    assert job._source_attr == "job"
+    assert isinstance(room, _MetadataStrategy)
+    assert room._source_attr == "room"
+    assert isinstance(prefix, _RoomNamePrefixStrategy)
+    assert isinstance(default, _DefaultFallbackStrategy)
 
 
 def test_default_fallback_returns_first_registered() -> None:
