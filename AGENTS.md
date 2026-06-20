@@ -158,6 +158,19 @@ Example expectations:
 
 ---
 
+## House style (readability convention)
+
+openrtc favors code that reads like one human wrote it. Follow these rules in new and edited code.
+
+- Module docstring: one line stating the module's single responsibility. Add a paragraph only to record a non-obvious invariant a reader would otherwise violate.
+- Class docstring: one line. Function or method docstring: one line, only where it earns it (public or non-trivial). Do not write Args/Returns/Raises blocks; type hints carry parameter and return information.
+- Comments explain why, not what. Single-line, sparse. No TODO/FIXME/XXX debt markers.
+- Fixed file skeleton: module docstring, then `from __future__ import annotations`, then imports (stdlib, third-party, first-party), then a module logger if used, then private `_CONSTANTS`, then private `_helpers`, then the public class(es), then `__all__` at the bottom.
+- One responsibility per file. Size is earned only by facades and aggregators.
+- Protocol seams follow the `observability/observer.py` model: a `@runtime_checkable` Protocol for a pure contract, a small ABC only when the base carries shared code, concretes that conform structurally, and selection kept outside the abstraction.
+
+---
+
 ## Documentation Expectations
 
 - Public classes and functions should have concise docstrings
