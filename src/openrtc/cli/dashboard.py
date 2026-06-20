@@ -11,13 +11,13 @@ from rich.table import Table
 from rich.text import Text
 
 from openrtc.core.config import AgentConfig
-from openrtc.observability.metrics import (
+from openrtc.observability.footprint import (
     agent_disk_footprints,
-    estimate_shared_worker_savings,
     file_size_bytes,
     format_byte_size,
-    get_process_resident_set_info,
 )
+from openrtc.observability.resident_set import get_process_resident_set_info
+from openrtc.observability.savings import estimate_shared_worker_savings
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 
 console = Console()

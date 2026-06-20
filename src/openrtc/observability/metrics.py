@@ -1,23 +1,20 @@
+"""Thread-safe runtime counters for a running shared worker."""
+
 from __future__ import annotations
 
 import logging
-import sys
 import time
 from collections import deque
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
 from threading import Lock
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TypedDict, cast
 
-from openrtc.observability.snapshot import (
-    PoolRuntimeSnapshot,
-    ProcessResidentSetInfo,
-    SavingsEstimate,
-)
+from openrtc.observability.resident_set import get_process_resident_set_info
+from openrtc.observability.savings import estimate_shared_worker_savings
+from openrtc.observability.snapshot import PoolRuntimeSnapshot
 
-if TYPE_CHECKING:
-    from openrtc.core.config import AgentConfig
+__all__ = ["MetricsStreamEvent", "RuntimeMetricsStore"]
 
 logger = logging.getLogger("openrtc")
 
@@ -36,15 +33,6 @@ class MetricsStreamEvent(TypedDict, total=False):
     agent: str
     error: str
     overflow_dropped: int
-
-
-@dataclass(frozen=True, slots=True)
-class AgentDiskFootprint:
-    """On-disk size for a single agent module file."""
-
-    name: str
-    path: Path
-    size_bytes: int
 
 
 @dataclass(slots=True)
@@ -211,209 +199,3 @@ class RuntimeMetricsStore:
                 shared_worker_bytes=rss_info.bytes_value,
             ),
         )
-
-
-def format_byte_size(num_bytes: int) -> str:
-    """Return a short human-readable size string using binary units."""
-    if num_bytes < 0:
-        num_bytes = 0
-    value = float(num_bytes)
-    units = ("B", "KiB", "MiB", "GiB", "TiB")
-    for i, unit in enumerate(units):
-        if value < 1024.0 or i == len(units) - 1:
-            if unit == "B":
-                return f"{int(value)} B"
-            return f"{value:.1f} {unit}"
-        value /= 1024.0
-    raise AssertionError("unreachable: last unit always matches")  # pragma: no cover
-
-
-def file_size_bytes(path: Path) -> int:
-    """Return the size of a file in bytes, or ``0`` if it cannot be read."""
-    try:
-        return path.stat().st_size
-    except OSError as exc:
-        logger.debug("Could not stat %s: %s", path, exc)
-        return 0
-
-
-def agent_disk_footprints(configs: Sequence[AgentConfig]) -> list[AgentDiskFootprint]:
-    """Collect per-agent source file sizes when a path was recorded at registration."""
-    footprints: list[AgentDiskFootprint] = []
-    for config in configs:
-        if config.source_path is None:
-            continue
-        path = config.source_path
-        footprints.append(
-            AgentDiskFootprint(
-                name=config.name,
-                path=path,
-                size_bytes=file_size_bytes(path),
-            )
-        )
-    return footprints
-
-
-def get_process_resident_set_info() -> ProcessResidentSetInfo:
-    """Return a single best-effort memory figure for this process.
-
-    Semantics differ by platform; do not assume "RSS" means the same thing everywhere.
-
-    **Linux** — Reads **VmRSS** from ``/proc/self/status`` (kernel-reported
-    current resident set size; value in kiB in the file, returned here in bytes).
-    This is a reasonable snapshot of *current* footprint at the time of the read.
-
-    **macOS** — Uses :func:`resource.getrusage` with :data:`resource.RUSAGE_SELF`.
-    CPython documents ``ru_maxrss`` **in bytes** on macOS. That field is the
-    **maximum** resident set size the system has attributed to this process (a
-    high-water / peak style figure), **not** the instantaneous current RSS.
-    For live usage, use host or container metrics (e.g. Activity Monitor).
-
-    **Other** (e.g. Windows): not implemented here; :attr:`ProcessResidentSetInfo.bytes_value`
-    is ``None``.
-
-    Linux intentionally uses ``/proc`` rather than ``getrusage`` so the Linux path
-    reports a current VmRSS analogue; POSIX ``ru_maxrss`` on Linux is in different
-    units than on macOS (see :mod:`resource` documentation).
-    """
-    if sys.platform.startswith("linux"):
-        value = _linux_rss_bytes()
-        return ProcessResidentSetInfo(
-            bytes_value=value,
-            metric="linux_vm_rss",
-            description=(
-                "Current resident set from VmRSS (/proc/self/status), converted to bytes; "
-                "snapshot at query time."
-            ),
-        )
-    if sys.platform == "darwin":
-        value = _macos_rss_bytes()
-        return ProcessResidentSetInfo(
-            bytes_value=value,
-            metric="darwin_ru_max_rss",
-            description=(
-                "Peak-style max resident set: resource.getrusage(RUSAGE_SELF).ru_maxrss "
-                "in bytes on macOS (per CPython). Not instantaneous current RSS."
-            ),
-        )
-    return ProcessResidentSetInfo(
-        bytes_value=None,
-        metric="unavailable",
-        description=(
-            "No resident-memory figure in OpenRTC on this platform (e.g. Windows)."
-        ),
-    )
-
-
-def process_resident_set_bytes() -> int | None:
-    """Return the numeric memory metric from :func:`get_process_resident_set_info`, or ``None``.
-
-    The number alone is ambiguous across OSes (Linux current VmRSS vs macOS peak
-    ``ru_maxrss``). Prefer :func:`get_process_resident_set_info` for :attr:`~ProcessResidentSetInfo.metric`
-    and :attr:`~ProcessResidentSetInfo.description`.
-    """
-    return get_process_resident_set_info().bytes_value
-
-
-def estimate_shared_worker_savings(
-    *,
-    agent_count: int,
-    shared_worker_bytes: int | None,
-) -> SavingsEstimate:
-    """Estimate the value of one shared worker versus one worker per agent.
-
-    The estimate intentionally uses only the current shared worker memory as a
-    baseline. It assumes separate workers would each pay approximately the same
-    base worker cost before per-call overhead.
-    """
-    assumptions = (
-        "Estimated separate-worker memory multiplies the current shared-worker "
-        "baseline by the number of registered agents.",
-        "This is a best-effort comparison, not a container-orchestrator metric.",
-        "Actual memory depends on active sessions, providers, and model loading.",
-    )
-    if agent_count <= 0 or shared_worker_bytes is None:
-        return SavingsEstimate(
-            agent_count=agent_count,
-            shared_worker_bytes=shared_worker_bytes,
-            estimated_separate_workers_bytes=None,
-            estimated_saved_bytes=None,
-            assumptions=assumptions,
-        )
-
-    separate_workers = shared_worker_bytes * agent_count
-    saved_bytes = max(separate_workers - shared_worker_bytes, 0)
-    return SavingsEstimate(
-        agent_count=agent_count,
-        shared_worker_bytes=shared_worker_bytes,
-        estimated_separate_workers_bytes=separate_workers,
-        estimated_saved_bytes=saved_bytes,
-        assumptions=assumptions,
-    )
-
-
-def format_prewarm_savings(*, agent_count: int, shared_worker_bytes: int | None) -> str:
-    """One honest, human-readable line about the shared-worker idle-baseline win.
-
-    Emitted once per worker at prewarm so the fleet-collapse saving is visible on
-    first run. It claims only idle-baseline memory saved by hosting N per-agent
-    workers as one shared worker; it never implies per-session density or a speed
-    multiple, and it names its equal-baseline assumption whenever it shows a
-    number. Stays graceful when RSS is unavailable (e.g. Windows).
-    """
-    estimate = estimate_shared_worker_savings(
-        agent_count=agent_count, shared_worker_bytes=shared_worker_bytes
-    )
-    agents = "1 agent" if agent_count == 1 else f"{agent_count} agents"
-
-    if estimate.shared_worker_bytes is None or estimate.estimated_saved_bytes is None:
-        return (
-            f"OpenRTC: {agents} in 1 worker; per-worker memory estimate "
-            "unavailable on this platform."
-        )
-
-    baseline_mb = estimate.shared_worker_bytes / (1024 * 1024)
-    if agent_count <= 1:
-        return (
-            f"OpenRTC: {agents} in this worker (baseline ~{baseline_mb:.0f} MB). "
-            "Register more agents on the pool to amortize the shared prewarm."
-        )
-
-    separate_mb = (estimate.estimated_separate_workers_bytes or 0) / (1024 * 1024)
-    saved_mb = estimate.estimated_saved_bytes / (1024 * 1024)
-    return (
-        f"OpenRTC: {agents} in 1 worker (baseline ~{baseline_mb:.0f} MB). "
-        f"{agent_count} separate livekit-agents workers would cost "
-        f"~{separate_mb:.0f} MB; sharing one worker saves ~{saved_mb:.0f} MB "
-        "of idle baseline (assumes equal per-worker baselines)."
-    )
-
-
-def _linux_rss_bytes() -> int | None:
-    """Read VmRSS (kiB in procfs) and convert to bytes."""
-    try:
-        text = Path("/proc/self/status").read_text(encoding="utf-8")
-    except OSError:
-        return None
-    for line in text.splitlines():
-        if line.startswith("VmRSS:"):
-            parts = line.split()
-            if len(parts) >= 2:
-                # Value is in kB on Linux.
-                return int(parts[1]) * 1024
-    return None
-
-
-def _macos_rss_bytes() -> int | None:
-    """Return ``ru_maxrss`` on Darwin (bytes per CPython; max resident set, not current RSS)."""
-    try:
-        import resource
-    except ImportError:  # pragma: no cover - ``resource`` is Unix-only (not on Windows)
-        return None
-    try:
-        usage = resource.getrusage(resource.RUSAGE_SELF)
-    except OSError:
-        return None
-    # CPython documents ru_maxrss in *bytes* on macOS (unlike Linux ru_maxrss in KiB).
-    value = int(usage.ru_maxrss)
-    return value if value > 0 else None

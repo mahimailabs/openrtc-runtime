@@ -42,7 +42,7 @@ import psutil
 from livekit.agents import JobExecutorType
 
 from openrtc.execution.coroutine import CoroutinePool
-from openrtc.observability.metrics import process_resident_set_bytes
+from openrtc.observability.resident_set import process_resident_set_bytes
 
 # Per-session allocation in bytes, chosen to be non-trivial but well below
 # the 60 MB target so this benchmark stresses task-scheduling overhead, not

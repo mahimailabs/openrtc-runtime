@@ -14,7 +14,7 @@ import pytest
 
 from openrtc.execution import prewarm as prewarm_module
 from openrtc.execution.prewarm import _prewarm_worker
-from openrtc.observability.metrics import format_prewarm_savings
+from openrtc.observability.savings import format_prewarm_savings
 
 _MB = 1024 * 1024
 
