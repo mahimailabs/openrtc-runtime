@@ -9,8 +9,9 @@ Strategy A: monkey-patch ``ipc.proc_pool.ProcPool`` for the duration of
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import livekit.agents.ipc.proc_pool as _proc_pool_mod
@@ -82,24 +83,28 @@ class _CoroutineAgentServer(AgentServer):
             return 0.0
         return pool.current_load()
 
+    @contextlib.contextmanager
+    def _patched_proc_pool(self) -> Iterator[None]:
+        """Swap ipc.proc_pool.ProcPool for our pool factory for one run()."""
+        original_proc_pool_cls = _proc_pool_mod.ProcPool
+        previous_load_fnc = self._load_fnc
+        _proc_pool_mod.ProcPool = self._build_pool_factory()  # type: ignore[assignment, misc]
+        self._load_fnc = self._coroutine_load_fnc
+        try:
+            yield
+        finally:
+            _proc_pool_mod.ProcPool = original_proc_pool_cls  # type: ignore[misc]
+            self._load_fnc = previous_load_fnc
+
     async def run(
         self,
         *,
         devmode: bool = False,
         unregistered: bool = False,
     ) -> None:
-        """Patch ``ipc.proc_pool.ProcPool`` for one invocation, then delegate to ``AgentServer.run``."""
-        original_proc_pool_cls = _proc_pool_mod.ProcPool
-        previous_load_fnc = self._load_fnc
-
-        _proc_pool_mod.ProcPool = self._build_pool_factory()  # type: ignore[assignment, misc]
-        self._load_fnc = self._coroutine_load_fnc
-
-        try:
+        """Patch ``ipc.proc_pool.ProcPool`` and delegate to ``AgentServer.run``."""
+        with self._patched_proc_pool():
             await super().run(devmode=devmode, unregistered=unregistered)
-        finally:
-            _proc_pool_mod.ProcPool = original_proc_pool_cls  # type: ignore[misc]
-            self._load_fnc = previous_load_fnc
 
 
 def build_server(params: ServerParams) -> _CoroutineAgentServer:
