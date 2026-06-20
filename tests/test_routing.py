@@ -9,7 +9,7 @@ from livekit.agents import Agent
 
 from openrtc import AgentPool
 from openrtc.core.routing import _resolve_agent_config
-from openrtc.core.wiring import run_session as _run_universal_session
+from openrtc.core.wiring import run_session
 
 
 class RestaurantAgent(Agent):
@@ -265,7 +265,7 @@ def test_handle_session_passes_session_kwargs_and_provider_objects(
     )
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["stt"] is stt_provider
@@ -292,7 +292,7 @@ def test_handle_session_passes_provider_strings_through_unchanged(
     )
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["stt"] == "openai/gpt-4o-mini-transcribe"
@@ -314,7 +314,7 @@ def test_handle_session_supports_direct_session_kwargs(
     )
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["max_tool_steps"] == 6
@@ -340,7 +340,7 @@ def test_handle_session_preserves_explicit_turn_handling(
     )
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["turn_handling"]["turn_detection"] is custom_turn_detection
@@ -357,7 +357,7 @@ def test_handle_session_uses_multilingual_turn_detection_when_inference_executor
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
     ctx.proc.inference_executor = object()
 
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.kwargs["turn_handling"]["turn_detection"] is not None
@@ -371,7 +371,7 @@ def test_handle_session_generates_greeting_after_connect(
     monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     ctx = FakeJobContext(job_metadata={"agent": "restaurant"})
 
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.events == ["start", "generate_reply"]
@@ -387,7 +387,7 @@ def test_handle_session_skips_greeting_when_not_configured(
     monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
 
     session = FakeSession.instances[0]
     assert session.events == ["start"]

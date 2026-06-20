@@ -30,7 +30,7 @@ from livekit.agents import Agent, AgentServer
 
 from openrtc import AgentPool
 from openrtc.core.routing import _resolve_agent_config
-from openrtc.core.wiring import run_session as _run_universal_session
+from openrtc.core.wiring import run_session
 
 
 class _DemoAgent(Agent):
@@ -126,7 +126,7 @@ def test_universal_entrypoint_runs_under_both_modes(
         connect=lambda: _no_op_async(),
     )
 
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
 
     assert started == ["_DemoAgent"]
 

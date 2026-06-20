@@ -32,6 +32,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("openrtc")
 
+# The on_session_start notification runs in the interactive hot path (before the
+# greeting), so it is bounded by this short timeout rather than the larger drain
+# budget that bounds the on_session_end notification at teardown.
 _OBSERVER_START_TIMEOUT_SECONDS = 5.0
 
 __all__ = ["build_session", "run_session", "wire_pool"]

@@ -881,7 +881,7 @@ def test_prewarm_worker_raises_when_runtime_state_has_no_agents() -> None:
         prewarm_module._prewarm_worker(pool._runtime_state, proc)
 
 
-def test_run_universal_session_raises_when_no_agents_registered() -> None:
+def test_run_session_raises_when_no_agents_registered() -> None:
     """The session entrypoint raises before agent resolution if registry is empty."""
     pool = AgentPool()
     ctx = SimpleNamespace(

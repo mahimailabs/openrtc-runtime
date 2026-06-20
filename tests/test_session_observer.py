@@ -9,7 +9,7 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
-from openrtc.core.wiring import run_session as _run_universal_session
+from openrtc.core.wiring import run_session
 from openrtc.observability.observer import (
     SessionInfo,
     SessionObserver,
@@ -236,7 +236,7 @@ def test_observer_notified_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
     pool = AgentPool(observers=[obs])
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc(room_name="restaurant-1", job_id="job-1")
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
     assert len(obs.starts) == 1
     start_info, _session = obs.starts[0]
     assert isinstance(start_info, SessionInfo)
@@ -254,7 +254,7 @@ def test_observer_notified_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with pytest.raises(ValueError, match="greeting failed"):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(run_session(pool._runtime_state, ctx))
     assert obs.ends[0].status is SessionStatus.FAILED
     assert isinstance(obs.ends[0].error, ValueError)
     assert pool._runtime_state.metrics.total_session_failures == 1
@@ -267,7 +267,7 @@ def test_observer_notified_on_cancellation(monkeypatch: pytest.MonkeyPatch) -> N
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(run_session(pool._runtime_state, ctx))
     assert obs.ends[0].status is SessionStatus.CANCELLED
 
 
@@ -287,7 +287,7 @@ def test_raising_observer_does_not_break_session(
     pool = AgentPool(observers=[_Raises(), good])
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
     assert len(good.ends) == 1
 
 
@@ -296,7 +296,7 @@ def test_no_observers_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
     pool = AgentPool()
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
     assert pool._runtime_state.metrics.total_sessions_started == 1
 
 
@@ -330,7 +330,7 @@ def test_end_fires_without_start_when_session_start_fails(
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with pytest.raises(ValueError, match="start failed"):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(run_session(pool._runtime_state, ctx))
     assert obs.starts == []  # start never fired (no live session)
     assert len(obs.ends) == 1
     assert obs.ends[0].status is SessionStatus.FAILED
@@ -354,7 +354,7 @@ def test_observer_raising_cancellederror_is_isolated(
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with caplog.at_level(logging.WARNING, logger="openrtc"):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))  # no crash
+        asyncio.run(run_session(pool._runtime_state, ctx))  # no crash
     assert len(good.ends) == 1  # the well-behaved observer still got its end
     assert "on_session_start" in caplog.text
 
@@ -378,7 +378,7 @@ def test_start_notification_uses_short_timeout_not_drain(
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with caplog.at_level(logging.WARNING, logger="openrtc"):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(run_session(pool._runtime_state, ctx))
     assert "failed on_session_start" in caplog.text
 
 

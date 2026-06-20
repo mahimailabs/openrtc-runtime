@@ -108,7 +108,7 @@ def test_coroutine_pool_runs_one_simulated_job_through_universal_entrypoint(
     )
 
     # Replace the JobContext builder so we don't construct a real rtc.Room.
-    # The universal entrypoint (`_run_universal_session`) only reads
+    # The universal entrypoint (`run_session`) only reads
     # ctx.proc, ctx.job, ctx.room, ctx.connect; we provide those.
 
     def _fake_ctx(info: Any) -> Any:
