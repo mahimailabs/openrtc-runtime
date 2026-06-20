@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from livekit.agents import JobProcess
 
+from openrtc.execution.resources import PrewarmResources
 from openrtc.observability.resident_set import process_resident_set_bytes
 from openrtc.observability.savings import format_prewarm_savings
 
@@ -32,8 +33,10 @@ def _prewarm_worker(
     if not runtime_state.agents:
         raise RuntimeError("Register at least one agent before calling run().")
     silero_module, turn_detector_model = _load_shared_runtime_dependencies()
-    proc.userdata["vad"] = silero_module.VAD.load()
-    proc.userdata["turn_detection_factory"] = turn_detector_model
+    PrewarmResources(
+        vad=silero_module.VAD.load(),
+        turn_detection_factory=turn_detector_model,
+    ).store(proc)
 
     # Day-one payoff: surface the fleet-collapse idle-baseline saving once per
     # worker, post-prewarm (RSS is now the per-worker baseline), so existing

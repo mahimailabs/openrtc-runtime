@@ -24,6 +24,7 @@ from openrtc.core.routing import _resolve_agent_config
 from openrtc.core.turn_handling import _build_session_kwargs
 from openrtc.core.validation import require_positive_int, validate_isolation
 from openrtc.execution.prewarm import _prewarm_worker
+from openrtc.execution.resources import PrewarmResources
 from openrtc.observability.metrics import (
     MetricsStreamEvent,
     RuntimeMetricsStore,
@@ -79,7 +80,7 @@ async def _run_universal_session(
         stt=config.stt,
         llm=config.llm,
         tts=config.tts,
-        vad=ctx.proc.userdata["vad"],
+        vad=PrewarmResources.vad_from(ctx.proc),
         **session_kwargs,
     )
     info = _build_session_info(config.name, ctx)

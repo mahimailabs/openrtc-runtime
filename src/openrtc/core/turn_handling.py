@@ -16,6 +16,8 @@ from typing import Any
 
 from livekit.agents import JobProcess
 
+from openrtc.execution.resources import PrewarmResources
+
 logger = logging.getLogger("openrtc")
 
 _DEPRECATED_TURN_HANDLING_KEYS = (
@@ -73,7 +75,7 @@ def _default_turn_handling(proc: JobProcess) -> dict[str, Any]:
 
 def _default_turn_detection(proc: JobProcess) -> Any:
     if _supports_multilingual_turn_detection(proc):
-        return proc.userdata["turn_detection_factory"]()
+        return PrewarmResources.turn_detection_factory_from(proc)()
 
     logger.info(
         "Falling back to VAD turn detection because no inference executor or "
