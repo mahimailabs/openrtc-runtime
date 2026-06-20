@@ -16,6 +16,7 @@ from typing import Any
 import livekit.agents.ipc.proc_pool as _proc_pool_mod
 from livekit.agents import AgentServer
 
+from openrtc.core.registry import ServerParams
 from openrtc.core.validation import require_positive_int
 from openrtc.execution.coroutine import CoroutinePool
 
@@ -99,3 +100,12 @@ class _CoroutineAgentServer(AgentServer):
         finally:
             _proc_pool_mod.ProcPool = original_proc_pool_cls  # type: ignore[misc]
             self._load_fnc = previous_load_fnc
+
+
+def build_server(params: ServerParams) -> _CoroutineAgentServer:
+    """Build the coroutine-mode server from shared worker params."""
+    return _CoroutineAgentServer(
+        max_concurrent_sessions=params.max_concurrent_sessions,
+        consecutive_failure_limit=params.consecutive_failure_limit,
+        drain_timeout=params.drain_timeout,
+    )

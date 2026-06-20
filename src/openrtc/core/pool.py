@@ -20,6 +20,7 @@ from openrtc.core.discovery import (
     _find_local_agent_subclass,
     _load_agent_module,
 )
+from openrtc.core.registry import ServerParams, resolve_server_builder
 from openrtc.core.routing import _resolve_agent_config
 from openrtc.core.turn_handling import _build_session_kwargs
 from openrtc.core.validation import require_positive_int, validate_isolation
@@ -172,20 +173,13 @@ class AgentPool:
         self._server.rtc_session()(partial(_run_universal_session, self._runtime_state))
 
     def _build_server(self) -> AgentServer:
-        """Construct the underlying LiveKit server matching ``isolation``.
-
-        The coroutine server import is deferred so process-only callers do not
-        load execution/coroutine_server.py at import time.
-        """
-        if self._isolation == "coroutine":
-            from openrtc.execution.coroutine_server import _CoroutineAgentServer
-
-            return _CoroutineAgentServer(
-                max_concurrent_sessions=self._max_concurrent_sessions,
-                consecutive_failure_limit=self._consecutive_failure_limit,
-                drain_timeout=self._drain_timeout,
-            )
-        return AgentServer(drain_timeout=self._drain_timeout)
+        """Construct the underlying LiveKit server matching ``isolation``."""
+        params = ServerParams(
+            max_concurrent_sessions=self._max_concurrent_sessions,
+            consecutive_failure_limit=self._consecutive_failure_limit,
+            drain_timeout=self._drain_timeout,
+        )
+        return resolve_server_builder(self._isolation)(params)
 
     @property
     def isolation(self) -> IsolationMode:
