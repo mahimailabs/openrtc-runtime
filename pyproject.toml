@@ -1,66 +1,91 @@
 [project]
 name = "openrtc"
-dynamic = ["version"]
 description = "Run multiple LiveKit voice agents in a single shared worker process."
 readme = "README.md"
-authors = [
-    { name = "Mahimai Raja J", email = "hello@mahimai.dev" }
-]
-keywords = ["webrtc", "realtime", "audio", "openrtc", "livekit", "agents", "ai"]
-classifiers = [
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Topic :: Multimedia :: Sound/Audio",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3 :: Only",
-]
-license = "MIT"
 requires-python = ">=3.11,<3.14"
+license = "MIT"
+authors = [{ name = "Mahimai Raja J", email = "hello@mahimai.dev" }]
+keywords = ["agents", "ai", "audio", "livekit", "openrtc", "realtime", "webrtc"]
+classifiers = [
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Sound/Audio",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
-    "livekit-agents[openai,silero,turn-detector]~=1.5",
-    "watchfiles>=0.21,<2",
+  "livekit-agents[openai,silero,turn-detector]~=1.5",
+  "watchfiles>=0.21,<2",
 ]
-
-[project.optional-dependencies]
-cli = [
-    "rich>=13",
-    "typer>=0.12",
-]
-tui = [
-    "rich>=13",
-    "typer>=0.12",
-    "textual>=0.47,<2",
-]
+dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/mahimailabs/openrtc"
-Repository = "https://github.com/mahimailabs/openrtc"
 Issues = "https://github.com/mahimailabs/openrtc/issues"
+Repository = "https://github.com/mahimailabs/openrtc"
 
 [project.scripts]
 openrtc = "openrtc.cli:main"
 
+[project.optional-dependencies]
+cli = [
+  "rich>=13",
+  "typer>=0.12",
+]
+tui = [
+  "rich>=13",
+  "typer>=0.12",
+  "textual>=0.47,<2",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.19.1",
+  "pre-commit>=4.5.1",
+  "psutil>=7",
+  "pytest>=9.0.2",
+  "pytest-asyncio>=1.2.0",
+  "pytest-cov>=7.0.0",
+  "python-dotenv>=1.2.2",
+  "rich>=13",
+  "ruff>=0.15.6",
+  "textual>=0.47,<2",
+  "typer>=0.12",
+]
+
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatch-vcs", "hatchling"]
 build-backend = "hatchling.build"
+
+[tool.coverage.run]
+branch = true
 
 [tool.hatch.version]
 source = "vcs"
 
 [tool.hatch.version.raw-options]
 root = "."
-# Dev-checkout fallback when no tag is reachable (e.g. fresh clone from a
-# branch). Keep this in sync with the version planned for the next
-# release: bump to "0.2.0.dev0" after tagging v0.1.0.
 fallback_version = "0.1.0.dev0"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/openrtc"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
 
 [tool.pyright]
 typeCheckingMode = "off"
+
+[tool.pytest.ini_options]
+markers = [
+  "integration: slower tests; some require a LiveKit dev server (see docker-compose.test.yml)",
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -68,67 +93,32 @@ line-length = 88
 
 [tool.ruff.lint]
 select = [
-    "E",
-    "W",
-    "F",
-    "I",
-    "B",
-    "C4",
-    "UP",
-    "SIM",
-    "PT",
-    "RET",
-    "PERF",
-    "PIE",
-    "ICN",
-    "TID",
-    "BLE",
-    "A",
+  "E",
+  "W",
+  "F",
+  "I",
+  "B",
+  "C4",
+  "UP",
+  "SIM",
+  "PT",
+  "RET",
+  "PERF",
+  "PIE",
+  "ICN",
+  "TID",
+  "BLE",
+  "A",
 ]
 ignore = [
-    "E501",
-    "B008",
-    "C901",
-    "W191",
-    # SIM117 (single `with` for nested contexts) hurts readability for tests
-    # that arrange complex monkey-patches plus run_test() pilots; skip it.
-    "SIM117",
+  "E501",
+  "B008",
+  "C901",
+  "W191",
+  # SIM117 (single `with` for nested contexts) hurts readability for tests
+  # that arrange complex monkey-patches plus run_test() pilots; skip it.
+  "SIM117",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/conftest.py" = ["E402"]
-
-[tool.mypy]
-python_version = "3.11"
-strict = true
-ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-markers = [
-    "integration: slower tests; some require a LiveKit dev server (see docker-compose.test.yml)",
-]
-
-[tool.coverage.run]
-# Branch coverage is the v0.1 hardness gate. Line-only coverage hides
-# half-tested conditionals (e.g. an `if x and y:` exercised with x=True/y=True
-# but never x=True/y=False). The Makefile and CI fail-under threshold is the
-# combined line+branch percentage.
-branch = true
-
-[dependency-groups]
-dev = [
-    "mypy>=1.19.1",
-    "pre-commit>=4.5.1",
-    "psutil>=7",
-    "pytest>=9.0.2",
-    "pytest-asyncio>=1.2.0",
-    "pytest-cov>=7.0.0",
-    "python-dotenv>=1.2.2",
-    "rich>=13",
-    "ruff>=0.15.6",
-    "textual>=0.47,<2",
-    "typer>=0.12",
-]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/openrtc"]
