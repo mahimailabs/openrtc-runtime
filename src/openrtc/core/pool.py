@@ -137,43 +137,13 @@ class AgentPool:
         consecutive_failure_limit: int = 5,
         drain_timeout: int = 30,
     ) -> None:
-        """Create a pool with shared defaults, prewarm, and a universal entrypoint.
+        """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
 
-        Args:
-            default_stt: Default STT provider used when an agent does not override
-                it during ``add()`` or ``discover()``.
-            default_llm: Default LLM provider used when an agent does not override
-                it during ``add()`` or ``discover()``.
-            default_tts: Default TTS provider used when an agent does not override
-                it during ``add()`` or ``discover()``.
-            default_greeting: Default greeting used when an agent does not override
-                it during ``add()`` or ``discover()``.
-            isolation: Worker isolation mode. ``"coroutine"`` (the v0.1 default)
-                runs every session as an ``asyncio.Task`` inside one worker
-                process for high density. ``"process"`` preserves the v0.0.x
-                behavior of one OS process per session via livekit-agents'
-                default ``ProcPool``. The setting is plumbed but not yet acted
-                on; the actual coroutine runtime arrives in a follow-up
-                iteration.
-            max_concurrent_sessions: Backpressure threshold for coroutine mode.
-                Once this many concurrent sessions are running, the worker
-                reports ``load >= 1.0`` to LiveKit dispatch and additional
-                jobs are routed elsewhere. Default ``50`` matches the design
-                target. Ignored in ``"process"`` mode (livekit-agents' own
-                load math applies). Plumbed but not yet enforced.
-            consecutive_failure_limit: Coroutine-mode supervisor threshold.
-                After this many consecutive session failures (any non-SUCCESS
-                terminal status), the worker invokes ``aclose()`` and exits
-                so the deployment platform restarts it. Default ``5`` per
-                docs/design/v0.1.md §6.8. Ignored in ``"process"`` mode
-                (each subprocess crashes and is restarted independently).
-            drain_timeout: Maximum seconds the worker waits for in-flight
-                sessions to finish after a SIGTERM (or other graceful-shutdown
-                signal) before cancelling them. Forwarded to
-                ``AgentServer(drain_timeout=...)`` so the upstream signal
-                handler honors it; sessions exceeding the budget are
-                cancelled with a ``WARNING`` log. Default ``30`` per
-                docs/design/v0.1.md §6.4.
+        ``isolation`` controls whether sessions run as ``asyncio.Task``s in one
+        process (``"coroutine"``, high density) or as separate OS processes
+        (``"process"``, livekit-agents default).
+        ``drain_timeout`` sets the maximum seconds the worker waits for in-flight
+        sessions to finish after SIGTERM before cancelling them.
         """
         validate_isolation(isolation)
         self._isolation: IsolationMode = isolation
@@ -201,16 +171,7 @@ class AgentPool:
         self._server.rtc_session()(partial(_run_universal_session, self._runtime_state))
 
     def _build_server(self) -> AgentServer:
-        """Construct the underlying LiveKit server matching ``isolation``.
-
-        Coroutine mode returns an :class:`_CoroutineAgentServer` that
-        monkey-patches ``ipc.proc_pool.ProcPool`` with our
-        :class:`CoroutinePool` for the duration of ``run()``. Process mode
-        returns a vanilla :class:`AgentServer` (the v0.0.x default).
-
-        The coroutine import is deferred so process-only callers do not
-        load ``execution/coroutine_server.py`` at module import time.
-        """
+        """Construct the underlying LiveKit server for the configured isolation mode."""
         if self._isolation == "coroutine":
             from openrtc.execution.coroutine_server import _CoroutineAgentServer
 
@@ -267,33 +228,7 @@ class AgentPool:
         source_path: Path | str | None = None,
         **session_options: Any,
     ) -> AgentConfig:
-        """Register an agent in the pool.
-
-        Args:
-            name: Unique name used for dispatch.
-            agent_cls: Agent subclass to instantiate per session.
-            stt: STT provider string or instance.
-            llm: LLM provider string or instance.
-            tts: TTS provider string or instance.
-            greeting: Optional greeting played after the room connection completes.
-            session_kwargs: Extra keyword arguments forwarded to ``AgentSession``.
-                Common examples include ``preemptive_generation``,
-                ``allow_interruptions``, ``min_endpointing_delay``,
-                ``max_endpointing_delay``, and ``max_tool_steps``.
-            **session_options: Additional ``AgentSession`` options passed
-                directly to ``add()``. When the same option appears in both
-                ``session_kwargs`` and direct keyword arguments, the direct
-                keyword argument takes precedence.
-            source_path: Optional path to the agent's Python module on disk
-                (used for discovery metadata and footprint reporting).
-
-        Returns:
-            The created agent configuration.
-
-        Raises:
-            TypeError: If ``agent_cls`` is not a LiveKit ``Agent`` subclass.
-            ValueError: If ``name`` is empty or already registered.
-        """
+        """Register an agent in the pool and return its configuration."""
         normalized_name = name.strip()
         if not normalized_name:
             raise ValueError("Agent name must be a non-empty string.")
@@ -326,25 +261,7 @@ class AgentPool:
         return config
 
     def discover(self, agents_dir: str | Path) -> list[AgentConfig]:
-        """Discover agent modules from a directory and register them.
-
-        Args:
-            agents_dir: Directory containing Python files that define agent modules.
-                Each discovered module must define a local LiveKit ``Agent``
-                subclass. Optional OpenRTC overrides are read from the
-                ``@agent_config(...)`` decorator attached to that class. When a
-                field is omitted, ``AgentPool`` falls back to the module filename
-                for the agent name and to pool defaults for providers and greeting.
-
-        Returns:
-            The list of agent configurations registered from the directory.
-
-        Raises:
-            FileNotFoundError: If ``agents_dir`` does not exist.
-            NotADirectoryError: If ``agents_dir`` is not a directory.
-            RuntimeError: If a module cannot be loaded or contains no local
-                ``Agent`` subclass.
-        """
+        """Discover and register agent modules from a directory; return registered configs."""
         directory = Path(agents_dir).expanduser().resolve()
         if not directory.exists():
             raise FileNotFoundError(f"Agents directory does not exist: {directory}")
@@ -385,34 +302,14 @@ class AgentPool:
         return list(self._agents)
 
     def get(self, name: str) -> AgentConfig:
-        """Return a registered agent configuration by name.
-
-        Args:
-            name: The registered agent name.
-
-        Returns:
-            The registered configuration.
-
-        Raises:
-            KeyError: If the agent name is unknown.
-        """
+        """Return a registered agent configuration by name."""
         try:
             return self._agents[name]
         except KeyError as exc:
             raise KeyError(f"Unknown agent '{name}'.") from exc
 
     def remove(self, name: str) -> AgentConfig:
-        """Remove and return a registered agent configuration.
-
-        Args:
-            name: The registered agent name.
-
-        Returns:
-            The removed configuration.
-
-        Raises:
-            KeyError: If the agent name is unknown.
-        """
+        """Remove and return a registered agent configuration."""
         try:
             removed = self._agents.pop(name)
         except KeyError as exc:
@@ -421,21 +318,7 @@ class AgentPool:
         return removed
 
     def add_observer(self, observer: SessionObserver) -> None:
-        """Register a session observer notified for every session in the pool.
-
-        Call before ``run()``. The observer is notified on the session's own task
-        when the session goes live and when it ends. A raising or slow observer is
-        logged and skipped, never crashing the session. In ``process`` isolation
-        mode the observer must be picklable (it rides the serializable worker
-        state), so build any live resources lazily on the first
-        ``on_session_start`` rather than in the observer's constructor.
-
-        Args:
-            observer: An object implementing the ``SessionObserver`` protocol.
-
-        Raises:
-            TypeError: If ``observer`` does not implement the protocol.
-        """
+        """Register a session observer notified for every session in the pool."""
         if not isinstance(observer, SessionObserver):
             raise TypeError(
                 "observer must implement on_session_start and on_session_end "

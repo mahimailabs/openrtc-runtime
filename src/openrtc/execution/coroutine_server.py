@@ -1,18 +1,9 @@
 """``_CoroutineAgentServer`` swap shim.
 
-Subclass of ``livekit.agents.AgentServer`` that swaps the worker's
-internal ``ProcPool`` for our :class:`CoroutinePool`. Strategy A from
-``docs/design/agent-server-integration.md``: monkey-patch the
-``ipc.proc_pool.ProcPool`` symbol for the duration of :meth:`run` so the
-existing AgentServer construction logic at ``worker.py:587-601`` ends up
-calling our class with the same kwargs. The patch is scoped to one
-``run()`` lifetime; constructor-time and aclose-time state on
-``AgentServer`` are unaffected.
-
-Also installs a ``load_fnc`` that reads from
-``CoroutinePool.current_load`` so LiveKit dispatch sees the coroutine
-pool's actual session saturation instead of the inherited CPU-based
-default.
+Strategy A: monkey-patch ``ipc.proc_pool.ProcPool`` for the duration of
+:meth:`run` so AgentServer's construction logic calls our
+:class:`CoroutinePool` with the same kwargs. The patch is scoped to one
+``run()`` lifetime; constructor-time and aclose-time state are unaffected.
 """
 
 from __future__ import annotations
@@ -32,15 +23,7 @@ logger = logging.getLogger("openrtc.execution.coroutine_server")
 
 
 class _CoroutineAgentServer(AgentServer):
-    """``AgentServer`` that constructs a ``CoroutinePool`` instead of ``ProcPool``.
-
-    Args:
-        *args: Forwarded to :class:`AgentServer`.
-        max_concurrent_sessions: Backpressure threshold passed to the
-            constructed :class:`CoroutinePool`. The same value is then
-            referenced by the registered ``load_fnc``.
-        **kwargs: Forwarded to :class:`AgentServer`.
-    """
+    """``AgentServer`` that constructs a ``CoroutinePool`` instead of ``ProcPool``."""
 
     def __init__(
         self,
@@ -64,13 +47,7 @@ class _CoroutineAgentServer(AgentServer):
         return self._coroutine_pool
 
     def _on_consecutive_failure_limit(self, failures: int) -> None:
-        """Supervisor callback fired by ``CoroutinePool`` at the trip limit.
-
-        Logs at ERROR and schedules :meth:`aclose` on the running loop so
-        the worker exits and the deployment platform restarts it. Returns
-        without action when no loop is running (e.g. the server has
-        already finished aclose).
-        """
+        """Log the failure cluster and schedule ``aclose()`` to restart the worker."""
         logger.error(
             "supervisor: %d consecutive session failures observed; "
             "invoking AgentServer.aclose() so the worker can exit",
@@ -83,14 +60,7 @@ class _CoroutineAgentServer(AgentServer):
         loop.create_task(self.aclose())
 
     def _build_pool_factory(self) -> Callable[..., CoroutinePool]:
-        """Return the ProcPool replacement that builds our :class:`CoroutinePool`.
-
-        Captures the constructed pool on ``self._coroutine_pool`` so the
-        registered ``load_fnc`` and external callers (e.g. the
-        :attr:`coroutine_pool` property) see live state. Each call to the
-        returned factory replaces any previously captured pool, matching
-        ``AgentServer.run()``'s "fresh pool per run()" semantics.
-        """
+        """Return the ``ProcPool`` replacement factory that builds a ``CoroutinePool``."""
 
         def _factory(**pool_kwargs: Any) -> CoroutinePool:
             pool = CoroutinePool(
@@ -105,12 +75,7 @@ class _CoroutineAgentServer(AgentServer):
         return _factory
 
     def _coroutine_load_fnc(self) -> float:
-        """Load reading reported to LiveKit dispatch.
-
-        ``0.0`` until the pool has been built (between server construction
-        and the first ``ProcPool`` instantiation inside ``run()``).
-        Otherwise the pool's :meth:`CoroutinePool.current_load`.
-        """
+        """Return pool load for LiveKit dispatch; ``0.0`` before pool construction."""
         pool = self._coroutine_pool
         if pool is None:
             return 0.0
@@ -122,12 +87,7 @@ class _CoroutineAgentServer(AgentServer):
         devmode: bool = False,
         unregistered: bool = False,
     ) -> None:
-        """Patch ``ipc.proc_pool.ProcPool`` and delegate to ``AgentServer.run``.
-
-        The patch is scoped to one ``run()`` invocation. The factory
-        installs the constructed pool on ``self._coroutine_pool`` so
-        callers (and the registered ``load_fnc``) can read live state.
-        """
+        """Patch ``ipc.proc_pool.ProcPool`` for one invocation, then delegate to ``AgentServer.run``."""
         original_proc_pool_cls = _proc_pool_mod.ProcPool
         previous_load_fnc = self._load_fnc
 

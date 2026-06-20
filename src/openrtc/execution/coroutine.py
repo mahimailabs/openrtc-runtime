@@ -1,15 +1,4 @@
-"""Coroutine-mode worker executor and pool.
-
-Implements the structural surface that ``livekit.agents.AgentServer`` and
-``livekit.agents.ipc.proc_pool.ProcPool`` expose so an
-``isolation="coroutine"`` :class:`AgentPool` can swap our types in.
-
-Contracts derived from:
-
-- ``docs/design/job-executor-protocol.md``
-- ``docs/design/proc-pool-surface.md``
-- ``docs/design/agent-server-integration.md``
-"""
+"""Coroutine-mode worker executor and pool."""
 
 from __future__ import annotations
 
@@ -36,14 +25,7 @@ if TYPE_CHECKING:
 
 
 class _NoOpInferenceExecutor:
-    """Minimal :class:`InferenceExecutor` Protocol stub.
-
-    JobContext requires a non-None ``inference_executor`` even when the worker
-    has no inference runners registered. ProcPool side-steps this by piping a
-    real IPC client; coroutine mode passes this no-op when no real executor
-    is configured. Calling :meth:`do_inference` raises so a misconfigured
-    plugin fails loudly instead of silently returning ``None``.
-    """
+    """Stub ``InferenceExecutor`` for coroutine mode; raises on ``do_inference``."""
 
     async def do_inference(self, method: str, data: bytes) -> bytes | None:
         raise RuntimeError(
@@ -80,25 +62,7 @@ def _consume_cancelled_task_exception(task: asyncio.Task[Any]) -> None:
 
 
 class CoroutineJobExecutor:
-    """Per-session executor satisfying the ``JobExecutor`` Protocol.
-
-    Construction takes its dependencies as keyword args so the executor can
-    run in isolation (tests) without being wired through a CoroutinePool.
-
-    Args:
-        entrypoint_fnc: The user-defined ``Callable[[JobContext],
-            Awaitable[None]]`` that runs the actual session. Required to
-            call :meth:`launch_job`.
-        session_end_fnc: Optional callback awaited after the entrypoint
-            returns or raises (mirrors ``ProcPool``'s ``session_end_fnc``).
-        context_factory: Builder that turns the ``RunningJobInfo`` payload
-            into a JobContext referencing the shared JobProcess. Required to
-            call :meth:`launch_job`. Owning this as a callable lets the
-            CoroutinePool inject a real factory while tests substitute a
-            stub.
-        loop: Event loop the entrypoint task is scheduled on. Defaults to
-            ``asyncio.get_event_loop()`` at launch time.
-    """
+    """Per-session executor satisfying the ``JobExecutor`` Protocol."""
 
     def __init__(
         self,
@@ -145,31 +109,11 @@ class CoroutineJobExecutor:
         return self._status
 
     async def start(self) -> None:
-        """No-op startup hook (coroutine mode has no subprocess to spawn).
-
-        Process-mode executors fork or thread their child here; coroutine
-        mode runs in the same loop, so ``start`` simply flips
-        :attr:`started` to ``True``. Idempotent. Our :class:`CoroutinePool`
-        never calls this (we do not pre-warm executors — each
-        :meth:`CoroutinePool.launch_job` builds a fresh one), but the
-        upstream ``JobExecutor`` Protocol requires it and any caller
-        that does invoke it must observe a coherent state machine.
-        """
+        """No-op startup hook; coroutine mode has no subprocess to spawn."""
         self._started = True
 
     async def join(self) -> None:
-        """Wait until the in-flight entrypoint task finishes.
-
-        Returns immediately for an idle executor (no ``launch_job`` yet) or
-        an executor whose task already completed. For an in-flight task,
-        awaits it; the wrapper inside :meth:`_run_entrypoint` already
-        catches exceptions and flips status, so this method never raises
-        the entrypoint's own error. ``CancelledError`` is suppressed so
-        a drain path that races a cancel does not abort the drain.
-
-        Idempotent: a second call after the task has settled returns
-        without further awaits.
-        """
+        """Wait until the in-flight entrypoint task finishes; idempotent."""
         task = self._task
         if task is None or task.done():
             return
@@ -177,27 +121,14 @@ class CoroutineJobExecutor:
             await task
         except asyncio.CancelledError:
             pass
-        except Exception:  # noqa: BLE001 — wrapper has already set FAILED + logged
+        except Exception:  # noqa: BLE001 - wrapper has already set FAILED + logged
             pass
 
     async def initialize(self) -> None:
-        """No-op handshake hook.
-
-        Process-mode executors complete a child handshake here; coroutine mode
-        runs in the same loop so there is nothing to negotiate. Kept idempotent
-        and safe to call multiple times so ``ProcPool.start()``-style callers
-        work unchanged.
-        """
+        """No-op handshake hook; coroutine mode has no child process to negotiate with."""
 
     async def aclose(self) -> None:
-        """Cancel any in-flight ``launch_job`` task and clear ``started``.
-
-        Idempotent: a second call (or a call before any ``launch_job``) returns
-        without raising. If a still-pending task is cancelled, the executor's
-        status flips to :class:`JobStatus.FAILED` per
-        ``docs/design/job-executor-protocol.md`` (cancellation maps to FAILED
-        because the upstream enum has no CANCELLED value).
-        """
+        """Cancel any in-flight task and clear ``started``; idempotent."""
         task = self._task
         if task is not None and not task.done():
             task.cancel()
@@ -205,28 +136,14 @@ class CoroutineJobExecutor:
                 await task
             except asyncio.CancelledError:
                 pass
-            except Exception:  # noqa: BLE001 — wrapper has already set FAILED + logged
+            except Exception:  # noqa: BLE001 - wrapper has already set FAILED + logged
                 pass
             if self._status is JobStatus.RUNNING:
                 self._status = JobStatus.FAILED
         self._started = False
 
     def kill(self) -> None:
-        """Forcefully cancel the in-flight job task without awaiting cleanup.
-
-        Synchronous escalation path beyond :meth:`aclose`. Cancels the task
-        with a ``"killed"`` message, marks status :class:`JobStatus.FAILED`
-        immediately, and clears ``started``. A done callback consumes the
-        eventual :class:`asyncio.CancelledError` so the event loop does not
-        log an unhandled-exception warning.
-
-        Use when graceful shutdown is too slow (drain timeout exceeded,
-        supervisor escalation, etc.). Idempotent: safe to call before any
-        ``launch_job`` or after the task is already done.
-
-        Not part of the upstream ``JobExecutor`` Protocol; this is an
-        OpenRTC-internal escalation hook.
-        """
+        """Forcefully cancel the in-flight task without awaiting cleanup; idempotent."""
         task = self._task
         if task is not None and not task.done():
             task.cancel("killed by CoroutineJobExecutor.kill()")
@@ -236,24 +153,7 @@ class CoroutineJobExecutor:
         self._started = False
 
     async def launch_job(self, info: RunningJobInfo) -> None:
-        """Schedule the user entrypoint as an ``asyncio.Task`` and return.
-
-        Constructs a ``JobContext`` via ``context_factory`` (referencing the
-        shared ``JobProcess`` the factory closes over), schedules the
-        entrypoint coroutine on this executor's loop, and stores the task on
-        ``self._task`` so :meth:`aclose` can cancel it.
-
-        The entrypoint runs inside :meth:`_run_entrypoint`, which:
-        - flips ``status`` to :class:`JobStatus.SUCCESS` on clean completion,
-        - flips ``status`` to :class:`JobStatus.FAILED` on any exception or
-          cancellation, and **suppresses** the exception so a sibling job in
-          the same worker is unaffected,
-        - awaits ``session_end_fnc(ctx)`` in a ``finally`` block (success or
-          failure), suppressing any exception from that callback.
-
-        Returns once the task is **scheduled**, not after it completes, so
-        the pool can issue the next ``launch_job`` immediately.
-        """
+        """Schedule the user entrypoint as an ``asyncio.Task`` and return immediately."""
         if self._entrypoint_fnc is None:
             raise RuntimeError(
                 "CoroutineJobExecutor requires entrypoint_fnc to launch a job."
@@ -276,15 +176,7 @@ class CoroutineJobExecutor:
         self._task = loop.create_task(self._run_entrypoint(ctx))
 
     async def _run_entrypoint(self, ctx: JobContext) -> None:
-        """Run the session lifecycle, mirroring upstream ``_run_job_task``.
-
-        Establishes the job context (so ``get_job_context()`` resolves inside
-        the entrypoint and the session), holds the session open until shutdown
-        is requested (room disconnect, ``ctx.shutdown()``, or an entrypoint
-        crash), then runs the teardown sequence. Every ``JobContext`` hook is
-        treated as optional so the executor still runs with the bare stub
-        contexts that unit tests and the density benchmark pass directly.
-        """
+        """Run the session lifecycle, mirroring upstream ``_run_job_task``."""
         assert self._entrypoint_fnc is not None  # checked in launch_job
         loop = asyncio.get_running_loop()
         shutdown_fut: asyncio.Future[str] = loop.create_future()
@@ -363,13 +255,7 @@ class CoroutineJobExecutor:
                     _JobContextVar.reset(token)
 
     async def _teardown(self, ctx: JobContext, reason: str) -> None:
-        """Run the post-shutdown lifecycle (mirrors upstream ``_run_job_task``).
-
-        Closes the primary ``AgentSession``, runs ``_on_session_end`` and the
-        registered shutdown callbacks, cancels pending tasks, and cleans up.
-        Every hook is optional so stub contexts in tests and benchmarks are
-        tolerated.
-        """
+        """Run the post-shutdown lifecycle (mirrors upstream ``_run_job_task``)."""
         primary = getattr(ctx, "_primary_agent_session", None)
         if primary is not None and hasattr(primary, "aclose"):
             with contextlib.suppress(Exception):
@@ -401,12 +287,7 @@ class CoroutineJobExecutor:
 
 
 class CoroutinePool(utils.EventEmitter[EventTypes]):
-    """Multi-session coroutine pool satisfying the ``ProcPool`` surface.
-
-    Constructor signature mirrors ``ipc.proc_pool.ProcPool`` so
-    ``AgentServer.run()`` can construct us with the same kwargs (see
-    ``docs/design/proc-pool-surface.md``). All real behavior is deferred.
-    """
+    """Multi-session coroutine pool satisfying the ``ProcPool`` surface."""
 
     def __init__(
         self,
@@ -476,18 +357,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         )
 
     async def start(self) -> None:
-        """Construct the singleton ``JobProcess`` and run ``setup_fnc`` once.
-
-        Coroutine mode shares one ``JobProcess`` across every executor (and
-        therefore every session) in the worker, so ``setup_fnc`` runs **once**
-        — not once per session as in process mode. The shared instance lives
-        on ``self.shared_process`` and is what each executor's
-        ``context_factory`` will close over.
-
-        Wraps the call in :func:`asyncio.wait_for` with the configured
-        ``initialize_timeout``. Idempotent: a second call after a successful
-        start is a no-op.
-        """
+        """Construct the singleton ``JobProcess`` and run ``setup_fnc`` once; idempotent."""
         if self._started:
             return
 
@@ -516,12 +386,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
 
     @property
     def shared_process(self) -> JobProcess | None:
-        """Return the singleton ``JobProcess`` populated by :meth:`start`.
-
-        ``None`` until ``start()`` completes successfully. Read by the
-        per-executor ``context_factory`` so every ``JobContext`` references
-        the same prewarmed userdata.
-        """
+        """Return the singleton ``JobProcess`` populated by :meth:`start`."""
         return self._shared_proc
 
     @property
@@ -530,19 +395,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         return self._started
 
     async def drain(self) -> None:
-        """Stop accepting new jobs; await every in-flight executor to finish.
-
-        Mirrors the loop inside ``AgentServer.drain()`` but stays at the
-        pool layer so callers (e.g. signal-handler shims) can drain the
-        coroutine pool without going through the AgentServer state
-        machine. Once draining starts, :meth:`launch_job` rejects new
-        jobs with a ``RuntimeError``. Existing executors are awaited via
-        their :meth:`CoroutineJobExecutor.join` so already-cancelled
-        tasks do not abort the drain.
-
-        Idempotent: a second call returns immediately. Safe to call on a
-        pool that never started (no-op).
-        """
+        """Stop accepting new jobs and await every in-flight executor; idempotent."""
         if self._draining:
             return
         self._draining = True
@@ -562,22 +415,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         return self._draining
 
     async def aclose(self) -> None:
-        """Drain the pool: cancel every active executor and wait for cleanup.
-
-        Idempotent: a call before :meth:`start` (or a second call after a
-        prior aclose) returns immediately. Snapshots :attr:`processes` so
-        each executor's ``_on_executor_done`` callback can safely remove
-        itself from the live list while we iterate.
-
-        Wraps the parallel cancellation in :func:`asyncio.wait_for` with
-        the configured ``close_timeout``. On timeout we fall back to the
-        per-executor :meth:`CoroutineJobExecutor.kill` escalation so the
-        worker can finish shutting down even if a user entrypoint refuses
-        to honor cancellation.
-
-        Individual ``aclose`` failures are absorbed (``return_exceptions``)
-        so one bad executor cannot prevent the rest from being cleaned up.
-        """
+        """Cancel every active executor and wait for cleanup; idempotent."""
         if not self._started:
             return
         self._started = False
@@ -607,22 +445,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
                     kill_method()
 
     async def launch_job(self, info: RunningJobInfo) -> None:
-        """Allocate a per-session executor and schedule its entrypoint.
-
-        Builds a :class:`CoroutineJobExecutor` wired with the pool's
-        callbacks and a ``context_factory`` that produces a real
-        :class:`JobContext` referencing the singleton ``JobProcess``. Tracks
-        the executor in :attr:`processes` and emits the standard
-        ``process_*`` events in the order documented in
-        ``docs/design/proc-pool-surface.md``.
-
-        Order: ``process_created`` -> ``process_started`` ->
-        ``process_ready`` -> entrypoint task scheduled ->
-        ``process_job_launched``. ``process_closed`` fires later from the
-        task's done callback once the entrypoint coroutine exits (success or
-        failure), at which point the executor is removed from
-        :attr:`processes`.
-        """
+        """Allocate a per-session executor, emit lifecycle events, and schedule its entrypoint."""
         if not self._started:
             raise RuntimeError("CoroutinePool.start() must complete before launch_job.")
         if self._draining:
@@ -658,13 +481,9 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
     def _build_executor(self) -> CoroutineJobExecutor:
         """Construct a per-session executor wired with this pool's callbacks.
 
-        ``loop`` is intentionally not forwarded to the executor: the
-        executor schedules its task at launch time, so it must use the
-        loop that is running ``launch_job`` (``asyncio.get_running_loop()``).
-        Forwarding the constructor-time loop would couple the executor to
-        whatever loop existed when ``ProcPool`` was instantiated, which
-        in tests (and in some real scenarios) does not match the loop
-        running ``AgentServer.run()``.
+        ``loop`` is not forwarded: the executor must use the loop running
+        ``launch_job``, not the constructor-time loop, which may differ in
+        tests and some real scenarios.
         """
         return CoroutineJobExecutor(
             entrypoint_fnc=self._job_entrypoint_fnc,
@@ -673,17 +492,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         )
 
     def _build_job_context(self, info: RunningJobInfo) -> JobContext:
-        """Construct a fresh :class:`JobContext` for one session.
-
-        Mirrors the construction in
-        ``livekit/agents/ipc/job_proc_lazy_main.py:_start_job`` so the
-        coroutine path matches process-mode semantics: real ``rtc.Room`` for
-        live jobs, ``create_mock_room`` for ``info.fake_job`` (which
-        ``simulate_job`` and the density benchmark use).
-
-        Tests override this method to return a stub instead of constructing
-        a real Room (which loads native libraries).
-        """
+        """Construct a fresh ``JobContext`` for one session."""
         if self._shared_proc is None:
             raise RuntimeError(
                 "CoroutinePool.start() must complete before _build_job_context."
@@ -712,12 +521,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         )
 
     def _on_executor_done(self, executor: JobExecutor) -> None:
-        """Remove a finished executor and emit ``process_closed``.
-
-        Idempotent — a second call (or a call on an executor that was never
-        tracked) is a no-op except for the event emission, which is
-        suppressed on the second call.
-        """
+        """Remove a finished executor and emit ``process_closed``; idempotent."""
         if executor not in self._executors:
             return
         self._executors.remove(executor)
@@ -725,15 +529,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         self._observe_executor_status(executor)
 
     def _observe_executor_status(self, executor: JobExecutor) -> None:
-        """Track consecutive failures and trip the supervisor at the limit.
-
-        SUCCESS resets the counter; any other terminal status (FAILED,
-        and by extension cancellation, which we map to FAILED) increments
-        it. The supervisor callback fires exactly once per cluster (the
-        ``_failure_limit_fired`` flag clears on the next SUCCESS) so a
-        sustained outage does not spam logs or trigger repeated
-        shutdowns.
-        """
+        """Track consecutive failures and trip the supervisor at the limit."""
         status = executor.status
         if status is JobStatus.SUCCESS:
             self._consecutive_failures = 0
@@ -783,17 +579,5 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         return self._max_concurrent_sessions
 
     def current_load(self) -> float:
-        """Return active-session load ratio for AgentServer's ``load_fnc``.
-
-        Computed as ``len(active_executors) / max_concurrent_sessions``.
-        Returns ``0.0`` for an idle pool, ``1.0`` once
-        ``max_concurrent_sessions`` is reached, and ``> 1.0`` if the pool
-        has somehow over-allocated. ``AgentServer._update_worker_status``
-        treats a load ``>= load_threshold`` (default ``0.7``) as "full" and
-        stops accepting jobs from the dispatcher.
-
-        Not part of the upstream ``ProcPool`` surface; this is the data
-        source AgentPool will register as a custom ``load_fnc`` once the
-        coroutine wiring lands.
-        """
+        """Return active-session fraction (``active / max_concurrent_sessions``) for ``load_fnc``."""
         return len(self._executors) / self._max_concurrent_sessions

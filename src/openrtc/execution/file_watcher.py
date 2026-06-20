@@ -1,35 +1,4 @@
-"""File watcher infrastructure for user agent code (MAH-80, v0.2.1).
-
-The watcher monitors user-edited Python modules and emits debounced
-change events. Reload, re-import, and session re-binding are out of
-scope here — see MAH-81 onward. This module provides the foundation:
-discovery, event shape, and a callback API.
-
-Contract summary
-----------------
-
-- The watcher discovers user-editable modules from ``sys.modules`` at
-  construction (when ``paths=None``) and ignores anything under
-  ``site-packages`` / ``sys.prefix``.
-- Filesystem events are consumed via ``watchfiles.awatch`` and mapped
-  to :class:`FileChange` instances.
-- Rapid events are coalesced through a trailing-edge debounce
-  (``debounce_ms``, default 200) before the user callback fires, so
-  multi-write editor saves produce a single dispatch.
-- The user callback is awaited inside a try/except: exceptions are
-  logged at ERROR and swallowed, leaving the watcher running.
-- ``stop()`` cancels the in-flight watch and flush tasks, drops the
-  pending buffer, and is safe to call repeatedly.
-
-Public API (locked at design.md §3.5):
-
-- :class:`FileChange` — frozen dataclass describing a single change
-- :class:`FileWatcher` — async watcher with
-  ``start()`` / ``stop()`` / ``refresh_paths()``
-
-Both names are re-exported from the package root, so callers can write
-``from openrtc import FileWatcher, FileChange``.
-"""
+"""File watcher: discover user-edited Python modules and emit debounced change events."""
 
 from __future__ import annotations
 
@@ -59,27 +28,14 @@ _WATCHFILES_CHANGE_MAP: dict[watchfiles.Change, ChangeType] = {
 
 @dataclass(frozen=True)
 class FileChange:
-    """A single filesystem change event.
-
-    Frozen so instances are hashable and can be deduplicated in sets.
-    Paths emitted by :class:`FileWatcher` are absolutized (via
-    ``Path.resolve(strict=False)``) at the watcher boundary; instances
-    constructed by callers directly carry whatever path they pass in.
-    ``change_type`` is one of ``"created"``, ``"modified"``, or
-    ``"deleted"`` (mapped from watchfiles' ``Change`` enum).
-    """
+    """A single filesystem change event; frozen so instances are hashable."""
 
     path: Path
     change_type: ChangeType
 
 
 def _interpreter_excluded_roots() -> list[Path]:
-    """Return absolute directory roots whose contents are NOT user code.
-
-    Modules whose ``__file__`` lives under any of these roots are
-    interpreter, standard library, or third-party package code — not
-    something a user would edit during a hot-reload session.
-    """
+    """Return directory roots that contain interpreter, stdlib, and third-party code."""
     roots: list[Path] = [Path(path).resolve() for path in site.getsitepackages()]
     user_site = site.getusersitepackages()
     if user_site:
@@ -102,19 +58,7 @@ def _is_under(path: Path, roots: list[Path]) -> bool:
 
 
 def _discover_user_modules() -> list[Path]:
-    """Snapshot ``sys.modules`` and return user-editable Python file paths.
-
-    A module is "user-editable" when:
-
-    1. It exposes a real ``__file__`` attribute (excludes built-ins,
-       namespace packages, and some C extensions).
-    2. The file is NOT under any interpreter or site-packages root
-       returned by :func:`_interpreter_excluded_roots`.
-
-    Returns absolute, deduplicated paths in module-iteration order.
-    Modules without a ``__file__`` are skipped silently — that is the
-    documented "graceful" behavior for built-ins.
-    """
+    """Snapshot ``sys.modules`` and return absolute paths to user-editable Python files."""
     excluded = _interpreter_excluded_roots()
     seen: set[Path] = set()
     discovered: list[Path] = []
@@ -141,13 +85,8 @@ def _discover_user_modules() -> list[Path]:
 class FileWatcher:
     """Watch user-edited Python modules and emit debounced change events.
 
-    Public API is locked at design.md §3.5. The watcher is async-native:
-    ``start()`` schedules a background watch task, ``stop()`` cancels
-    it gracefully, and ``refresh_paths()`` rebuilds the auto-discovered
-    path set without restarting.
-
-    Lifecycle: a watcher transitions ``new → running → stopped``. A
-    stopped watcher cannot be restarted — construct a new one.
+    Lifecycle: ``new`` to ``running`` to ``stopped``. A stopped watcher cannot be
+    restarted; construct a new one.
     """
 
     def __init__(
@@ -157,23 +96,7 @@ class FileWatcher:
         debounce_ms: int = 200,
         paths: list[Path] | None = None,
     ) -> None:
-        """Construct a watcher; does not start watching until :meth:`start`.
-
-        Args:
-            on_change: Async callable invoked with the coalesced
-                ``list[FileChange]`` after each debounce window.
-                Exceptions raised by this callable are logged and
-                swallowed.
-            debounce_ms: Trailing-edge debounce window. Must be > 0.
-            paths: Explicit list of files or directories to watch. When
-                ``None`` (default), the watcher snapshots
-                ``sys.modules`` and excludes anything under the
-                interpreter / site-packages roots — :meth:`refresh_paths`
-                only re-runs discovery in this auto-discover mode.
-
-        Raises:
-            ValueError: ``debounce_ms`` is not strictly positive.
-        """
+        """Construct a watcher; does not start watching until :meth:`start`."""
         if debounce_ms <= 0:
             raise ValueError(
                 f"debounce_ms must be > 0, got {debounce_ms}.",
@@ -208,24 +131,7 @@ class FileWatcher:
         return self._state
 
     def refresh_paths(self) -> None:
-        """Re-snapshot ``sys.modules`` for the auto-discover watcher.
-
-        Side effects:
-            - Replaces ``self._paths`` with a fresh discovery snapshot
-              when the watcher was constructed with ``paths=None``.
-              No-op when explicit paths were supplied (the caller owns
-              the list).
-            - When the watcher is running, sets ``_restart_event`` so
-              the watch loop tears down the current ``awatch`` iterator
-              and recreates it with the new path set on the next
-              iteration boundary.
-
-        Notes:
-            Synchronous because rebuilding the path set is a fast
-            in-process snapshot. The live recreate happens
-            asynchronously in the watch loop, typically within a few
-            milliseconds.
-        """
+        """Re-snapshot ``sys.modules`` and signal the watch loop to recreate ``awatch``."""
         if not self._auto_discover:
             return
         self._paths = _discover_user_modules()
@@ -233,21 +139,7 @@ class FileWatcher:
             self._restart_event.set()
 
     async def start(self) -> None:
-        """Begin watching. Idempotent.
-
-        Side effects:
-            Creates an ``asyncio.Event`` (``_stop_event``) and an
-            ``asyncio.Task`` running :meth:`_run_watch_loop`, then
-            transitions the state to ``running``.
-
-        Raises:
-            RuntimeError: Called after :meth:`stop`. A stopped watcher
-                cannot be restarted; construct a new instance.
-
-        Notes:
-            A second call while ``running`` is a no-op (does not spawn
-            a duplicate watch task).
-        """
+        """Begin watching; idempotent. Raises ``RuntimeError`` if called after ``stop()``."""
         if self._state == "running":
             return
         if self._state == "stopped":
@@ -263,23 +155,7 @@ class FileWatcher:
         )
 
     async def stop(self) -> None:
-        """Stop watching. Idempotent and graceful.
-
-        Side effects:
-            - Transitions state to ``stopped`` (terminal — :meth:`start`
-              will raise).
-            - Sets ``_stop_event`` so ``watchfiles.awatch`` exits its
-              async iterator.
-            - Cancels and awaits the in-flight watch task and any
-              pending flush task; ``CancelledError`` is suppressed.
-            - Drops ``self._pending`` (any unflushed events are lost).
-
-        Notes:
-            Calling ``stop()`` on a fresh (never-started) watcher still
-            moves it to ``stopped`` so the no-restart invariant holds.
-            A pending debounce flush is cancelled without invoking the
-            user callback.
-        """
+        """Stop watching, cancel in-flight tasks, and drop unflushed events; idempotent."""
         if self._state == "stopped":
             return
         self._state = "stopped"
@@ -304,19 +180,11 @@ class FileWatcher:
         self._pending.clear()
 
     async def _run_watch_loop(self) -> None:
-        """Background task: consume ``watchfiles.awatch`` and feed the debounce.
+        """Background task: consume ``watchfiles.awatch`` and feed the debounce buffer.
 
-        Wraps ``watchfiles.awatch`` in an outer loop so :meth:`refresh_paths`
-        can swap the watched path set without restarting the whole
-        watcher: when ``_restart_event`` fires, the inner ``awatch``
-        iterator's ``stop_event`` is tripped, the loop tears it down,
-        and the next iteration creates a fresh ``awatch`` over the
-        latest ``self._paths``.
-
-        Each batch from watchfiles is converted to ``FileChange``
-        instances (with absolutized paths) and handed to
-        :meth:`_handle_change_batch`, which extends ``self._pending``
-        and (re)schedules the trailing flush.
+        Wraps ``awatch`` in an outer loop so ``refresh_paths()`` can swap the path
+        set mid-run: ``_restart_event`` trips the inner iterator, tears it down, and
+        the next iteration creates a fresh ``awatch`` over the updated paths.
         """
         assert self._stop_event is not None
         assert self._restart_event is not None
@@ -354,13 +222,13 @@ class FileWatcher:
                                 self._handle_change_batch(batch)
                     except asyncio.CancelledError:
                         raise
-                    except Exception:  # noqa: BLE001 — logged and swallowed
+                    except Exception:  # noqa: BLE001 - logged and swallowed
                         _log.exception(
                             "FileWatcher loop crashed; events will stop firing",
                         )
                         return
                 else:
-                    # No paths to watch — wait for stop or restart.
+                    # No paths to watch: wait for stop or restart.
                     await iter_done.wait()
             finally:
                 mirror.cancel()
@@ -373,11 +241,7 @@ class FileWatcher:
                 self._restart_event.clear()
 
     async def _mirror_signals(self, target: asyncio.Event) -> None:
-        """Set *target* when either ``_stop_event`` or ``_restart_event`` fires.
-
-        Used to translate the watcher's two lifecycle signals into the
-        single ``stop_event`` that ``watchfiles.awatch`` accepts.
-        """
+        """Set *target* when either ``_stop_event`` or ``_restart_event`` fires."""
         assert self._stop_event is not None
         assert self._restart_event is not None
         stop_wait = asyncio.create_task(self._stop_event.wait())
@@ -396,15 +260,7 @@ class FileWatcher:
                         await task
 
     def _handle_change_batch(self, batch: list[FileChange]) -> None:
-        """Buffer one batch and (re)schedule the trailing debounce flush.
-
-        Called from the watchfiles loop for each emitted batch and from
-        unit tests directly. The semantics: extend ``_pending``, cancel
-        any in-flight flush task, schedule a fresh flush
-        ``debounce_ms / 1000`` seconds from now. If five rapid batches
-        arrive, only the last reschedule survives — the prior four
-        flush tasks are cancelled before they fire.
-        """
+        """Buffer a batch and (re)schedule the trailing debounce flush."""
         self._pending.extend(batch)
         if self._flush_task is not None and not self._flush_task.done():
             self._flush_task.cancel()
@@ -414,14 +270,7 @@ class FileWatcher:
         )
 
     async def _flush_after(self, delay_s: float) -> None:
-        """Wait *delay_s* seconds then flush ``_pending`` through ``on_change``.
-
-        Cancellation before the timer fires drops the in-flight flush
-        without firing the callback (used both by the debounce reschedule
-        and by ``stop()`` for clean shutdown). Exceptions raised by the
-        user callback are logged and swallowed so the watch loop keeps
-        running for subsequent events.
-        """
+        """Wait *delay_s* seconds then flush ``_pending`` through ``on_change``."""
         try:
             await asyncio.sleep(delay_s)
         except asyncio.CancelledError:
@@ -437,25 +286,14 @@ class FileWatcher:
             await self._on_change(collapsed)
         except asyncio.CancelledError:
             raise
-        except Exception:  # noqa: BLE001 — user callback isolation
+        except Exception:  # noqa: BLE001 - user callback isolation
             _log.exception(
                 "FileWatcher.on_change raised; continuing to watch",
             )
 
 
 def _collapse_changes(changes: list[FileChange]) -> list[FileChange]:
-    """Coalesce multiple events for the same path into one ``FileChange``.
-
-    Per design.md §3.4, the salient state wins:
-
-    - any ``deleted`` in the path's window → emit ``deleted`` (the file
-      is gone now, regardless of intermediate states)
-    - else any ``created`` in the window → emit ``created`` (the file is
-      new; downstream consumers must register it for the first time)
-    - otherwise → emit ``modified``
-
-    Output preserves the first-seen order of paths in *changes*.
-    """
+    """Coalesce multiple events per path: deleted wins, then created, then modified."""
     by_path: dict[Path, list[ChangeType]] = {}
     for change in changes:
         by_path.setdefault(change.path, []).append(change.change_type)
