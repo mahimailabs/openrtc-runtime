@@ -25,6 +25,7 @@ from typing import Any
 import livekit.agents.ipc.proc_pool as _proc_pool_mod
 from livekit.agents import AgentServer
 
+from openrtc.core.validation import require_positive_int
 from openrtc.execution.coroutine import CoroutinePool
 
 logger = logging.getLogger("openrtc.execution.coroutine_server")
@@ -49,31 +50,12 @@ class _CoroutineAgentServer(AgentServer):
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
-        if not isinstance(max_concurrent_sessions, int) or isinstance(
-            max_concurrent_sessions, bool
-        ):
-            raise TypeError(
-                "max_concurrent_sessions must be an int, "
-                f"got {type(max_concurrent_sessions).__name__}."
-            )
-        if max_concurrent_sessions < 1:
-            raise ValueError(
-                f"max_concurrent_sessions must be >= 1, got {max_concurrent_sessions}."
-            )
-        if not isinstance(consecutive_failure_limit, int) or isinstance(
-            consecutive_failure_limit, bool
-        ):
-            raise TypeError(
-                "consecutive_failure_limit must be an int, "
-                f"got {type(consecutive_failure_limit).__name__}."
-            )
-        if consecutive_failure_limit < 1:
-            raise ValueError(
-                "consecutive_failure_limit must be >= 1, "
-                f"got {consecutive_failure_limit}."
-            )
-        self._max_concurrent_sessions = max_concurrent_sessions
-        self._consecutive_failure_limit = consecutive_failure_limit
+        self._max_concurrent_sessions = require_positive_int(
+            "max_concurrent_sessions", max_concurrent_sessions
+        )
+        self._consecutive_failure_limit = require_positive_int(
+            "consecutive_failure_limit", consecutive_failure_limit
+        )
         self._coroutine_pool: CoroutinePool | None = None
 
     @property

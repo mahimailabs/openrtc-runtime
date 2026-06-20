@@ -22,6 +22,7 @@ from openrtc.core.discovery import (
 )
 from openrtc.core.routing import _resolve_agent_config
 from openrtc.core.turn_handling import _build_session_kwargs
+from openrtc.core.validation import require_positive_int, validate_isolation
 from openrtc.execution.prewarm import _prewarm_worker
 from openrtc.observability.metrics import (
     MetricsStreamEvent,
@@ -174,43 +175,15 @@ class AgentPool:
                 cancelled with a ``WARNING`` log. Default ``30`` per
                 docs/design/v0.1.md §6.4.
         """
-        if isolation not in ("coroutine", "process"):
-            raise ValueError(
-                f"isolation must be 'coroutine' or 'process', got {isolation!r}."
-            )
-        if not isinstance(max_concurrent_sessions, int) or isinstance(
-            max_concurrent_sessions, bool
-        ):
-            raise TypeError(
-                "max_concurrent_sessions must be an int, "
-                f"got {type(max_concurrent_sessions).__name__}."
-            )
-        if max_concurrent_sessions < 1:
-            raise ValueError(
-                f"max_concurrent_sessions must be >= 1, got {max_concurrent_sessions}."
-            )
-        if not isinstance(consecutive_failure_limit, int) or isinstance(
-            consecutive_failure_limit, bool
-        ):
-            raise TypeError(
-                "consecutive_failure_limit must be an int, "
-                f"got {type(consecutive_failure_limit).__name__}."
-            )
-        if consecutive_failure_limit < 1:
-            raise ValueError(
-                "consecutive_failure_limit must be >= 1, "
-                f"got {consecutive_failure_limit}."
-            )
-        if not isinstance(drain_timeout, int) or isinstance(drain_timeout, bool):
-            raise TypeError(
-                f"drain_timeout must be an int, got {type(drain_timeout).__name__}."
-            )
-        if drain_timeout < 1:
-            raise ValueError(f"drain_timeout must be >= 1, got {drain_timeout}.")
+        validate_isolation(isolation)
         self._isolation: IsolationMode = isolation
-        self._max_concurrent_sessions: int = max_concurrent_sessions
-        self._consecutive_failure_limit: int = consecutive_failure_limit
-        self._drain_timeout: int = drain_timeout
+        self._max_concurrent_sessions = require_positive_int(
+            "max_concurrent_sessions", max_concurrent_sessions
+        )
+        self._consecutive_failure_limit = require_positive_int(
+            "consecutive_failure_limit", consecutive_failure_limit
+        )
+        self._drain_timeout = require_positive_int("drain_timeout", drain_timeout)
         self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(

@@ -29,6 +29,8 @@ from livekit.agents.ipc import inference_executor as inference_executor_mod
 from livekit.agents.ipc.job_executor import JobStatus
 from livekit.agents.job import RunningJobInfo, _JobContextVar
 
+from openrtc.core.validation import require_positive_int
+
 if TYPE_CHECKING:
     from livekit.agents.ipc.job_executor import JobExecutor
 
@@ -444,31 +446,12 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         # constructor stays compatible with AgentServer (which only passes
         # the ProcPool kwargs); the AgentPool wiring sets this via a
         # closure when it monkey-patches ProcPool.
-        if not isinstance(max_concurrent_sessions, int) or isinstance(
-            max_concurrent_sessions, bool
-        ):
-            raise TypeError(
-                "max_concurrent_sessions must be an int, "
-                f"got {type(max_concurrent_sessions).__name__}."
-            )
-        if max_concurrent_sessions < 1:
-            raise ValueError(
-                f"max_concurrent_sessions must be >= 1, got {max_concurrent_sessions}."
-            )
-        self._max_concurrent_sessions = max_concurrent_sessions
-        if not isinstance(consecutive_failure_limit, int) or isinstance(
-            consecutive_failure_limit, bool
-        ):
-            raise TypeError(
-                "consecutive_failure_limit must be an int, "
-                f"got {type(consecutive_failure_limit).__name__}."
-            )
-        if consecutive_failure_limit < 1:
-            raise ValueError(
-                "consecutive_failure_limit must be >= 1, "
-                f"got {consecutive_failure_limit}."
-            )
-        self._consecutive_failure_limit = consecutive_failure_limit
+        self._max_concurrent_sessions = require_positive_int(
+            "max_concurrent_sessions", max_concurrent_sessions
+        )
+        self._consecutive_failure_limit = require_positive_int(
+            "consecutive_failure_limit", consecutive_failure_limit
+        )
         self._on_consecutive_failure_limit = on_consecutive_failure_limit
         self._consecutive_failures = 0
         self._failure_limit_fired = False
