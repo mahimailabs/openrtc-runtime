@@ -29,8 +29,8 @@ import pytest
 from livekit.agents import Agent, AgentServer
 
 from openrtc import AgentPool
-from openrtc.core.pool import _run_universal_session
 from openrtc.core.routing import _resolve_agent_config
+from openrtc.core.wiring import run_session as _run_universal_session
 
 
 class _DemoAgent(Agent):
@@ -109,7 +109,7 @@ def test_universal_entrypoint_runs_under_both_modes(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
 
     pool = AgentPool(isolation=isolation)  # type: ignore[arg-type]
     pool.add("demo", _DemoAgent, greeting="hi")

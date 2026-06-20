@@ -8,8 +8,8 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
-from openrtc.core.pool import _run_universal_session
 from openrtc.core.routing import _resolve_agent_config
+from openrtc.core.wiring import run_session as _run_universal_session
 
 
 class RestaurantAgent(Agent):
@@ -250,7 +250,7 @@ def test_remove_changes_default_fallback_order(pool: AgentPool) -> None:
 def test_handle_session_passes_session_kwargs_and_provider_objects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     stt_provider = object()
     llm_provider = object()
     tts_provider = object()
@@ -281,7 +281,7 @@ def test_handle_session_passes_session_kwargs_and_provider_objects(
 def test_handle_session_passes_provider_strings_through_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     pool = AgentPool()
     pool.add(
         "dental",
@@ -303,7 +303,7 @@ def test_handle_session_passes_provider_strings_through_unchanged(
 def test_handle_session_supports_direct_session_kwargs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     pool = AgentPool()
     pool.add(
         "dental",
@@ -325,7 +325,7 @@ def test_handle_session_supports_direct_session_kwargs(
 def test_handle_session_preserves_explicit_turn_handling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     custom_turn_detection = object()
     pool = AgentPool()
     pool.add(
@@ -351,7 +351,7 @@ def test_handle_session_preserves_explicit_turn_handling(
 def test_handle_session_uses_multilingual_turn_detection_when_inference_executor_exists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     pool = AgentPool()
     pool.add("dental", DentalAgent)
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
@@ -368,7 +368,7 @@ def test_handle_session_generates_greeting_after_connect(
     monkeypatch: pytest.MonkeyPatch,
     pool: AgentPool,
 ) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     ctx = FakeJobContext(job_metadata={"agent": "restaurant"})
 
     asyncio.run(_run_universal_session(pool._runtime_state, ctx))
@@ -384,7 +384,7 @@ def test_handle_session_skips_greeting_when_not_configured(
     monkeypatch: pytest.MonkeyPatch,
     pool: AgentPool,
 ) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
 
     asyncio.run(_run_universal_session(pool._runtime_state, ctx))

@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import logging
-import sys
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from functools import partial
 from pathlib import Path
 from typing import Any, Literal
 
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli
+from livekit.agents import Agent, AgentServer, cli
 
 from openrtc.core.config import (
     AgentConfig,
@@ -21,22 +18,12 @@ from openrtc.core.discovery import (
     _load_agent_module,
 )
 from openrtc.core.registry import ServerParams, resolve_server_builder
-from openrtc.core.routing import _resolve_agent_config
-from openrtc.core.turn_handling import _build_session_kwargs
 from openrtc.core.validation import require_positive_int, validate_isolation
-from openrtc.execution.prewarm import _prewarm_worker
-from openrtc.execution.resources import PrewarmResources
+from openrtc.core.wiring import _PoolRuntimeState, wire_pool
 from openrtc.observability.metrics import (
     MetricsStreamEvent,
-    RuntimeMetricsStore,
 )
-from openrtc.observability.observer import (
-    SessionObserver,
-    _build_session_info,
-    _build_session_outcome,
-    _notify_session_end,
-    _notify_session_start,
-)
+from openrtc.observability.observer import SessionObserver
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.types import ProviderValue
 
@@ -51,71 +38,6 @@ __all__ = [
 logger = logging.getLogger("openrtc")
 
 IsolationMode = Literal["coroutine", "process"]
-
-# The on_session_start notification runs in the interactive hot path (before the
-# greeting), so it is bounded by this short timeout rather than the larger drain
-# budget that bounds the on_session_end notification at teardown.
-_OBSERVER_START_TIMEOUT_SECONDS = 5.0
-
-
-@dataclass(slots=True)
-class _PoolRuntimeState:
-    """Serializable runtime state shared with worker callbacks."""
-
-    agents: dict[str, AgentConfig]
-    metrics: RuntimeMetricsStore = field(default_factory=RuntimeMetricsStore)
-    observers: list[SessionObserver] = field(default_factory=list)
-    observer_timeout: float = 30.0
-
-
-async def _run_universal_session(
-    runtime_state: _PoolRuntimeState,
-    ctx: JobContext,
-) -> None:
-    """Dispatch a session through the owning ``AgentPool``."""
-    if not runtime_state.agents:
-        raise RuntimeError("No agents are registered in the pool.")
-    config = _resolve_agent_config(runtime_state.agents, ctx)
-    session_kwargs = _build_session_kwargs(config.session_kwargs, ctx.proc)
-    session: AgentSession[None] = AgentSession(
-        stt=config.stt,
-        llm=config.llm,
-        tts=config.tts,
-        vad=PrewarmResources.vad_from(ctx.proc),
-        **session_kwargs,
-    )
-    info = _build_session_info(config.name, ctx)
-    try:
-        runtime_state.metrics.record_session_started(config.name)
-        await session.start(
-            agent=config.agent_cls(),  # type: ignore[call-arg]
-            room=ctx.room,
-        )
-        await ctx.connect()
-        await _notify_session_start(
-            runtime_state.observers,
-            info,
-            session,
-            timeout=min(
-                runtime_state.observer_timeout, _OBSERVER_START_TIMEOUT_SECONDS
-            ),
-        )
-
-        if config.greeting is not None:
-            logger.debug("Generating greeting for agent '%s'.", config.name)
-            await session.generate_reply(instructions=config.greeting)
-    except Exception as exc:
-        runtime_state.metrics.record_session_failure(config.name, exc)
-        raise
-    finally:
-        runtime_state.metrics.record_session_finished(config.name)
-        outcome = _build_session_outcome(info, sys.exc_info()[1])
-        await _notify_session_end(
-            runtime_state.observers,
-            info,
-            outcome,
-            timeout=runtime_state.observer_timeout,
-        )
 
 
 class AgentPool:
@@ -169,8 +91,7 @@ class AgentPool:
         self._default_llm = default_llm
         self._default_tts = default_tts
         self._default_greeting = default_greeting
-        self._server.setup_fnc = partial(_prewarm_worker, self._runtime_state)
-        self._server.rtc_session()(partial(_run_universal_session, self._runtime_state))
+        wire_pool(self._server, self._runtime_state)
 
     def _build_server(self) -> AgentServer:
         """Construct the underlying LiveKit server matching ``isolation``."""

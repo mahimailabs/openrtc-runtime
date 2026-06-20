@@ -20,7 +20,7 @@ from openrtc.observability.resident_set import process_resident_set_bytes
 from openrtc.observability.savings import format_prewarm_savings
 
 if TYPE_CHECKING:
-    from openrtc.core.pool import _PoolRuntimeState
+    from openrtc.core.wiring import _PoolRuntimeState
 
 logger = logging.getLogger("openrtc.execution.prewarm")
 

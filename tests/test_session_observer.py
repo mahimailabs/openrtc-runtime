@@ -9,7 +9,7 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
-from openrtc.core.pool import _run_universal_session
+from openrtc.core.wiring import run_session as _run_universal_session
 from openrtc.observability.observer import (
     SessionInfo,
     SessionObserver,
@@ -231,7 +231,7 @@ def _ctx_with_proc(**kw: object) -> types.SimpleNamespace:
 
 
 def test_observer_notified_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
     obs = _RecordingObserver()
     pool = AgentPool(observers=[obs])
     pool.add("restaurant", _Agent, greeting="hi")
@@ -248,7 +248,7 @@ def test_observer_notified_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_observer_notified_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FailingSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FailingSession)
     obs = _RecordingObserver()
     pool = AgentPool(observers=[obs])
     pool.add("restaurant", _Agent, greeting="hi")
@@ -261,7 +261,7 @@ def test_observer_notified_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_observer_notified_on_cancellation(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _CancelledSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _CancelledSession)
     obs = _RecordingObserver()
     pool = AgentPool(observers=[obs])
     pool.add("restaurant", _Agent, greeting="hi")
@@ -274,7 +274,7 @@ def test_observer_notified_on_cancellation(monkeypatch: pytest.MonkeyPatch) -> N
 def test_raising_observer_does_not_break_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
 
     class _Raises:
         async def on_session_start(self, info: object, session: object) -> None:
@@ -292,7 +292,7 @@ def test_raising_observer_does_not_break_session(
 
 
 def test_no_observers_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
     pool = AgentPool()
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
@@ -324,7 +324,7 @@ def test_end_fires_without_start_when_session_start_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """on_session_end fires with no paired on_session_start if start() fails."""
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _StartFailingSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _StartFailingSession)
     obs = _RecordingObserver()
     pool = AgentPool(observers=[obs])
     pool.add("restaurant", _Agent, greeting="hi")
@@ -340,7 +340,7 @@ def test_observer_raising_cancellederror_is_isolated(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An observer that raises CancelledError on its own does not crash the session."""
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
 
     class _CancelObserver:
         async def on_session_start(self, info: object, session: object) -> None:
@@ -363,8 +363,8 @@ def test_start_notification_uses_short_timeout_not_drain(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The hot-path start notify is bounded by a short timeout, not the drain budget."""
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
-    monkeypatch.setattr("openrtc.core.pool._OBSERVER_START_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring._OBSERVER_START_TIMEOUT_SECONDS", 0.01)
 
     class _SlowStart:
         async def on_session_start(self, info: object, session: object) -> None:
