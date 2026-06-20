@@ -22,15 +22,8 @@ The **CLI stack** (Typer, Rich) is the optional extra `cli`:
 pip install 'openrtc[cli]'
 ```
 
-The **sidecar TUI** (Textual) is a separate optional extra:
-
-```bash
-pip install 'openrtc[cli,tui]'
-```
-
 If Typer/Rich are not importable, `openrtc.cli:main` exits with `1` and prints
-an install hint. If Textual is missing, `openrtc tui` logs an error and exits
-with `1`.
+an install hint.
 
 ## Typical usage
 
@@ -46,8 +39,8 @@ with `1`.
    your agents need). You can pass **`--agents-dir`** or use the **first
    positional argument** on ``start`` / ``dev`` / ``console``. A **second**
    positional is **optional** and only sets ``--metrics-jsonl`` when you want JSONL
-   metrics (e.g. for ``openrtc tui``); skip it if you only need the agents
-   directory (unless you already passed ``--metrics-jsonl``).
+   metrics; skip it if you only need the agents directory (unless you already
+   passed ``--metrics-jsonl``).
 
    ```bash
    openrtc dev ./agents
@@ -81,11 +74,11 @@ flag.
 
 ## Commands
 
-Across **list**, **connect**, **download-files**, **start** / **dev** / **console**,
-and **tui**, you can often pass paths **positionally** instead of `--agents-dir`,
-`--metrics-jsonl`, or `--watch` (see each command below). The first non-flag
-token after the subcommand is rewritten before parsing; use `--agents-dir` /
-`--watch` when you need a different argument order.
+Across **list**, **connect**, **download-files**, and
+**start** / **dev** / **console**, you can often pass paths **positionally**
+instead of `--agents-dir` or `--metrics-jsonl` (see each command below). The
+first non-flag token after the subcommand is rewritten before parsing; use
+`--agents-dir` when you need a different argument order.
 
 ### `openrtc list`
 
@@ -173,32 +166,6 @@ directory (for a valid worker entrypoint) plus connection settings—**no**
 openrtc download-files ./agents
 ```
 
-### `openrtc tui`
-
-Sidecar Textual UI that tails a **JSON Lines** metrics file written by the
-worker (`--metrics-jsonl`). Requires `openrtc[tui]`.
-
-With no flags, the TUI tails **`./openrtc-metrics.jsonl`** in the current working
-directory. Pass **`--watch PATH`** or a **positional path** to use another file
-(it must match `--metrics-jsonl` on the worker).
-
-```bash
-# Terminal 1
-openrtc dev ./agents ./openrtc-metrics.jsonl
-
-# Terminal 2 (same default file as above)
-openrtc tui
-
-# Or pass the file positionally:
-# openrtc tui ./openrtc-metrics.jsonl
-
-# Equivalent explicit form:
-# openrtc tui --watch ./openrtc-metrics.jsonl
-```
-
-Use **`--from-start`** (under **Advanced**) to read the file from the beginning
-instead of tailing from EOF.
-
 ## Runtime visibility and automation
 
 - **`--dashboard`** — Live Rich summary (RSS, sessions, routing, savings
@@ -209,8 +176,9 @@ instead of tailing from EOF.
   the worker starts). Each line is one record: `schema_version`, `kind`
   (`snapshot` or `event`), `seq`, `wall_time_unix`, `payload`. Snapshots match
   `PoolRuntimeSnapshot.to_dict()`; events carry session lifecycle hints
-  (`session_started`, `session_finished`, `session_failed`). Intended for
-  `openrtc tui` and other tail consumers.
+  (`session_started`, `session_finished`, `session_failed`). Tail it with
+  `tail -f ./openrtc-metrics.jsonl`, pipe it through `jq`, or point any log
+  shipper or script at it.
 - **`--dashboard-refresh`** — Interval in seconds for dashboard, metrics file,
   and JSONL when `--metrics-jsonl-interval` is not set (**Advanced**).
 - **`--metrics-jsonl-interval`** — Override JSONL cadence only (**Advanced**).
@@ -282,7 +250,7 @@ openrtc list --agents-dir ./examples/agents --resources --json
      --metrics-json-file ./runtime.json
    ```
 
-   Or enable JSONL for a sidecar TUI:
+   Or enable a streaming JSON Lines feed:
 
    ```bash
    openrtc dev \
@@ -290,8 +258,8 @@ openrtc list --agents-dir ./examples/agents --resources --json
      --metrics-jsonl ./openrtc-metrics.jsonl
    ```
 
-3. Watch the dashboard (or run `openrtc tui` in another terminal for the same
-   default JSONL file) for
+3. Watch the dashboard (or tail the JSONL file with
+   `tail -f ./openrtc-metrics.jsonl`, optionally piped through `jq`) for
    worker RSS, active sessions, routing, and errors.
 
 4. Use `runtime.json` or the JSONL stream for automation or scraping.

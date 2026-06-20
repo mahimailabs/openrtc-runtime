@@ -1,8 +1,8 @@
 """Sidecar metrics stream for workers (JSON Lines over a file or socket).
 
-Each line is one JSON object (envelope) so a separate TUI or script can tail the
-file. This is the contract for ``openrtc tui`` (default ``--watch``) and
-``openrtc tui --watch <path>``.
+Each line is one JSON object (envelope) so a separate script or tool can tail the
+file. This is the contract for the ``--metrics-jsonl`` stream that the worker
+writes (tail it with ``tail -f`` or pipe it through ``jq``).
 
 **Envelope (schema version 1)**
 
@@ -30,8 +30,8 @@ METRICS_STREAM_SCHEMA_VERSION = 1
 KIND_SNAPSHOT = "snapshot"
 KIND_EVENT = "event"
 
-# Default tail target for ``openrtc tui`` with no ``--watch``. Use the same path
-# on the worker (``--metrics-jsonl ./openrtc-metrics.jsonl``) for a two-terminal flow.
+# Default filename for the ``--metrics-jsonl`` stream. Tail or script this file
+# (e.g. ``tail -f`` or ``jq``) to consume worker metrics as they are written.
 DEFAULT_METRICS_JSONL_FILENAME = "openrtc-metrics.jsonl"
 
 

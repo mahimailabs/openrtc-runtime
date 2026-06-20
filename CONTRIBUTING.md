@@ -15,10 +15,8 @@ This repository uses `uv` for local development.
 uv sync --group dev
 ```
 
-The dev group includes Typer, Rich, and Textual so `uv run openrtc …` and
-`uv run openrtc tui …` work without extra install flags. End users install the
-CLI with `pip install 'openrtc[cli]'` and the sidecar TUI with
-`pip install 'openrtc[tui]'` (or `openrtc[cli,tui]` together).
+The dev group includes Typer and Rich so `uv run openrtc …` works without extra
+install flags. End users install the CLI with `pip install 'openrtc[cli]'`.
 
 If you prefer, you can also install the package and dev dependencies with pip,
 but `uv` is the preferred workflow for contributors.

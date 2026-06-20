@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import builtins
 import importlib
 import json
 import logging
@@ -310,9 +309,8 @@ def test_inject_cli_positional_paths_rewrites_shortcuts() -> None:
         ["download-files", "./agents"],
     ) == ["download-files", "--agents-dir", "./agents"]
     assert inject_cli_positional_paths(
-        ["tui", "./m.jsonl", "--from-start"],
-    ) == ["tui", "--watch", "./m.jsonl", "--from-start"]
-    assert inject_cli_positional_paths(["tui"]) == ["tui"]
+        ["unknown", "x"],
+    ) == ["unknown", "x"]
     from openrtc.cli.livekit import inject_worker_positional_paths
 
     assert inject_worker_positional_paths(
@@ -622,7 +620,7 @@ def test_start_command_metrics_jsonl_writes_snapshot_records(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """``--metrics-jsonl`` produces JSON Lines the sidecar TUI can tail."""
+    """``--metrics-jsonl`` produces JSON Lines an external tailer can consume."""
     jsonl = tmp_path / "sidecar.jsonl"
     stub_pool = StubPool(
         discovered=[StubConfig(name="restaurant", agent_cls=StubAgent)]
@@ -652,80 +650,6 @@ def test_start_command_metrics_jsonl_writes_snapshot_records(
     assert first["kind"] == "snapshot"
     assert "payload" in first
     assert first["payload"]["registered_agents"] == 1
-
-
-def test_tui_command_exits_when_textual_is_not_importable(
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """``openrtc tui`` fails fast with a clear message if the TUI extra is absent."""
-    real_import = builtins.__import__
-
-    def guard(name: str, *args: object, **kwargs: object) -> object:
-        if name == "openrtc.tui.app":
-            raise ImportError("simulated missing textual")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", guard)
-    runner = CliRunner()
-    with caplog.at_level(logging.ERROR, logger="openrtc"):
-        result = runner.invoke(
-            app,
-            ["tui", "--watch", "./metrics.jsonl"],
-            catch_exceptions=False,
-        )
-    assert result.exit_code == 1
-    assert "Textual" in caplog.text
-    assert "openrtc[tui]" in caplog.text
-
-
-def test_tui_help_documents_default_watch_path() -> None:
-    runner = CliRunner()
-    result = runner.invoke(app, ["tui", "--help"], catch_exceptions=False)
-    assert result.exit_code == 0
-    assert "openrtc-metrics.jsonl" in result.output
-
-
-def test_tui_command_without_watch_uses_default_metrics_path(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    pytest.importorskip("textual")
-    import openrtc.tui.app as tu
-    from openrtc.tui.app import MetricsTuiApp
-
-    seen: list[Path] = []
-
-    def fake_run(self: MetricsTuiApp) -> None:
-        seen.append(self._path)
-
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(tu.MetricsTuiApp, "run", fake_run)
-    runner = CliRunner()
-    result = runner.invoke(app, ["tui"], catch_exceptions=False)
-    assert result.exit_code == 0
-    assert len(seen) == 1
-    assert seen[0] == (tmp_path / "openrtc-metrics.jsonl").resolve()
-
-
-def test_tui_command_rejects_watch_path_that_is_directory(
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """``--watch`` must be the metrics JSONL file, not a folder such as ``agents``."""
-    pytest.importorskip("textual")
-    agents_dir = tmp_path / "agents"
-    agents_dir.mkdir()
-    runner = CliRunner()
-    with caplog.at_level(logging.ERROR, logger="openrtc"):
-        result = runner.invoke(
-            app,
-            ["tui", "--watch", str(agents_dir)],
-            catch_exceptions=False,
-        )
-    assert result.exit_code == 1
-    combined = caplog.text + (result.output or "")
-    assert "directory" in combined.lower()
 
 
 def test_main_uses_sys_argv_when_called_without_explicit_argv(
@@ -856,15 +780,6 @@ def test_inject_worker_positional_skipped_when_flag_already_in_tail() -> None:
     assert inject_cli_positional_paths(
         ["dev", "trailing-positional", "--agents-dir", "./real"]
     ) == ["dev", "trailing-positional", "--agents-dir", "./real"]
-
-
-def test_inject_tui_positional_skipped_when_watch_already_in_tail() -> None:
-    """Existing ``--watch`` later in argv suppresses positional rewriting."""
-    from openrtc.cli.livekit import inject_cli_positional_paths
-
-    assert inject_cli_positional_paths(
-        ["tui", "trailing-positional", "--watch", "./real.jsonl"]
-    ) == ["tui", "trailing-positional", "--watch", "./real.jsonl"]
 
 
 def test_livekit_env_overrides_sets_and_restores_all_keys(

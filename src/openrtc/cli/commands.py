@@ -6,7 +6,6 @@ import json
 import logging
 import sys
 from collections.abc import Callable
-from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -48,8 +47,6 @@ from openrtc.cli.types import (
     MetricsJsonFileArg,
     MetricsJsonlArg,
     MetricsJsonlIntervalArg,
-    TuiFromStartArg,
-    TuiWatchPathArg,
 )
 from openrtc.core.pool import AgentPool
 from openrtc.observability.stream import DEFAULT_METRICS_JSONL_FILENAME
@@ -71,12 +68,11 @@ app = typer.Typer(
     help=(
         "Run multiple LiveKit voice agents from one shared worker. Commands match "
         "LiveKit Agents ([code]dev[/code], [code]start[/code], [code]console[/code], "
-        "[code]connect[/code], [code]download-files[/code]) plus [code]list[/code] and "
-        "[code]tui[/code]. Most commands accept the agents directory as the first "
+        "[code]connect[/code], [code]download-files[/code]) plus [code]list[/code]. "
+        "Most commands accept the agents directory as the first "
         "positional argument instead of [code]--agents-dir[/code]; "
         "[code]start[/code]/[code]dev[/code]/[code]console[/code] also accept a "
-        "second path for [code]--metrics-jsonl[/code], and [code]tui[/code] can "
-        "take a metrics file path as the first positional instead of [code]--watch[/code]; "
+        "second path for [code]--metrics-jsonl[/code]; "
         "credentials use [code]LIVEKIT_*[/code] env vars by default (CLI flags optional)."
     ),
     epilog=_QUICKSTART_EPILOG,
@@ -150,8 +146,8 @@ def list_command(
 _WORKER_POSITIONAL_HELP = (
     " Use [code]openrtc {name} ./agents[/code] or [code]--agents-dir ./agents[/code]; "
     "add a second path only when you want JSONL metrics "
-    f"([code]--metrics-jsonl[/code], e.g. [code]./{DEFAULT_METRICS_JSONL_FILENAME}[/code] for "
-    "[code]openrtc tui[/code])."
+    f"([code]--metrics-jsonl[/code], e.g. [code]./{DEFAULT_METRICS_JSONL_FILENAME}[/code] to "
+    "tail or script the stream)."
 )
 
 _STANDARD_LIVEKIT_WORKER_SPECS: tuple[tuple[str, str], ...] = (
@@ -293,31 +289,6 @@ def download_files_command(
             log_level=log_level,
         ),
     )
-
-
-@app.command("tui")
-def tui_command(
-    watch: TuiWatchPathArg = Path(DEFAULT_METRICS_JSONL_FILENAME),
-    from_start: TuiFromStartArg = False,
-) -> None:
-    """Sidecar Textual UI tailing JSONL metrics (requires the ``tui`` extra).
-
-    With no ``--watch``, tails ``./openrtc-metrics.jsonl`` in the current directory;
-    start the worker with ``--metrics-jsonl`` set to that same path.
-    """
-    try:
-        from openrtc.tui.app import run_metrics_tui
-    except ImportError as exc:
-        logger.error(
-            "The TUI requires Textual. Install with: pip install 'openrtc[tui]' "
-            "(the cli extra is required for the openrtc command)."
-        )
-        raise typer.Exit(code=1) from exc
-    try:
-        run_metrics_tui(watch, from_start=from_start)
-    except ValueError as exc:
-        logger.error("%s", exc)
-        raise typer.Exit(code=1) from None
 
 
 def main(argv: list[str] | None = None) -> int:

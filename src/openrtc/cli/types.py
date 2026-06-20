@@ -147,11 +147,12 @@ MetricsJsonlArg = Annotated[
     typer.Option(
         "--metrics-jsonl",
         help=(
-            "Append JSON Lines for the sidecar TUI (off by default; truncates when "
-            "the worker starts). For the default ``openrtc tui`` file, use "
-            f"``./{DEFAULT_METRICS_JSONL_FILENAME}`` here. On ``start``/``dev``/``console`` "
-            "you may pass that path as the **second** positional after the agents directory "
-            "(optional—omit it if you only need to point at the agents folder)."
+            "Append JSON Lines for external tailing or tooling (off by default; "
+            "truncates when the worker starts). Point it at "
+            f"``./{DEFAULT_METRICS_JSONL_FILENAME}`` to tail or script the stream. "
+            "On ``start``/``dev``/``console`` you may pass that path as the "
+            "**second** positional after the agents directory (optional: omit it if "
+            "you only need to point at the agents folder)."
         ),
         resolve_path=True,
         path_type=Path,
@@ -165,32 +166,6 @@ MetricsJsonlIntervalArg = Annotated[
         "--metrics-jsonl-interval",
         min=0.25,
         help=("Seconds between JSONL records (default: same as --dashboard-refresh)."),
-        rich_help_panel=PANEL_ADVANCED,
-    ),
-]
-
-TuiWatchPathArg = Annotated[
-    Path,
-    typer.Option(
-        "--watch",
-        show_default=True,
-        help=(
-            "JSONL file the worker writes with --metrics-jsonl (not your "
-            f"--agents-dir). Defaults to ./{DEFAULT_METRICS_JSONL_FILENAME}; pass "
-            "the same path to --metrics-jsonl on the worker, or pass PATH as the "
-            "first positional argument instead of --watch."
-        ),
-        resolve_path=True,
-        path_type=Path,
-        rich_help_panel=PANEL_OPENRTC,
-    ),
-]
-
-TuiFromStartArg = Annotated[
-    bool,
-    typer.Option(
-        "--from-start",
-        help="Read the file from the beginning instead of tailing from EOF.",
         rich_help_panel=PANEL_ADVANCED,
     ),
 ]
