@@ -171,7 +171,11 @@ class AgentPool:
         self._server.rtc_session()(partial(_run_universal_session, self._runtime_state))
 
     def _build_server(self) -> AgentServer:
-        """Construct the underlying LiveKit server for the configured isolation mode."""
+        """Construct the underlying LiveKit server matching ``isolation``.
+
+        The coroutine server import is deferred so process-only callers do not
+        load execution/coroutine_server.py at import time.
+        """
         if self._isolation == "coroutine":
             from openrtc.execution.coroutine_server import _CoroutineAgentServer
 
@@ -318,7 +322,12 @@ class AgentPool:
         return removed
 
     def add_observer(self, observer: SessionObserver) -> None:
-        """Register a session observer notified for every session in the pool."""
+        """Register a session observer notified for every session in the pool.
+
+        Call before run(). In process isolation mode the observer must be
+        picklable (it rides the serializable worker state), so build any live
+        resources lazily on the first on_session_start, not in the constructor.
+        """
         if not isinstance(observer, SessionObserver):
             raise TypeError(
                 "observer must implement on_session_start and on_session_end "
