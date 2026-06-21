@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from openrtc.core.validation import require_positive_int, validate_isolation
+from openrtc.utils.validation import require_positive_int, validate_isolation
 
 
 def test_require_positive_int_returns_value() -> None:

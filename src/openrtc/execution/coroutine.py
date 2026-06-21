@@ -18,7 +18,7 @@ from livekit.agents.ipc import inference_executor as inference_executor_mod
 from livekit.agents.ipc.job_executor import JobStatus
 from livekit.agents.job import RunningJobInfo, _JobContextVar
 
-from openrtc.core.validation import require_positive_int
+from openrtc.utils.validation import require_positive_int
 
 if TYPE_CHECKING:
     from livekit.agents.ipc.job_executor import JobExecutor

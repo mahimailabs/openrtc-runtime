@@ -18,14 +18,14 @@ from openrtc.core.discovery import (
     _load_agent_module,
 )
 from openrtc.core.registry import ServerParams, resolve_server_builder
-from openrtc.core.validation import require_positive_int, validate_isolation
 from openrtc.core.wiring import _PoolRuntimeState, wire_pool
 from openrtc.observability.metrics import (
     MetricsStreamEvent,
 )
 from openrtc.observability.observer import SessionObserver
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
-from openrtc.types import ProviderValue
+from openrtc.utils.types import ProviderValue
+from openrtc.utils.validation import require_positive_int, validate_isolation
 
 __all__ = [
     "AgentConfig",

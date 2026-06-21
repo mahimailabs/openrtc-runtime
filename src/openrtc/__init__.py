@@ -11,7 +11,7 @@ from .observability.observer import (
     SessionOutcome,
     SessionStatus,
 )
-from .types import ProviderValue
+from .utils.types import ProviderValue
 
 try:
     __version__ = version("openrtc")

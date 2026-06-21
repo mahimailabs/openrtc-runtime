@@ -22,7 +22,7 @@ from openrtc.observability.snapshot import (
     ProcessResidentSetInfo,
     SavingsEstimate,
 )
-from openrtc.types import ProviderValue
+from openrtc.utils.types import ProviderValue
 
 # Rich/Click may inject ANSI and soft-wrap error text; normalize before substring checks.
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
