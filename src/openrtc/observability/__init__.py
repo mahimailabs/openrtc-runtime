@@ -4,8 +4,10 @@ from openrtc.observability.base_observer import (
     SessionOutcome,
     SessionStatus,
 )
+from openrtc.observability.base_sink import MetricsSink
 
 __all__ = [
+    "MetricsSink",
     "SessionInfo",
     "SessionObserver",
     "SessionOutcome",
