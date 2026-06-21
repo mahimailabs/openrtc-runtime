@@ -26,8 +26,8 @@ import pytest
 from livekit.agents import Agent, JobExecutorType
 
 from openrtc import AgentPool
-from openrtc.execution.coroutine import CoroutinePool
-from openrtc.execution.coroutine_server import _CoroutineAgentServer
+from openrtc.runtime.coroutine_runtime import CoroutinePool
+from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
 
 class _SmokeAgent(Agent):

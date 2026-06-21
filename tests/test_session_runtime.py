@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from livekit.agents import AgentServer
 
-from openrtc.execution.coroutine_server import _CoroutineAgentServer
-from openrtc.execution.runtime import SessionRuntime
+from openrtc.runtime.base_runtime import SessionRuntime
+from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
 
 def test_agent_server_conforms() -> None:

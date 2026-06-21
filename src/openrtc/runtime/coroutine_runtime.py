@@ -36,7 +36,7 @@ class _NoOpInferenceExecutor:
 
 _NOOP_INFERENCE_EXECUTOR = _NoOpInferenceExecutor()
 
-logger = logging.getLogger("openrtc.execution.coroutine")
+logger = logging.getLogger("openrtc.runtime.coroutine_runtime")
 
 EventTypes = Literal[
     "process_created",

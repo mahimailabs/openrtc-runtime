@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from openrtc.execution.file_watcher import (
+from openrtc.runtime.file_watcher import (
     FileChange,
     FileWatcher,
     _collapse_changes,
@@ -103,7 +103,7 @@ class TestDiscoverUserModules:
         # Make _interpreter_excluded_roots() include our fake site dir.
         original_roots = _interpreter_excluded_roots()
         monkeypatch.setattr(
-            "openrtc.execution.file_watcher._interpreter_excluded_roots",
+            "openrtc.runtime.file_watcher._interpreter_excluded_roots",
             lambda: [*original_roots, fake_site.resolve()],
         )
         discovered = _discover_user_modules()
@@ -241,7 +241,7 @@ class TestFileWatcherRefreshPaths:
         watcher = FileWatcher(_noop_callback, paths=None)
         sentinel = [Path("/tmp/refresh_marker.py")]
         monkeypatch.setattr(
-            "openrtc.execution.file_watcher._discover_user_modules",
+            "openrtc.runtime.file_watcher._discover_user_modules",
             lambda: list(sentinel),
         )
         watcher.refresh_paths()
@@ -255,7 +255,7 @@ class TestFileWatcherRefreshPaths:
         # Even if discovery would return something, refresh must not
         # touch an explicitly-managed path list.
         monkeypatch.setattr(
-            "openrtc.execution.file_watcher._discover_user_modules",
+            "openrtc.runtime.file_watcher._discover_user_modules",
             lambda: [Path("/tmp/should_not_appear.py")],
         )
         watcher.refresh_paths()
@@ -358,7 +358,7 @@ class TestFileWatcherEventWiring:
 
         # Auto-discover watcher: discovery returns only file_a initially.
         monkeypatch.setattr(
-            "openrtc.execution.file_watcher._discover_user_modules",
+            "openrtc.runtime.file_watcher._discover_user_modules",
             lambda: [file_a],
         )
 
@@ -382,7 +382,7 @@ class TestFileWatcherEventWiring:
 
             # Switch discovery to include file_b and refresh.
             monkeypatch.setattr(
-                "openrtc.execution.file_watcher._discover_user_modules",
+                "openrtc.runtime.file_watcher._discover_user_modules",
                 lambda: [file_a, file_b],
             )
             watcher.refresh_paths()
@@ -537,7 +537,7 @@ class TestDebounceAndDispatch:
 
         watcher = FileWatcher(on_change, debounce_ms=100, paths=[tmp_path / "a.py"])
         watcher._state = "running"  # noqa: SLF001
-        with caplog.at_level(logging.ERROR, logger="openrtc.execution.file_watcher"):
+        with caplog.at_level(logging.ERROR, logger="openrtc.runtime.file_watcher"):
             watcher._handle_change_batch(  # noqa: SLF001
                 [FileChange(path=tmp_path / "a.py", change_type="modified")]
             )
@@ -612,10 +612,10 @@ class TestPackageReExports:
 
     def test_re_exports_are_the_same_objects(self) -> None:
         import openrtc
-        from openrtc.execution.file_watcher import (
+        from openrtc.runtime.file_watcher import (
             FileChange as InnerFileChange,
         )
-        from openrtc.execution.file_watcher import (
+        from openrtc.runtime.file_watcher import (
             FileWatcher as InnerFileWatcher,
         )
 

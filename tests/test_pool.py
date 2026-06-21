@@ -14,7 +14,7 @@ import openrtc.core.discovery as discovery_module
 import openrtc.core.pool as pool_module
 import openrtc.core.serialization as serialization_module
 import openrtc.core.wiring as wiring_module
-import openrtc.execution.prewarm as prewarm_module
+import openrtc.runtime.prewarm as prewarm_module
 from openrtc import AgentPool
 
 
@@ -118,7 +118,7 @@ def test_drain_timeout_threads_to_process_server() -> None:
 
 
 def test_isolation_coroutine_constructs_coroutine_agent_server() -> None:
-    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
     pool = AgentPool()  # default isolation="coroutine"
 
@@ -128,7 +128,7 @@ def test_isolation_coroutine_constructs_coroutine_agent_server() -> None:
 def test_isolation_process_constructs_vanilla_agent_server() -> None:
     from livekit.agents import AgentServer
 
-    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
     pool = AgentPool(isolation="process")
 
@@ -137,7 +137,7 @@ def test_isolation_process_constructs_vanilla_agent_server() -> None:
 
 
 def test_isolation_coroutine_passes_max_concurrent_sessions_to_server() -> None:
-    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
     pool = AgentPool(max_concurrent_sessions=12)
 
@@ -509,7 +509,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
         VAD = FakeVAD
 
     monkeypatch.setattr(
-        "openrtc.execution.prewarm._load_shared_runtime_dependencies",
+        "openrtc.runtime.prewarm._load_shared_runtime_dependencies",
         lambda: (FakeSilero, FakeTurnDetector),
     )
     setup_callback(process)

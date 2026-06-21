@@ -17,7 +17,7 @@ import pytest
 from livekit.agents import JobExecutorType
 from livekit.agents.ipc.job_executor import JobStatus
 
-from openrtc.execution.coroutine import CoroutineJobExecutor, CoroutinePool
+from openrtc.runtime.coroutine_runtime import CoroutineJobExecutor, CoroutinePool
 
 
 def _build_pool() -> CoroutinePool:

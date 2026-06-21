@@ -16,7 +16,7 @@ from typing import Any
 
 from livekit.agents import JobProcess
 
-from openrtc.execution.resources import PrewarmResources
+from openrtc.runtime.resources import PrewarmResources
 
 logger = logging.getLogger("openrtc")
 

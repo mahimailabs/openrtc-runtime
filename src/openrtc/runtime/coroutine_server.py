@@ -17,11 +17,11 @@ from typing import Any
 import livekit.agents.ipc.proc_pool as _proc_pool_mod
 from livekit.agents import AgentServer
 
-from openrtc.core.registry import ServerParams
-from openrtc.execution.coroutine import CoroutinePool
+from openrtc.runtime.coroutine_runtime import CoroutinePool
+from openrtc.runtime.registry import ServerParams
 from openrtc.utils.validation import require_positive_int
 
-logger = logging.getLogger("openrtc.execution.coroutine_server")
+logger = logging.getLogger("openrtc.runtime.coroutine_server")
 
 
 class _CoroutineAgentServer(AgentServer):

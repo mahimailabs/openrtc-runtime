@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from openrtc.execution.resources import PrewarmResources
+from openrtc.runtime.resources import PrewarmResources
 
 
 def test_store_then_read_round_trips() -> None:

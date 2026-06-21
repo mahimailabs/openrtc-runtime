@@ -25,16 +25,9 @@ class ServerParams:
 # isolation mode -> (module path, builder attribute). Lazy import keeps the
 # coroutine path out of process-only callers' import graph.
 _SERVER_BUILDERS: dict[str, tuple[str, str]] = {
-    "coroutine": ("openrtc.execution.coroutine_server", "build_server"),
-    "process": ("openrtc.core.registry", "_build_process_server"),
+    "coroutine": ("openrtc.runtime.coroutine_server", "build_server"),
+    "process": ("openrtc.runtime.process_runtime", "build_server"),
 }
-
-
-def _build_process_server(params: ServerParams) -> AgentServer:
-    """Build the v0.0.x process-mode server (plain AgentServer)."""
-    from livekit.agents import AgentServer
-
-    return AgentServer(drain_timeout=params.drain_timeout)
 
 
 def resolve_server_builder(

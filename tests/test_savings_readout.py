@@ -12,9 +12,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from openrtc.execution import prewarm as prewarm_module
-from openrtc.execution.prewarm import _prewarm_worker
 from openrtc.observability.savings import format_prewarm_savings
+from openrtc.runtime import prewarm as prewarm_module
+from openrtc.runtime.prewarm import _prewarm_worker
 
 _MB = 1024 * 1024
 
@@ -65,10 +65,10 @@ def test_prewarm_emits_one_savings_line(
     runtime_state = SimpleNamespace(agents={"a": object(), "b": object()})
     proc = SimpleNamespace(userdata={}, inference_executor=None)
 
-    with caplog.at_level(logging.INFO, logger="openrtc.execution.prewarm"):
+    with caplog.at_level(logging.INFO, logger="openrtc.runtime.prewarm"):
         _prewarm_worker(runtime_state, proc)  # type: ignore[arg-type]
 
-    records = [r for r in caplog.records if r.name == "openrtc.execution.prewarm"]
+    records = [r for r in caplog.records if r.name == "openrtc.runtime.prewarm"]
     assert len(records) == 1
     message = records[0].getMessage()
     assert message.startswith("OpenRTC:")

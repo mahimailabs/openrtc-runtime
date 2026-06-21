@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from livekit.agents import AgentServer
 
-from openrtc.core.registry import ServerParams, resolve_server_builder
-from openrtc.execution.coroutine_server import _CoroutineAgentServer
+from openrtc.runtime.coroutine_server import _CoroutineAgentServer
+from openrtc.runtime.registry import ServerParams, resolve_server_builder
 
 _PARAMS = ServerParams(
     max_concurrent_sessions=5, consecutive_failure_limit=5, drain_timeout=30

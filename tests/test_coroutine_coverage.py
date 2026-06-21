@@ -1,4 +1,4 @@
-"""Coverage-completion tests for ``openrtc.execution.coroutine``.
+"""Coverage-completion tests for ``openrtc.runtime.coroutine_runtime``.
 
 Targets specific uncovered branches the higher-level test files don't
 naturally hit (defensive raises, idempotent early-returns, the no-op
@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 from livekit.agents import JobExecutorType
 
-from openrtc.execution.coroutine import (
+from openrtc.runtime.coroutine_runtime import (
     _NOOP_INFERENCE_EXECUTOR,
     CoroutinePool,
     _NoOpInferenceExecutor,
@@ -132,7 +132,7 @@ def test_build_job_context_before_start_raises() -> None:
 
 def test_consume_cancelled_task_exception_swallows_invalid_state_error() -> None:
     """`task.exception()` on a not-done task raises InvalidStateError; swallow it."""
-    from openrtc.execution.coroutine import _consume_cancelled_task_exception
+    from openrtc.runtime.coroutine_runtime import _consume_cancelled_task_exception
 
     async def _scenario() -> None:
         async def _runs_forever() -> None:
@@ -153,7 +153,7 @@ def test_consume_cancelled_task_exception_swallows_invalid_state_error() -> None
 
 def test_executor_join_swallows_unexpected_exception_from_task() -> None:
     """`join()` defends against tasks that bypass _run_entrypoint and raise directly."""
-    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+    from openrtc.runtime.coroutine_runtime import CoroutineJobExecutor, JobStatus
 
     executor = CoroutineJobExecutor()
 
@@ -172,7 +172,7 @@ def test_executor_join_swallows_unexpected_exception_from_task() -> None:
 
 def test_executor_aclose_swallows_non_cancelled_exception_after_cancel() -> None:
     """`aclose()` swallows whatever the task raises post-cancel (not just CancelledError)."""
-    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+    from openrtc.runtime.coroutine_runtime import CoroutineJobExecutor, JobStatus
 
     executor = CoroutineJobExecutor()
 
@@ -198,7 +198,7 @@ def test_executor_aclose_swallows_non_cancelled_exception_after_cancel() -> None
 
 def test_executor_join_swallows_cancelled_error_from_in_flight_task() -> None:
     """`join()` swallows a CancelledError raised by the in-flight task."""
-    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+    from openrtc.runtime.coroutine_runtime import CoroutineJobExecutor, JobStatus
 
     executor = CoroutineJobExecutor()
 
@@ -248,7 +248,7 @@ def test_build_job_context_real_room_branch_runs_when_fake_job_is_false() -> Non
 
 def test_kill_does_not_flip_status_when_executor_is_not_running() -> None:
     """Branch 231->233: kill() preserves a non-RUNNING terminal status."""
-    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+    from openrtc.runtime.coroutine_runtime import CoroutineJobExecutor, JobStatus
 
     executor = CoroutineJobExecutor()
 
@@ -270,7 +270,7 @@ def test_kill_does_not_flip_status_when_executor_is_not_running() -> None:
 
 def test_run_entrypoint_success_does_not_flip_status_when_already_set() -> None:
     """Branch 279->293: SUCCESS path skips the status flip when status was changed externally."""
-    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+    from openrtc.runtime.coroutine_runtime import CoroutineJobExecutor, JobStatus
 
     completed: list[bool] = []
 
@@ -291,7 +291,7 @@ def test_run_entrypoint_success_does_not_flip_status_when_already_set() -> None:
 
 def test_run_entrypoint_exception_does_not_flip_status_when_already_set() -> None:
     """Branch 286->288: exception path skips the status flip when status was changed externally."""
-    from openrtc.execution.coroutine import CoroutineJobExecutor, JobStatus
+    from openrtc.runtime.coroutine_runtime import CoroutineJobExecutor, JobStatus
 
     async def _entrypoint(_ctx: Any) -> None:
         raise RuntimeError("expected")
@@ -365,7 +365,7 @@ def test_pool_launch_job_skips_done_callback_when_executor_has_no_task(
 
 def test_pool_consecutive_failure_limit_with_no_callback_does_not_raise() -> None:
     """Branch 679->exit: the failure-limit branch tolerates a None callback."""
-    from openrtc.execution.coroutine import JobStatus
+    from openrtc.runtime.coroutine_runtime import JobStatus
 
     kwargs = _kwargs()
     pool = CoroutinePool(

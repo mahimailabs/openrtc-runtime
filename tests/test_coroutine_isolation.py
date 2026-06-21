@@ -19,7 +19,7 @@ import pytest
 from livekit.agents import JobExecutorType
 from livekit.agents.ipc.job_executor import JobStatus
 
-from openrtc.execution.coroutine import CoroutinePool
+from openrtc.runtime.coroutine_runtime import CoroutinePool
 
 
 def _stub_running_job_info(job_id: str) -> Any:
@@ -337,7 +337,7 @@ def test_supervisor_callback_exception_does_not_propagate() -> None:
 def test_agent_pool_threads_consecutive_failure_limit_to_server() -> None:
     """AgentPool.consecutive_failure_limit propagates to _CoroutineAgentServer."""
     from openrtc import AgentPool
-    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
     pool = AgentPool(consecutive_failure_limit=12)
 

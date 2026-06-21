@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import livekit.agents.ipc.proc_pool as proc_pool_mod
 
-from openrtc.execution.coroutine_server import _CoroutineAgentServer
+from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
 
 def test_patch_installs_and_reverts() -> None:
