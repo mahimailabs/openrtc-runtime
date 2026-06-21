@@ -498,27 +498,52 @@ On `AgentPool`:
 src/openrtc/
 ├── __init__.py
 ├── py.typed
-├── types.py               # ProviderValue and related typing
-├── cli/
-│   ├── __init__.py        # re-exports `main` and `app`
-│   ├── entry.py           # lazy console entry / missing-extra hint
-│   ├── commands.py        # Typer commands and programmatic main()
-│   ├── types.py           # shared CLI option aliases
-│   ├── dashboard.py       # Rich dashboard and list output
-│   ├── reporter.py        # background metrics reporter thread
-│   ├── livekit.py         # LiveKit argv/env handoff, pool run
-│   └── params.py          # shared worker handoff option bundles
-├── core/
-│   └── pool.py            # AgentPool, discovery, routing
-└── observability/
-    ├── metrics.py         # RuntimeMetricsStore, footprint helpers
-    ├── snapshot.py        # PoolRuntimeSnapshot dataclass
-    └── stream.py          # JSONL metrics schema
+├── core/                  # foundational, flat (pool, config, discovery, wiring)
+│   ├── pool.py            # AgentPool facade
+│   ├── config.py          # AgentConfig, AgentDiscoveryConfig, agent_config
+│   ├── discovery.py       # file-system discovery helpers
+│   ├── serialization.py   # spawn-safe config serialization
+│   ├── turn_handling.py   # turn-detector integration
+│   └── wiring.py          # AgentSession assembly helpers
+├── routing/               # family: base_routing.py + variant siblings + resolver
+│   ├── base_routing.py    # RoutingStrategy protocol
+│   ├── metadata_routing.py
+│   ├── room_prefix_routing.py
+│   ├── default_routing.py
+│   └── resolver.py        # selects active strategy
+├── runtime/               # family: base_runtime.py + variant siblings + registry
+│   ├── base_runtime.py    # RuntimeBackend protocol
+│   ├── coroutine_runtime.py
+│   ├── process_runtime.py
+│   ├── coroutine_server.py
+│   ├── prewarm.py         # shared prewarm helpers (non-variant)
+│   ├── resources.py       # shared resource cache
+│   ├── file_watcher.py    # hot-reload file watcher
+│   └── registry.py        # selects active runtime
+├── observability/         # family: base_observer.py + base_sink.py + concretes
+│   ├── base_observer.py   # SessionObserver protocol
+│   ├── base_sink.py       # MetricsSink protocol
+│   ├── jsonl_sink.py      # JSONL metrics schema and writer
+│   ├── metrics.py         # RuntimeMetricsStore, footprint helpers
+│   ├── snapshot.py        # PoolRuntimeSnapshot dataclass
+│   ├── resident_set.py    # RSS memory helpers
+│   ├── savings.py         # cost-savings estimator
+│   └── footprint.py       # per-session memory footprint
+├── cli/                   # family: base_cli.py + variant siblings
+│   ├── base_cli.py        # shared Typer args and parameter bundles
+│   ├── main_cli.py        # top-level Typer app and subcommands
+│   ├── dashboard_cli.py   # Rich dashboard and list output
+│   ├── entry_cli.py       # lazy console entry / missing-extra hint
+│   ├── livekit_cli.py     # LiveKit argv/env handoff, pool run
+│   └── reporter_cli.py    # background metrics reporter thread
+└── utils/                 # foundational, flat
+    ├── types.py           # ProviderValue and related typing
+    └── validation.py      # input validation helpers
 ```
 
-- `core/pool.py`: `AgentPool`, discovery, routing
+- `core/pool.py`: `AgentPool` facade; discovery, routing, and session assembly all delegate to focused modules
 - `cli/`: Typer/Rich CLI (`openrtc[cli]`)
-- `observability/stream.py`: JSONL metrics schema
+- `observability/jsonl_sink.py`: JSONL metrics schema and writer
 
 ## Contributing
 
