@@ -85,7 +85,7 @@ class _CoroutineAgentServer(AgentServer):
 
     @contextlib.contextmanager
     def _patched_proc_pool(self) -> Iterator[None]:
-        """Swap ipc.proc_pool.ProcPool for our pool factory for one run()."""
+        """Swap ipc.proc_pool.ProcPool and self._load_fnc for the duration of one run()."""
         original_proc_pool_cls = _proc_pool_mod.ProcPool
         previous_load_fnc = self._load_fnc
         _proc_pool_mod.ProcPool = self._build_pool_factory()  # type: ignore[assignment, misc]
@@ -102,7 +102,7 @@ class _CoroutineAgentServer(AgentServer):
         devmode: bool = False,
         unregistered: bool = False,
     ) -> None:
-        """Patch ``ipc.proc_pool.ProcPool`` and delegate to ``AgentServer.run``."""
+        """Patch ipc.proc_pool.ProcPool for one run() invocation, then delegate to AgentServer.run."""
         with self._patched_proc_pool():
             await super().run(devmode=devmode, unregistered=unregistered)
 
