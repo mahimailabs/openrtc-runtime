@@ -60,9 +60,9 @@ def build_session(
     config = _resolve_agent_config(runtime_state.agents, ctx)
     session_kwargs = _build_session_kwargs(config.session_kwargs, ctx.proc)
     session: AgentSession[None] = AgentSession(
-        stt=config.stt,
-        llm=config.llm,
-        tts=config.tts,
+        stt=config.stt,  # type: ignore[arg-type]
+        llm=config.llm,  # type: ignore[arg-type]
+        tts=config.tts,  # type: ignore[arg-type]
         vad=PrewarmResources.vad_from(ctx.proc),
         **session_kwargs,
     )

@@ -29,6 +29,10 @@ except ImportError as exc:  # pragma: no cover
 
 from openrtc.utils.validation import require_positive_int
 
+# Mirrors upstream livekit-agents 1.6.2: primary AgentSession.aclose() is
+# bounded at 60 s during teardown so a hung session never stalls cleanup.
+_SESSION_ACLOSE_TIMEOUT = 60.0
+
 if TYPE_CHECKING:
     from livekit.agents.ipc.job_executor import JobExecutor
 
@@ -284,7 +288,7 @@ class CoroutineJobExecutor:
         primary = getattr(ctx, "_primary_agent_session", None)
         if primary is not None and hasattr(primary, "aclose"):
             with contextlib.suppress(Exception):
-                await primary.aclose()
+                await asyncio.wait_for(primary.aclose(), _SESSION_ACLOSE_TIMEOUT)
         _on_session_end = getattr(ctx, "_on_session_end", None)
         if callable(_on_session_end):
             with contextlib.suppress(Exception):
@@ -557,7 +561,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         )
         if self._simulation_end_fnc is not None:
             with contextlib.suppress(Exception):
-                ctx._simulation_end_fnc = self._simulation_end_fnc  # type: ignore[attr-defined]
+                ctx._simulation_end_fnc = self._simulation_end_fnc  # type: ignore[assignment]
         return ctx
 
     def _on_executor_done(self, executor: JobExecutor) -> None:
