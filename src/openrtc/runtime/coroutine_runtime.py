@@ -246,6 +246,9 @@ class CoroutineJobExecutor:
         finally:
             if self._session_end_fnc is not None:
                 try:
+                    # asyncio.wait_for cancels the coroutine and then raises
+                    # TimeoutError at the call site; the coroutine itself sees
+                    # CancelledError.
                     if self._session_end_timeout is not None:
                         await asyncio.wait_for(
                             self._session_end_fnc(ctx), self._session_end_timeout

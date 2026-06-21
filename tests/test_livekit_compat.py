@@ -36,14 +36,19 @@ def _proc_pool_base_kwargs(loop: asyncio.AbstractEventLoop) -> dict[str, Any]:
 
 def test_pool_accepts_new_and_future_kwargs() -> None:
     loop = asyncio.new_event_loop()
+
+    async def _sim_end(_ctx: JobContext) -> None:
+        return None
+
     try:
         pool = CoroutinePool(
             **_proc_pool_base_kwargs(loop),
             session_end_timeout=5.0,
-            simulation_end_fnc=None,
+            simulation_end_fnc=_sim_end,
             a_future_proc_pool_kwarg="absorbed",
         )
         assert pool._session_end_timeout == 5.0
+        assert pool._simulation_end_fnc is _sim_end
     finally:
         loop.close()
 
