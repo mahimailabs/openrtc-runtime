@@ -29,8 +29,8 @@ import pytest
 from livekit.agents import Agent, AgentServer
 
 from openrtc import AgentPool
-from openrtc.core.routing import _resolve_agent_config
 from openrtc.core.wiring import run_session
+from openrtc.routing.resolver import _resolve_agent_config
 
 
 class _DemoAgent(Agent):

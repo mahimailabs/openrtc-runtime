@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 from livekit.agents import AgentSession
 
 from openrtc.core.config import AgentConfig
-from openrtc.core.routing import _resolve_agent_config
 from openrtc.core.turn_handling import _build_session_kwargs
 from openrtc.execution.prewarm import _prewarm_worker
 from openrtc.execution.resources import PrewarmResources
@@ -24,6 +23,7 @@ from openrtc.observability.observer import (
     _notify_session_end,
     _notify_session_start,
 )
+from openrtc.routing.resolver import _resolve_agent_config
 
 if TYPE_CHECKING:
     from livekit.agents import JobContext

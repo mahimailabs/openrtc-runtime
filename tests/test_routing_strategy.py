@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from openrtc.core.routing import (
-    _ROUTING_STRATEGIES,
-    RoutingStrategy,
-    _DefaultFallbackStrategy,
-    _MetadataStrategy,
-    _RoomNamePrefixStrategy,
-)
+from openrtc.routing.base_routing import RoutingStrategy
+from openrtc.routing.default_routing import _DefaultFallbackStrategy
+from openrtc.routing.metadata_routing import _MetadataStrategy
+from openrtc.routing.resolver import _ROUTING_STRATEGIES
+from openrtc.routing.room_prefix_routing import _RoomNamePrefixStrategy
 
 
 def test_concrete_strategies_conform_to_protocol() -> None:

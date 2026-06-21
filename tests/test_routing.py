@@ -8,8 +8,8 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
-from openrtc.core.routing import _resolve_agent_config
 from openrtc.core.wiring import run_session
+from openrtc.routing.resolver import _resolve_agent_config
 
 
 class RestaurantAgent(Agent):
@@ -220,7 +220,7 @@ def test_resolve_agent_ignores_empty_metadata_value(pool: AgentPool) -> None:
 
 def test_agent_name_from_metadata_returns_none_for_non_string_non_mapping() -> None:
     """Branch: an int (or list) metadata value bypasses both string and mapping paths."""
-    from openrtc.core.routing import _agent_name_from_metadata
+    from openrtc.routing.base_routing import _agent_name_from_metadata
 
     assert _agent_name_from_metadata(42) is None
     assert _agent_name_from_metadata([1, 2, 3]) is None
