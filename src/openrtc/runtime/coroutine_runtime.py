@@ -19,9 +19,8 @@ try:
     from livekit.agents.ipc import inference_executor as inference_executor_mod
     from livekit.agents.ipc.job_executor import JobStatus
     from livekit.agents.job import RunningJobInfo, _JobContextVar
-except (
-    ImportError
-) as exc:  # pragma: no cover - exercised only on an unsupported version
+except ImportError as exc:  # pragma: no cover
+    # Exercised only on an unsupported version where the private surface moved.
     raise ImportError(
         "openrtc coroutine isolation mode depends on livekit-agents' private job "
         "surface, which moved in this version. Pin livekit-agents to a supported range "
