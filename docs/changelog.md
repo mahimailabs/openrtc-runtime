@@ -155,6 +155,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.4.0] - 2026-06-21
+
+## What's Changed
+* Support livekit-agents 1.6.x in coroutine mode (version-tolerant ProcPool surface) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/44
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.3.1...v0.4.0
+
+---
+
 ## [0.3.0] - 2026-06-19
 
 ## What's Changed
