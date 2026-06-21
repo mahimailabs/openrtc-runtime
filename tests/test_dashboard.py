@@ -1,4 +1,4 @@
-"""Unit tests for ``openrtc.cli.dashboard`` rendering helpers.
+"""Unit tests for ``openrtc.cli.dashboard_cli`` rendering helpers.
 
 The CLI integration tests cover the happy paths via ``CliRunner``; this
 module pins the small pure helpers (`_format_percent`, `_memory_style`,
@@ -14,7 +14,7 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
-from openrtc.cli.dashboard import (
+from openrtc.cli.dashboard_cli import (
     _format_percent,
     _memory_style,
     _truncate_cell,
@@ -109,7 +109,7 @@ def test_print_resource_summary_plain_handles_unavailable_rss(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """When RSS is unavailable, the unavailable-metric branch fires."""
-    from openrtc.cli import dashboard as dashboard_module
+    from openrtc.cli import dashboard_cli as dashboard_module
 
     monkeypatch.setattr(
         dashboard_module,
@@ -129,7 +129,7 @@ def test_print_resource_summary_plain_handles_unavailable_rss(
 
 def test_build_list_json_payload_omits_resource_keys_when_resources_disabled() -> None:
     """Branch: ``include_resources=False`` skips both per-agent and summary resource keys."""
-    from openrtc.cli.dashboard import build_list_json_payload
+    from openrtc.cli.dashboard_cli import build_list_json_payload
 
     pool = AgentPool()
     pool.add("a", TinyAgent)
@@ -152,7 +152,7 @@ def test_print_resource_summary_rich_handles_unavailable_rss(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The Rich summary uses the alternate "unavailable" string when RSS is None."""
-    from openrtc.cli import dashboard as dashboard_module
+    from openrtc.cli import dashboard_cli as dashboard_module
 
     monkeypatch.setattr(
         dashboard_module,

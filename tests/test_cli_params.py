@@ -1,10 +1,10 @@
-"""Unit tests for :mod:`openrtc.cli.params` bundles."""
+"""Unit tests for :mod:`openrtc.cli.base_cli` parameter bundles."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from openrtc.cli.params import (
+from openrtc.cli.base_cli import (
     SharedLiveKitWorkerOptions,
     agent_pool_runtime_kwargs,
     agent_provider_kwargs,
@@ -86,7 +86,7 @@ def test_isolation_arg_reads_openrtc_isolation_envvar() -> None:
     """``--isolation`` falls back to ``OPENRTC_ISOLATION`` env var."""
     import typing
 
-    from openrtc.cli.types import IsolationArg
+    from openrtc.cli.base_cli import IsolationArg
 
     _annotation, option_info = typing.get_args(IsolationArg)
     assert option_info.envvar == "OPENRTC_ISOLATION"
@@ -96,7 +96,7 @@ def test_max_concurrent_sessions_arg_reads_envvar() -> None:
     """``--max-concurrent-sessions`` falls back to ``OPENRTC_MAX_CONCURRENT_SESSIONS``."""
     import typing
 
-    from openrtc.cli.types import MaxConcurrentSessionsArg
+    from openrtc.cli.base_cli import MaxConcurrentSessionsArg
 
     _annotation, option_info = typing.get_args(MaxConcurrentSessionsArg)
     assert option_info.envvar == "OPENRTC_MAX_CONCURRENT_SESSIONS"

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from openrtc.cli.commands import RuntimeReporter
+from openrtc.cli.main_cli import RuntimeReporter
 from openrtc.observability.jsonl_sink import (
     KIND_EVENT,
     KIND_SNAPSHOT,
@@ -406,7 +406,7 @@ def test_runtime_reporter_dashboard_path_runs_one_tick(
         def update(self, renderable: object) -> None:
             update_calls.append(("update", renderable))
 
-    monkeypatch.setattr("openrtc.cli.reporter.Live", _StubLive)
+    monkeypatch.setattr("openrtc.cli.reporter_cli.Live", _StubLive)
 
     json_path = tmp_path / "snapshot.json"
     pool = _StubPool(minimal_pool_runtime_snapshot)

@@ -1,6 +1,6 @@
 """Console script entrypoint internals.
 
-The Typer/Rich implementation lives in :mod:`openrtc.cli.commands` and is
+The Typer/Rich implementation lives in :mod:`openrtc.cli.main_cli` and is
 installed with the optional extra ``openrtc[cli]``. The package-level
 :mod:`openrtc.cli` re-exports :func:`main` and the ``app`` Typer instance, so
 the console script in ``pyproject.toml`` (``openrtc.cli:main``) still resolves.
@@ -42,6 +42,6 @@ def main(argv: list[str] | None = None) -> int:
 
     # Do not catch ImportError here: failures (e.g. missing livekit, broken
     # openrtc install) must surface with their original tracebacks.
-    from openrtc.cli.commands import main as run_cli
+    from openrtc.cli.main_cli import main as run_cli
 
     return run_cli(argv)

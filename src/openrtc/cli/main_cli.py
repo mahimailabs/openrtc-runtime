@@ -11,22 +11,7 @@ from typing import Annotated
 import typer
 from typer import Context
 
-from openrtc.cli.dashboard import (
-    build_list_json_payload,
-    build_runtime_dashboard,
-    print_list_plain,
-    print_list_rich_table,
-    print_resource_summary_rich,
-)
-from openrtc.cli.livekit import (
-    _delegate_discovered_pool_to_livekit,
-    _discover_or_exit,
-    _run_connect_handoff,
-    inject_cli_positional_paths,
-)
-from openrtc.cli.params import SharedLiveKitWorkerOptions, agent_provider_kwargs
-from openrtc.cli.reporter import RuntimeReporter
-from openrtc.cli.types import (
+from openrtc.cli.base_cli import (
     _LIVEKIT_CLI_CONTEXT_SETTINGS,
     PANEL_ADVANCED,
     AgentsDirArg,
@@ -47,7 +32,23 @@ from openrtc.cli.types import (
     MetricsJsonFileArg,
     MetricsJsonlArg,
     MetricsJsonlIntervalArg,
+    SharedLiveKitWorkerOptions,
+    agent_provider_kwargs,
 )
+from openrtc.cli.dashboard_cli import (
+    build_list_json_payload,
+    build_runtime_dashboard,
+    print_list_plain,
+    print_list_rich_table,
+    print_resource_summary_rich,
+)
+from openrtc.cli.livekit_cli import (
+    _delegate_discovered_pool_to_livekit,
+    _discover_or_exit,
+    _run_connect_handoff,
+    inject_cli_positional_paths,
+)
+from openrtc.cli.reporter_cli import RuntimeReporter
 from openrtc.core.pool import AgentPool
 from openrtc.observability.jsonl_sink import DEFAULT_METRICS_JSONL_FILENAME
 
