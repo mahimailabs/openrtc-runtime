@@ -80,3 +80,40 @@ def test_executor_bounds_session_end_fnc_by_session_end_timeout() -> None:
 
     asyncio.run(asyncio.wait_for(_run(), timeout=5.0))
     assert timed_out.is_set()
+
+
+def test_every_proc_pool_kwarg_is_explicitly_handled() -> None:
+    """Hard gate: every ProcPool ctor kwarg must be an explicit CoroutinePool param.
+
+    A new upstream kwarg is absorbed by **_extra (no crash), but trips this test so a
+    maintainer reviews whether it needs honoring, like session_end_timeout did.
+    """
+    import inspect
+
+    from livekit.agents.ipc.proc_pool import ProcPool
+
+    proc = {
+        n
+        for n, p in inspect.signature(ProcPool.__init__).parameters.items()
+        if n != "self" and p.kind is not inspect.Parameter.VAR_KEYWORD
+    }
+    explicit = {
+        n
+        for n, p in inspect.signature(CoroutinePool.__init__).parameters.items()
+        if n != "self" and p.kind is not inspect.Parameter.VAR_KEYWORD
+    }
+    unhandled = proc - explicit
+    assert not unhandled, (
+        f"ProcPool grew kwargs not explicitly handled by CoroutinePool: {sorted(unhandled)}. "
+        "They are absorbed by **_extra so nothing crashes; review whether any needs honoring "
+        "and add it to CoroutinePool.__init__."
+    )
+
+
+def test_coroutine_pool_init_accepts_var_keyword() -> None:
+    import inspect
+
+    kinds = [
+        p.kind for p in inspect.signature(CoroutinePool.__init__).parameters.values()
+    ]
+    assert inspect.Parameter.VAR_KEYWORD in kinds

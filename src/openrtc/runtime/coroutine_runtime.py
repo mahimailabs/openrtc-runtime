@@ -14,9 +14,19 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from livekit import rtc
 from livekit.agents import JobContext, JobExecutorType, JobProcess, utils
-from livekit.agents.ipc import inference_executor as inference_executor_mod
-from livekit.agents.ipc.job_executor import JobStatus
-from livekit.agents.job import RunningJobInfo, _JobContextVar
+
+try:
+    from livekit.agents.ipc import inference_executor as inference_executor_mod
+    from livekit.agents.ipc.job_executor import JobStatus
+    from livekit.agents.job import RunningJobInfo, _JobContextVar
+except (
+    ImportError
+) as exc:  # pragma: no cover - exercised only on an unsupported version
+    raise ImportError(
+        "openrtc coroutine isolation mode depends on livekit-agents' private job "
+        "surface, which moved in this version. Pin livekit-agents to a supported range "
+        "(>=1.5,<1.7) or use isolation='process' (the public, version-stable mode)."
+    ) from exc
 
 from openrtc.utils.validation import require_positive_int
 
