@@ -160,7 +160,7 @@ Example expectations:
 
 ## House style (readability convention)
 
-openrtc favors code that reads like one human wrote it. Follow these rules in new and edited code.
+OpenRTC favors code that reads like one human wrote it. Follow these rules in new and edited code.
 
 - Module docstring: one line stating the module's single responsibility. Add a paragraph only to record a non-obvious invariant a reader would otherwise violate.
 - Class docstring: one line. Function or method docstring: one line, only where it earns it (public or non-trivial). Do not write Args/Returns/Raises blocks; type hints carry parameter and return information.

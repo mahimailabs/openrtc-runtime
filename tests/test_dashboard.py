@@ -32,9 +32,9 @@ class TinyAgent(Agent):
 
 
 def test_format_percent_returns_dash_when_inputs_missing() -> None:
-    assert _format_percent(None, 100) == "—"
-    assert _format_percent(50, None) == "—"
-    assert _format_percent(50, 0) == "—"
+    assert _format_percent(None, 100) == "-"
+    assert _format_percent(50, None) == "-"
+    assert _format_percent(50, 0) == "-"
 
 
 def test_format_percent_rounds_ratio_to_zero_decimals() -> None:
@@ -63,14 +63,14 @@ def test_truncate_cell_passes_short_strings_through_unchanged() -> None:
 def test_print_list_rich_table_renders_dash_for_missing_source_path(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A registered agent without ``source_path`` shows ``—`` in the source column."""
+    """A registered agent without ``source_path`` shows ``-`` in the source column."""
     pool = AgentPool()
     pool.add("a", TinyAgent)
 
     print_list_rich_table([pool.get("a")], resources=True)
 
     out = capsys.readouterr().out
-    assert "—" in out
+    assert "-" in out
 
 
 def test_print_list_plain_includes_source_size_for_known_paths(
