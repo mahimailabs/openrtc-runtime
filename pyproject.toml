@@ -18,7 +18,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-  "livekit-agents[openai,silero,turn-detector]~=1.5",
+  "livekit-agents[openai,silero,turn-detector]>=1.5,<1.7",
   "watchfiles>=0.21,<2",
 ]
 dynamic = ["version"]

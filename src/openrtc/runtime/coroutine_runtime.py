@@ -14,11 +14,24 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from livekit import rtc
 from livekit.agents import JobContext, JobExecutorType, JobProcess, utils
-from livekit.agents.ipc import inference_executor as inference_executor_mod
-from livekit.agents.ipc.job_executor import JobStatus
-from livekit.agents.job import RunningJobInfo, _JobContextVar
+
+try:
+    from livekit.agents.ipc import inference_executor as inference_executor_mod
+    from livekit.agents.ipc.job_executor import JobStatus
+    from livekit.agents.job import RunningJobInfo, _JobContextVar
+except ImportError as exc:  # pragma: no cover
+    # Exercised only on an unsupported version where the private surface moved.
+    raise ImportError(
+        "openrtc coroutine isolation mode depends on livekit-agents' private job "
+        "surface, which moved in this version. Pin livekit-agents to a supported range "
+        "(>=1.5,<1.7) or use isolation='process' (the public, version-stable mode)."
+    ) from exc
 
 from openrtc.utils.validation import require_positive_int
+
+# Mirrors upstream livekit-agents 1.6.2: primary AgentSession.aclose() is
+# bounded at 60 s during teardown so a hung session never stalls cleanup.
+_SESSION_ACLOSE_TIMEOUT = 60.0
 
 if TYPE_CHECKING:
     from livekit.agents.ipc.job_executor import JobExecutor
@@ -71,6 +84,7 @@ class CoroutineJobExecutor:
         session_end_fnc: Callable[[JobContext], Awaitable[None]] | None = None,
         context_factory: Callable[[RunningJobInfo], JobContext] | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
+        session_end_timeout: float | None = None,
     ) -> None:
         self._id = uuid.uuid4().hex
         self._user_arguments: Any | None = None
@@ -82,6 +96,7 @@ class CoroutineJobExecutor:
         self._session_end_fnc = session_end_fnc
         self._context_factory = context_factory
         self._loop = loop
+        self._session_end_timeout = session_end_timeout
         self._shutdown_fut: asyncio.Future[str] | None = None
 
     @property
@@ -244,7 +259,21 @@ class CoroutineJobExecutor:
         finally:
             if self._session_end_fnc is not None:
                 try:
-                    await self._session_end_fnc(ctx)
+                    # asyncio.wait_for cancels the coroutine and then raises
+                    # TimeoutError at the call site; the coroutine itself sees
+                    # CancelledError.
+                    if self._session_end_timeout is not None:
+                        await asyncio.wait_for(
+                            self._session_end_fnc(ctx), self._session_end_timeout
+                        )
+                    else:
+                        await self._session_end_fnc(ctx)
+                except TimeoutError:
+                    logger.warning(
+                        "session_end_fnc timed out after %.1fs in CoroutineJobExecutor",
+                        self._session_end_timeout,
+                        extra=self.logging_extra(),
+                    )
                 except Exception:
                     logger.exception(
                         "session_end_fnc raised in CoroutineJobExecutor",
@@ -259,7 +288,7 @@ class CoroutineJobExecutor:
         primary = getattr(ctx, "_primary_agent_session", None)
         if primary is not None and hasattr(primary, "aclose"):
             with contextlib.suppress(Exception):
-                await primary.aclose()
+                await asyncio.wait_for(primary.aclose(), _SESSION_ACLOSE_TIMEOUT)
         _on_session_end = getattr(ctx, "_on_session_end", None)
         if callable(_on_session_end):
             with contextlib.suppress(Exception):
@@ -305,9 +334,12 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         memory_limit_mb: float,
         http_proxy: str | None,
         loop: asyncio.AbstractEventLoop,
+        session_end_timeout: float | None = None,
+        simulation_end_fnc: Callable[[Any], Any] | None = None,
         max_concurrent_sessions: int = 50,
         consecutive_failure_limit: int = 5,
         on_consecutive_failure_limit: Callable[[int], None] | None = None,
+        **_extra: Any,
     ) -> None:
         super().__init__()
         self._initialize_process_fnc = initialize_process_fnc
@@ -323,6 +355,13 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         self._memory_limit_mb = memory_limit_mb
         self._http_proxy = http_proxy
         self._loop = loop
+        self._session_end_timeout = session_end_timeout
+        self._simulation_end_fnc = simulation_end_fnc
+        if _extra:
+            logger.debug(
+                "CoroutinePool absorbed unrecognized ProcPool kwargs: %s",
+                sorted(_extra),
+            )
         # Backpressure threshold: extra to ProcPool's signature so the
         # constructor stays compatible with AgentServer (which only passes
         # the ProcPool kwargs); the AgentPool wiring sets this via a
@@ -489,6 +528,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
             entrypoint_fnc=self._job_entrypoint_fnc,
             session_end_fnc=self._session_end_fnc,
             context_factory=self._build_job_context,
+            session_end_timeout=self._session_end_timeout,
         )
 
     def _build_job_context(self, info: RunningJobInfo) -> JobContext:
@@ -511,7 +551,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         def _on_shutdown(_reason: str) -> None:
             pass
 
-        return JobContext(
+        ctx = JobContext(
             proc=self._shared_proc,
             info=info,
             room=room,
@@ -519,6 +559,10 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
             on_shutdown=_on_shutdown,
             inference_executor=self._inference_executor or _NOOP_INFERENCE_EXECUTOR,
         )
+        if self._simulation_end_fnc is not None:
+            with contextlib.suppress(Exception):
+                ctx._simulation_end_fnc = self._simulation_end_fnc
+        return ctx
 
     def _on_executor_done(self, executor: JobExecutor) -> None:
         """Remove a finished executor and emit ``process_closed``; idempotent."""
