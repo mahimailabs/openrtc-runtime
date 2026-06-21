@@ -110,7 +110,7 @@ from openrtc.observability.snapshot import (
 
 @pytest.fixture
 def minimal_pool_runtime_snapshot() -> PoolRuntimeSnapshot:
-    """Small :class:`PoolRuntimeSnapshot` for metrics stream / TUI tests."""
+    """Small :class:`PoolRuntimeSnapshot` for metrics stream tests."""
     return PoolRuntimeSnapshot(
         timestamp=1.0,
         uptime_seconds=0.5,

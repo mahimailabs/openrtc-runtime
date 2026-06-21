@@ -26,7 +26,7 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
-from openrtc.execution.coroutine_server import _CoroutineAgentServer
+from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
 from .conftest import LiveKitDevServer
 

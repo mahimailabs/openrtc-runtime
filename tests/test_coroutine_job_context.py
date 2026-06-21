@@ -23,7 +23,7 @@ import pytest
 from livekit.agents import JobExecutorType
 from livekit.agents.job import get_job_context
 
-from openrtc.execution.coroutine import CoroutinePool
+from openrtc.runtime.coroutine_runtime import CoroutinePool
 
 
 def _stub_running_job_info(job_id: str) -> Any:

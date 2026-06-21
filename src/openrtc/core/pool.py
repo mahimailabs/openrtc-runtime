@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import logging
-import sys
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from functools import partial
 from pathlib import Path
 from typing import Any, Literal
 
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli
+from livekit.agents import Agent, AgentServer, cli
 
 from openrtc.core.config import (
     AgentConfig,
@@ -20,22 +17,15 @@ from openrtc.core.discovery import (
     _find_local_agent_subclass,
     _load_agent_module,
 )
-from openrtc.core.routing import _resolve_agent_config
-from openrtc.core.turn_handling import _build_session_kwargs
-from openrtc.execution.prewarm import _prewarm_worker
+from openrtc.core.wiring import _PoolRuntimeState, wire_pool
+from openrtc.observability.base_observer import SessionObserver
 from openrtc.observability.metrics import (
     MetricsStreamEvent,
-    RuntimeMetricsStore,
-)
-from openrtc.observability.observer import (
-    SessionObserver,
-    _build_session_info,
-    _build_session_outcome,
-    _notify_session_end,
-    _notify_session_start,
 )
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
-from openrtc.types import ProviderValue
+from openrtc.runtime.registry import ServerParams, resolve_server_builder
+from openrtc.utils.types import ProviderValue
+from openrtc.utils.validation import require_positive_int, validate_isolation
 
 __all__ = [
     "AgentConfig",
@@ -48,71 +38,6 @@ __all__ = [
 logger = logging.getLogger("openrtc")
 
 IsolationMode = Literal["coroutine", "process"]
-
-# The on_session_start notification runs in the interactive hot path (before the
-# greeting), so it is bounded by this short timeout rather than the larger drain
-# budget that bounds the on_session_end notification at teardown.
-_OBSERVER_START_TIMEOUT_SECONDS = 5.0
-
-
-@dataclass(slots=True)
-class _PoolRuntimeState:
-    """Serializable runtime state shared with worker callbacks."""
-
-    agents: dict[str, AgentConfig]
-    metrics: RuntimeMetricsStore = field(default_factory=RuntimeMetricsStore)
-    observers: list[SessionObserver] = field(default_factory=list)
-    observer_timeout: float = 30.0
-
-
-async def _run_universal_session(
-    runtime_state: _PoolRuntimeState,
-    ctx: JobContext,
-) -> None:
-    """Dispatch a session through the owning ``AgentPool``."""
-    if not runtime_state.agents:
-        raise RuntimeError("No agents are registered in the pool.")
-    config = _resolve_agent_config(runtime_state.agents, ctx)
-    session_kwargs = _build_session_kwargs(config.session_kwargs, ctx.proc)
-    session: AgentSession[None] = AgentSession(
-        stt=config.stt,
-        llm=config.llm,
-        tts=config.tts,
-        vad=ctx.proc.userdata["vad"],
-        **session_kwargs,
-    )
-    info = _build_session_info(config.name, ctx)
-    try:
-        runtime_state.metrics.record_session_started(config.name)
-        await session.start(
-            agent=config.agent_cls(),  # type: ignore[call-arg]
-            room=ctx.room,
-        )
-        await ctx.connect()
-        await _notify_session_start(
-            runtime_state.observers,
-            info,
-            session,
-            timeout=min(
-                runtime_state.observer_timeout, _OBSERVER_START_TIMEOUT_SECONDS
-            ),
-        )
-
-        if config.greeting is not None:
-            logger.debug("Generating greeting for agent '%s'.", config.name)
-            await session.generate_reply(instructions=config.greeting)
-    except Exception as exc:
-        runtime_state.metrics.record_session_failure(config.name, exc)
-        raise
-    finally:
-        runtime_state.metrics.record_session_finished(config.name)
-        outcome = _build_session_outcome(info, sys.exc_info()[1])
-        await _notify_session_end(
-            runtime_state.observers,
-            info,
-            outcome,
-            timeout=runtime_state.observer_timeout,
-        )
 
 
 class AgentPool:
@@ -136,81 +61,23 @@ class AgentPool:
         consecutive_failure_limit: int = 5,
         drain_timeout: int = 30,
     ) -> None:
-        """Create a pool with shared defaults, prewarm, and a universal entrypoint.
+        """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
 
-        Args:
-            default_stt: Default STT provider used when an agent does not override
-                it during ``add()`` or ``discover()``.
-            default_llm: Default LLM provider used when an agent does not override
-                it during ``add()`` or ``discover()``.
-            default_tts: Default TTS provider used when an agent does not override
-                it during ``add()`` or ``discover()``.
-            default_greeting: Default greeting used when an agent does not override
-                it during ``add()`` or ``discover()``.
-            isolation: Worker isolation mode. ``"coroutine"`` (the v0.1 default)
-                runs every session as an ``asyncio.Task`` inside one worker
-                process for high density. ``"process"`` preserves the v0.0.x
-                behavior of one OS process per session via livekit-agents'
-                default ``ProcPool``. The setting is plumbed but not yet acted
-                on; the actual coroutine runtime arrives in a follow-up
-                iteration.
-            max_concurrent_sessions: Backpressure threshold for coroutine mode.
-                Once this many concurrent sessions are running, the worker
-                reports ``load >= 1.0`` to LiveKit dispatch and additional
-                jobs are routed elsewhere. Default ``50`` matches the design
-                target. Ignored in ``"process"`` mode (livekit-agents' own
-                load math applies). Plumbed but not yet enforced.
-            consecutive_failure_limit: Coroutine-mode supervisor threshold.
-                After this many consecutive session failures (any non-SUCCESS
-                terminal status), the worker invokes ``aclose()`` and exits
-                so the deployment platform restarts it. Default ``5`` per
-                docs/design/v0.1.md §6.8. Ignored in ``"process"`` mode
-                (each subprocess crashes and is restarted independently).
-            drain_timeout: Maximum seconds the worker waits for in-flight
-                sessions to finish after a SIGTERM (or other graceful-shutdown
-                signal) before cancelling them. Forwarded to
-                ``AgentServer(drain_timeout=...)`` so the upstream signal
-                handler honors it; sessions exceeding the budget are
-                cancelled with a ``WARNING`` log. Default ``30`` per
-                docs/design/v0.1.md §6.4.
+        ``isolation`` controls whether sessions run as ``asyncio.Task``s in one
+        process (``"coroutine"``, high density) or as separate OS processes
+        (``"process"``, livekit-agents default).
+        ``drain_timeout`` sets the maximum seconds the worker waits for in-flight
+        sessions to finish after SIGTERM before cancelling them.
         """
-        if isolation not in ("coroutine", "process"):
-            raise ValueError(
-                f"isolation must be 'coroutine' or 'process', got {isolation!r}."
-            )
-        if not isinstance(max_concurrent_sessions, int) or isinstance(
-            max_concurrent_sessions, bool
-        ):
-            raise TypeError(
-                "max_concurrent_sessions must be an int, "
-                f"got {type(max_concurrent_sessions).__name__}."
-            )
-        if max_concurrent_sessions < 1:
-            raise ValueError(
-                f"max_concurrent_sessions must be >= 1, got {max_concurrent_sessions}."
-            )
-        if not isinstance(consecutive_failure_limit, int) or isinstance(
-            consecutive_failure_limit, bool
-        ):
-            raise TypeError(
-                "consecutive_failure_limit must be an int, "
-                f"got {type(consecutive_failure_limit).__name__}."
-            )
-        if consecutive_failure_limit < 1:
-            raise ValueError(
-                "consecutive_failure_limit must be >= 1, "
-                f"got {consecutive_failure_limit}."
-            )
-        if not isinstance(drain_timeout, int) or isinstance(drain_timeout, bool):
-            raise TypeError(
-                f"drain_timeout must be an int, got {type(drain_timeout).__name__}."
-            )
-        if drain_timeout < 1:
-            raise ValueError(f"drain_timeout must be >= 1, got {drain_timeout}.")
+        validate_isolation(isolation)
         self._isolation: IsolationMode = isolation
-        self._max_concurrent_sessions: int = max_concurrent_sessions
-        self._consecutive_failure_limit: int = consecutive_failure_limit
-        self._drain_timeout: int = drain_timeout
+        self._max_concurrent_sessions = require_positive_int(
+            "max_concurrent_sessions", max_concurrent_sessions
+        )
+        self._consecutive_failure_limit = require_positive_int(
+            "consecutive_failure_limit", consecutive_failure_limit
+        )
+        self._drain_timeout = require_positive_int("drain_timeout", drain_timeout)
         self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(
@@ -224,29 +91,16 @@ class AgentPool:
         self._default_llm = default_llm
         self._default_tts = default_tts
         self._default_greeting = default_greeting
-        self._server.setup_fnc = partial(_prewarm_worker, self._runtime_state)
-        self._server.rtc_session()(partial(_run_universal_session, self._runtime_state))
+        wire_pool(self._server, self._runtime_state)
 
     def _build_server(self) -> AgentServer:
-        """Construct the underlying LiveKit server matching ``isolation``.
-
-        Coroutine mode returns an :class:`_CoroutineAgentServer` that
-        monkey-patches ``ipc.proc_pool.ProcPool`` with our
-        :class:`CoroutinePool` for the duration of ``run()``. Process mode
-        returns a vanilla :class:`AgentServer` (the v0.0.x default).
-
-        The coroutine import is deferred so process-only callers do not
-        load ``execution/coroutine_server.py`` at module import time.
-        """
-        if self._isolation == "coroutine":
-            from openrtc.execution.coroutine_server import _CoroutineAgentServer
-
-            return _CoroutineAgentServer(
-                max_concurrent_sessions=self._max_concurrent_sessions,
-                consecutive_failure_limit=self._consecutive_failure_limit,
-                drain_timeout=self._drain_timeout,
-            )
-        return AgentServer(drain_timeout=self._drain_timeout)
+        """Construct the underlying LiveKit server matching ``isolation``."""
+        params = ServerParams(
+            max_concurrent_sessions=self._max_concurrent_sessions,
+            consecutive_failure_limit=self._consecutive_failure_limit,
+            drain_timeout=self._drain_timeout,
+        )
+        return resolve_server_builder(self._isolation)(params)
 
     @property
     def isolation(self) -> IsolationMode:
@@ -294,33 +148,7 @@ class AgentPool:
         source_path: Path | str | None = None,
         **session_options: Any,
     ) -> AgentConfig:
-        """Register an agent in the pool.
-
-        Args:
-            name: Unique name used for dispatch.
-            agent_cls: Agent subclass to instantiate per session.
-            stt: STT provider string or instance.
-            llm: LLM provider string or instance.
-            tts: TTS provider string or instance.
-            greeting: Optional greeting played after the room connection completes.
-            session_kwargs: Extra keyword arguments forwarded to ``AgentSession``.
-                Common examples include ``preemptive_generation``,
-                ``allow_interruptions``, ``min_endpointing_delay``,
-                ``max_endpointing_delay``, and ``max_tool_steps``.
-            **session_options: Additional ``AgentSession`` options passed
-                directly to ``add()``. When the same option appears in both
-                ``session_kwargs`` and direct keyword arguments, the direct
-                keyword argument takes precedence.
-            source_path: Optional path to the agent's Python module on disk
-                (used for discovery metadata and footprint reporting).
-
-        Returns:
-            The created agent configuration.
-
-        Raises:
-            TypeError: If ``agent_cls`` is not a LiveKit ``Agent`` subclass.
-            ValueError: If ``name`` is empty or already registered.
-        """
+        """Register an agent in the pool and return its configuration."""
         normalized_name = name.strip()
         if not normalized_name:
             raise ValueError("Agent name must be a non-empty string.")
@@ -353,25 +181,7 @@ class AgentPool:
         return config
 
     def discover(self, agents_dir: str | Path) -> list[AgentConfig]:
-        """Discover agent modules from a directory and register them.
-
-        Args:
-            agents_dir: Directory containing Python files that define agent modules.
-                Each discovered module must define a local LiveKit ``Agent``
-                subclass. Optional OpenRTC overrides are read from the
-                ``@agent_config(...)`` decorator attached to that class. When a
-                field is omitted, ``AgentPool`` falls back to the module filename
-                for the agent name and to pool defaults for providers and greeting.
-
-        Returns:
-            The list of agent configurations registered from the directory.
-
-        Raises:
-            FileNotFoundError: If ``agents_dir`` does not exist.
-            NotADirectoryError: If ``agents_dir`` is not a directory.
-            RuntimeError: If a module cannot be loaded or contains no local
-                ``Agent`` subclass.
-        """
+        """Discover and register agent modules from a directory; return registered configs."""
         directory = Path(agents_dir).expanduser().resolve()
         if not directory.exists():
             raise FileNotFoundError(f"Agents directory does not exist: {directory}")
@@ -412,34 +222,14 @@ class AgentPool:
         return list(self._agents)
 
     def get(self, name: str) -> AgentConfig:
-        """Return a registered agent configuration by name.
-
-        Args:
-            name: The registered agent name.
-
-        Returns:
-            The registered configuration.
-
-        Raises:
-            KeyError: If the agent name is unknown.
-        """
+        """Return a registered agent configuration by name."""
         try:
             return self._agents[name]
         except KeyError as exc:
             raise KeyError(f"Unknown agent '{name}'.") from exc
 
     def remove(self, name: str) -> AgentConfig:
-        """Remove and return a registered agent configuration.
-
-        Args:
-            name: The registered agent name.
-
-        Returns:
-            The removed configuration.
-
-        Raises:
-            KeyError: If the agent name is unknown.
-        """
+        """Remove and return a registered agent configuration."""
         try:
             removed = self._agents.pop(name)
         except KeyError as exc:
@@ -450,18 +240,9 @@ class AgentPool:
     def add_observer(self, observer: SessionObserver) -> None:
         """Register a session observer notified for every session in the pool.
 
-        Call before ``run()``. The observer is notified on the session's own task
-        when the session goes live and when it ends. A raising or slow observer is
-        logged and skipped, never crashing the session. In ``process`` isolation
-        mode the observer must be picklable (it rides the serializable worker
-        state), so build any live resources lazily on the first
-        ``on_session_start`` rather than in the observer's constructor.
-
-        Args:
-            observer: An object implementing the ``SessionObserver`` protocol.
-
-        Raises:
-            TypeError: If ``observer`` does not implement the protocol.
+        Call before run(). In process isolation mode the observer must be
+        picklable (it rides the serializable worker state), so build any live
+        resources lazily on the first on_session_start, not in the constructor.
         """
         if not isinstance(observer, SessionObserver):
             raise TypeError(

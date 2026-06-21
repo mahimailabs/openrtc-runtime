@@ -16,7 +16,7 @@ from openrtc.core.serialization import (
     _resolve_agent_class,
     _serialize_provider_value,
 )
-from openrtc.types import ProviderValue
+from openrtc.utils.types import ProviderValue
 
 _AgentType = TypeVar("_AgentType", bound=type[Agent])
 _AGENT_METADATA_ATTR = "__openrtc_agent_config__"

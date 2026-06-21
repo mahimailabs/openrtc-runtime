@@ -22,7 +22,7 @@ With **uv**:
 
 ```bash
 uv add openrtc
-uv add "openrtc[cli,tui]"
+uv add "openrtc[cli]"
 ```
 
 Install the **Typer/Rich CLI** (`openrtc list`, `openrtc start`, `openrtc dev`,
@@ -30,12 +30,6 @@ Install the **Typer/Rich CLI** (`openrtc list`, `openrtc start`, `openrtc dev`,
 
 ```bash
 pip install 'openrtc[cli]'
-```
-
-Install the optional **Textual sidecar** for `openrtc tui` with:
-
-```bash
-pip install 'openrtc[cli,tui]'
 ```
 
 See [CLI](./cli) for subcommands, output modes (`--plain`, `--json`, `--resources`),
@@ -48,7 +42,7 @@ python -m pip install -e .
 ```
 
 Contributor environments typically use `uv sync --group dev`, which includes
-Typer, Rich, and Textual so `openrtc` and `openrtc tui` run without extra flags.
+Typer and Rich so `openrtc` runs without extra flags.
 
 ## CLI quick path
 
@@ -60,7 +54,8 @@ openrtc dev ./agents
 ```
 
 Use `openrtc start` for production-style runs. See [CLI](./cli) for `console`,
-`connect`, `download-files`, metrics files, and the sidecar TUI.
+`connect`, `download-files`, and the JSONL metrics stream (`--metrics-jsonl`,
+which you can tail with `tail -f openrtc-metrics.jsonl` or pipe through `jq`).
 
 ## Quick start
 

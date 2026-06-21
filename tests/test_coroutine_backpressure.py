@@ -20,7 +20,7 @@ from typing import Any
 
 from livekit.agents import JobExecutorType
 
-from openrtc.execution.coroutine import CoroutinePool
+from openrtc.runtime.coroutine_runtime import CoroutinePool
 
 
 def _stub_running_job_info(job_id: str) -> Any:

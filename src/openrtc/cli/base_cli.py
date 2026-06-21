@@ -1,14 +1,16 @@
-"""Typer :class:`typing.Annotated` aliases shared by OpenRTC CLI commands."""
+"""Typer arg aliases, option helpers, and parameter bundles for the OpenRTC CLI."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import click
 import typer
 
-from openrtc.observability.stream import DEFAULT_METRICS_JSONL_FILENAME
+from openrtc.observability.jsonl_sink import DEFAULT_METRICS_JSONL_FILENAME
+from openrtc.utils.types import ProviderValue
 
 PANEL_OPENRTC = "OpenRTC"
 PANEL_LIVEKIT = "Connection"
@@ -147,11 +149,12 @@ MetricsJsonlArg = Annotated[
     typer.Option(
         "--metrics-jsonl",
         help=(
-            "Append JSON Lines for the sidecar TUI (off by default; truncates when "
-            "the worker starts). For the default ``openrtc tui`` file, use "
-            f"``./{DEFAULT_METRICS_JSONL_FILENAME}`` here. On ``start``/``dev``/``console`` "
-            "you may pass that path as the **second** positional after the agents directory "
-            "(optional—omit it if you only need to point at the agents folder)."
+            "Append JSON Lines for external tailing or tooling (off by default; "
+            "truncates when the worker starts). Point it at "
+            f"``./{DEFAULT_METRICS_JSONL_FILENAME}`` to tail or script the stream. "
+            "On ``start``/``dev``/``console`` you may pass that path as the "
+            "**second** positional after the agents directory (optional: omit it if "
+            "you only need to point at the agents folder)."
         ),
         resolve_path=True,
         path_type=Path,
@@ -165,32 +168,6 @@ MetricsJsonlIntervalArg = Annotated[
         "--metrics-jsonl-interval",
         min=0.25,
         help=("Seconds between JSONL records (default: same as --dashboard-refresh)."),
-        rich_help_panel=PANEL_ADVANCED,
-    ),
-]
-
-TuiWatchPathArg = Annotated[
-    Path,
-    typer.Option(
-        "--watch",
-        show_default=True,
-        help=(
-            "JSONL file the worker writes with --metrics-jsonl (not your "
-            f"--agents-dir). Defaults to ./{DEFAULT_METRICS_JSONL_FILENAME}; pass "
-            "the same path to --metrics-jsonl on the worker, or pass PATH as the "
-            "first positional argument instead of --watch."
-        ),
-        resolve_path=True,
-        path_type=Path,
-        rich_help_panel=PANEL_OPENRTC,
-    ),
-]
-
-TuiFromStartArg = Annotated[
-    bool,
-    typer.Option(
-        "--from-start",
-        help="Read the file from the beginning instead of tailing from EOF.",
         rich_help_panel=PANEL_ADVANCED,
     ),
 ]
@@ -258,3 +235,142 @@ _LIVEKIT_CLI_CONTEXT_SETTINGS = {
     "allow_extra_args": True,
     "ignore_unknown_options": True,
 }
+
+
+# ---------------------------------------------------------------------------
+# Parameter bundles
+# ---------------------------------------------------------------------------
+
+
+def agent_provider_kwargs(
+    default_stt: ProviderValue | None,
+    default_llm: ProviderValue | None,
+    default_tts: ProviderValue | None,
+    default_greeting: str | None,
+) -> dict[str, Any]:
+    """Keyword arguments for :class:`openrtc.core.pool.AgentPool` provider defaults."""
+    return {
+        "default_stt": default_stt,
+        "default_llm": default_llm,
+        "default_tts": default_tts,
+        "default_greeting": default_greeting,
+    }
+
+
+def agent_pool_runtime_kwargs(
+    *,
+    isolation: str = "coroutine",
+    max_concurrent_sessions: int = 50,
+) -> dict[str, Any]:
+    """Keyword arguments for the runtime knobs on :class:`AgentPool`."""
+    return {
+        "isolation": isolation,
+        "max_concurrent_sessions": max_concurrent_sessions,
+    }
+
+
+@dataclass(frozen=True)
+class SharedLiveKitWorkerOptions:
+    """Options shared by ``start`` / ``dev`` / ``console`` / ``connect`` handoff paths.
+
+    Typer still lists each flag on every command so ``--help`` stays accurate; this
+    dataclass deduplicates the handoff to :mod:`openrtc.cli.livekit_cli`.
+    """
+
+    agents_dir: Path
+    default_stt: ProviderValue | None
+    default_llm: ProviderValue | None
+    default_tts: ProviderValue | None
+    default_greeting: str | None
+    url: str | None
+    api_key: str | None
+    api_secret: str | None
+    log_level: str | None
+    dashboard: bool
+    dashboard_refresh: float
+    metrics_json_file: Path | None
+    metrics_jsonl: Path | None
+    metrics_jsonl_interval: float | None
+    isolation: str = "coroutine"
+    max_concurrent_sessions: int = 50
+
+    def agent_pool_kwargs(self) -> dict[str, Any]:
+        return {
+            **agent_provider_kwargs(
+                self.default_stt,
+                self.default_llm,
+                self.default_tts,
+                self.default_greeting,
+            ),
+            **agent_pool_runtime_kwargs(
+                isolation=self.isolation,
+                max_concurrent_sessions=self.max_concurrent_sessions,
+            ),
+        }
+
+    @classmethod
+    def from_cli(
+        cls,
+        agents_dir: Path,
+        *,
+        default_stt: ProviderValue | None = None,
+        default_llm: ProviderValue | None = None,
+        default_tts: ProviderValue | None = None,
+        default_greeting: str | None = None,
+        url: str | None = None,
+        api_key: str | None = None,
+        api_secret: str | None = None,
+        log_level: str | None = None,
+        dashboard: bool = False,
+        dashboard_refresh: float = 1.0,
+        metrics_json_file: Path | None = None,
+        metrics_jsonl: Path | None = None,
+        metrics_jsonl_interval: float | None = None,
+        isolation: str = "coroutine",
+        max_concurrent_sessions: int = 50,
+    ) -> SharedLiveKitWorkerOptions:
+        return cls(
+            agents_dir=agents_dir,
+            default_stt=default_stt,
+            default_llm=default_llm,
+            default_tts=default_tts,
+            default_greeting=default_greeting,
+            url=url,
+            api_key=api_key,
+            api_secret=api_secret,
+            log_level=log_level,
+            dashboard=dashboard,
+            dashboard_refresh=dashboard_refresh,
+            metrics_json_file=metrics_json_file,
+            metrics_jsonl=metrics_jsonl,
+            metrics_jsonl_interval=metrics_jsonl_interval,
+            isolation=isolation,
+            max_concurrent_sessions=max_concurrent_sessions,
+        )
+
+    @classmethod
+    def for_download_files(
+        cls,
+        agents_dir: Path,
+        *,
+        url: str | None = None,
+        api_key: str | None = None,
+        api_secret: str | None = None,
+        log_level: str | None = None,
+    ) -> SharedLiveKitWorkerOptions:
+        return cls(
+            agents_dir=agents_dir,
+            default_stt=None,
+            default_llm=None,
+            default_tts=None,
+            default_greeting=None,
+            url=url,
+            api_key=api_key,
+            api_secret=api_secret,
+            log_level=log_level,
+            dashboard=False,
+            dashboard_refresh=1.0,
+            metrics_json_file=None,
+            metrics_jsonl=None,
+            metrics_jsonl_interval=None,
+        )

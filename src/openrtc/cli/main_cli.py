@@ -6,28 +6,12 @@ import json
 import logging
 import sys
 from collections.abc import Callable
-from pathlib import Path
 from typing import Annotated
 
 import typer
 from typer import Context
 
-from openrtc.cli.dashboard import (
-    build_list_json_payload,
-    build_runtime_dashboard,
-    print_list_plain,
-    print_list_rich_table,
-    print_resource_summary_rich,
-)
-from openrtc.cli.livekit import (
-    _delegate_discovered_pool_to_livekit,
-    _discover_or_exit,
-    _run_connect_handoff,
-    inject_cli_positional_paths,
-)
-from openrtc.cli.params import SharedLiveKitWorkerOptions, agent_provider_kwargs
-from openrtc.cli.reporter import RuntimeReporter
-from openrtc.cli.types import (
+from openrtc.cli.base_cli import (
     _LIVEKIT_CLI_CONTEXT_SETTINGS,
     PANEL_ADVANCED,
     AgentsDirArg,
@@ -48,11 +32,25 @@ from openrtc.cli.types import (
     MetricsJsonFileArg,
     MetricsJsonlArg,
     MetricsJsonlIntervalArg,
-    TuiFromStartArg,
-    TuiWatchPathArg,
+    SharedLiveKitWorkerOptions,
+    agent_provider_kwargs,
 )
+from openrtc.cli.dashboard_cli import (
+    build_list_json_payload,
+    build_runtime_dashboard,
+    print_list_plain,
+    print_list_rich_table,
+    print_resource_summary_rich,
+)
+from openrtc.cli.livekit_cli import (
+    _delegate_discovered_pool_to_livekit,
+    _discover_or_exit,
+    _run_connect_handoff,
+    inject_cli_positional_paths,
+)
+from openrtc.cli.reporter_cli import RuntimeReporter
 from openrtc.core.pool import AgentPool
-from openrtc.observability.stream import DEFAULT_METRICS_JSONL_FILENAME
+from openrtc.observability.jsonl_sink import DEFAULT_METRICS_JSONL_FILENAME
 
 logger = logging.getLogger("openrtc")
 
@@ -71,12 +69,11 @@ app = typer.Typer(
     help=(
         "Run multiple LiveKit voice agents from one shared worker. Commands match "
         "LiveKit Agents ([code]dev[/code], [code]start[/code], [code]console[/code], "
-        "[code]connect[/code], [code]download-files[/code]) plus [code]list[/code] and "
-        "[code]tui[/code]. Most commands accept the agents directory as the first "
+        "[code]connect[/code], [code]download-files[/code]) plus [code]list[/code]. "
+        "Most commands accept the agents directory as the first "
         "positional argument instead of [code]--agents-dir[/code]; "
         "[code]start[/code]/[code]dev[/code]/[code]console[/code] also accept a "
-        "second path for [code]--metrics-jsonl[/code], and [code]tui[/code] can "
-        "take a metrics file path as the first positional instead of [code]--watch[/code]; "
+        "second path for [code]--metrics-jsonl[/code]; "
         "credentials use [code]LIVEKIT_*[/code] env vars by default (CLI flags optional)."
     ),
     epilog=_QUICKSTART_EPILOG,
@@ -97,7 +94,7 @@ def list_command(
                 "Include footprint fields (with --json and --plain) or extra "
                 "columns/summary (default Rich table). "
                 "Memory line is OS-specific (Linux: current VmRSS; macOS: peak "
-                "ru_maxrss, not live RSS—see JSON description)."
+                "ru_maxrss, not live RSS, see JSON description)."
             ),
             rich_help_panel=PANEL_ADVANCED,
         ),
@@ -150,8 +147,8 @@ def list_command(
 _WORKER_POSITIONAL_HELP = (
     " Use [code]openrtc {name} ./agents[/code] or [code]--agents-dir ./agents[/code]; "
     "add a second path only when you want JSONL metrics "
-    f"([code]--metrics-jsonl[/code], e.g. [code]./{DEFAULT_METRICS_JSONL_FILENAME}[/code] for "
-    "[code]openrtc tui[/code])."
+    f"([code]--metrics-jsonl[/code], e.g. [code]./{DEFAULT_METRICS_JSONL_FILENAME}[/code] to "
+    "tail or script the stream)."
 )
 
 _STANDARD_LIVEKIT_WORKER_SPECS: tuple[tuple[str, str], ...] = (
@@ -293,31 +290,6 @@ def download_files_command(
             log_level=log_level,
         ),
     )
-
-
-@app.command("tui")
-def tui_command(
-    watch: TuiWatchPathArg = Path(DEFAULT_METRICS_JSONL_FILENAME),
-    from_start: TuiFromStartArg = False,
-) -> None:
-    """Sidecar Textual UI tailing JSONL metrics (requires the ``tui`` extra).
-
-    With no ``--watch``, tails ``./openrtc-metrics.jsonl`` in the current directory;
-    start the worker with ``--metrics-jsonl`` set to that same path.
-    """
-    try:
-        from openrtc.tui.app import run_metrics_tui
-    except ImportError as exc:
-        logger.error(
-            "The TUI requires Textual. Install with: pip install 'openrtc[tui]' "
-            "(the cli extra is required for the openrtc command)."
-        )
-        raise typer.Exit(code=1) from exc
-    try:
-        run_metrics_tui(watch, from_start=from_start)
-    except ValueError as exc:
-        logger.error("%s", exc)
-        raise typer.Exit(code=1) from None
 
 
 def main(argv: list[str] | None = None) -> int:

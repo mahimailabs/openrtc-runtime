@@ -13,7 +13,8 @@ from livekit.agents import Agent
 import openrtc.core.discovery as discovery_module
 import openrtc.core.pool as pool_module
 import openrtc.core.serialization as serialization_module
-import openrtc.execution.prewarm as prewarm_module
+import openrtc.core.wiring as wiring_module
+import openrtc.runtime.prewarm as prewarm_module
 from openrtc import AgentPool
 
 
@@ -117,7 +118,7 @@ def test_drain_timeout_threads_to_process_server() -> None:
 
 
 def test_isolation_coroutine_constructs_coroutine_agent_server() -> None:
-    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
     pool = AgentPool()  # default isolation="coroutine"
 
@@ -127,7 +128,7 @@ def test_isolation_coroutine_constructs_coroutine_agent_server() -> None:
 def test_isolation_process_constructs_vanilla_agent_server() -> None:
     from livekit.agents import AgentServer
 
-    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
     pool = AgentPool(isolation="process")
 
@@ -136,7 +137,7 @@ def test_isolation_process_constructs_vanilla_agent_server() -> None:
 
 
 def test_isolation_coroutine_passes_max_concurrent_sessions_to_server() -> None:
-    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
     pool = AgentPool(max_concurrent_sessions=12)
 
@@ -508,7 +509,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
         VAD = FakeVAD
 
     monkeypatch.setattr(
-        "openrtc.execution.prewarm._load_shared_runtime_dependencies",
+        "openrtc.runtime.prewarm._load_shared_runtime_dependencies",
         lambda: (FakeSilero, FakeTurnDetector),
     )
     setup_callback(process)
@@ -544,7 +545,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
             raise AssertionError("Greeting should not be generated in this test.")
 
     ctx = FakeJobContext()
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     asyncio.run(session_callback(ctx))
 
     assert ctx.connected is True
@@ -599,11 +600,11 @@ def test_runtime_snapshot_reports_active_sessions_and_failures(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     ctx = FakeJobContext()
 
     async def run_session() -> None:
-        await pool_module._run_universal_session(pool._runtime_state, ctx)
+        await wiring_module.run_session(pool._runtime_state, ctx)
 
     async def exercise() -> None:
         task = asyncio.create_task(run_session())
@@ -652,12 +653,10 @@ def test_runtime_snapshot_records_session_failures(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
 
     with pytest.raises(RuntimeError, match="boom"):
-        asyncio.run(
-            pool_module._run_universal_session(pool._runtime_state, FakeJobContext())
-        )
+        asyncio.run(wiring_module.run_session(pool._runtime_state, FakeJobContext()))
 
     snapshot = pool.runtime_snapshot()
     assert snapshot.active_sessions == 0
@@ -691,12 +690,10 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_build_fails
     ) -> dict[str, object]:
         raise RuntimeError("session kwargs boom")
 
-    monkeypatch.setattr("openrtc.core.pool._build_session_kwargs", raise_build_error)
+    monkeypatch.setattr("openrtc.core.wiring._build_session_kwargs", raise_build_error)
 
     with pytest.raises(RuntimeError, match="session kwargs boom"):
-        asyncio.run(
-            pool_module._run_universal_session(pool._runtime_state, FakeJobContext())
-        )
+        asyncio.run(wiring_module.run_session(pool._runtime_state, FakeJobContext()))
 
     snapshot = pool.runtime_snapshot()
     assert snapshot.active_sessions == 0
@@ -727,12 +724,10 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_constructor
         def __init__(self, **kwargs: object) -> None:
             raise RuntimeError("session constructor boom")
 
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", BrokenSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", BrokenSession)
 
     with pytest.raises(RuntimeError, match="session constructor boom"):
-        asyncio.run(
-            pool_module._run_universal_session(pool._runtime_state, FakeJobContext())
-        )
+        asyncio.run(wiring_module.run_session(pool._runtime_state, FakeJobContext()))
 
     snapshot = pool.runtime_snapshot()
     assert snapshot.active_sessions == 0
@@ -780,7 +775,7 @@ def test_deprecated_session_kwargs_warning(
         async def start(self, *, agent: object, room: object) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     pool.add(
         "test",
         DemoAgent,
@@ -804,7 +799,7 @@ def test_deprecated_session_kwargs_warning(
     ctx.connect = do_connect.__get__(ctx, type(ctx))  # type: ignore[attr-defined]
 
     with pytest.warns(DeprecationWarning, match="turn_handling"):
-        asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(wiring_module.run_session(pool._runtime_state, ctx))
 
 
 def test_no_warning_for_modern_session_kwargs(
@@ -819,7 +814,7 @@ def test_no_warning_for_modern_session_kwargs(
         async def start(self, *, agent: object, room: object) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
     pool.add(
         "test",
         DemoAgent,
@@ -841,7 +836,7 @@ def test_no_warning_for_modern_session_kwargs(
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
-        asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(wiring_module.run_session(pool._runtime_state, ctx))
 
 
 def test_add_rejects_empty_name() -> None:
@@ -886,7 +881,7 @@ def test_prewarm_worker_raises_when_runtime_state_has_no_agents() -> None:
         prewarm_module._prewarm_worker(pool._runtime_state, proc)
 
 
-def test_run_universal_session_raises_when_no_agents_registered() -> None:
+def test_run_session_raises_when_no_agents_registered() -> None:
     """The session entrypoint raises before agent resolution if registry is empty."""
     pool = AgentPool()
     ctx = SimpleNamespace(
@@ -896,7 +891,7 @@ def test_run_universal_session_raises_when_no_agents_registered() -> None:
     )
 
     with pytest.raises(RuntimeError, match="No agents are registered"):
-        asyncio.run(pool_module._run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(wiring_module.run_session(pool._runtime_state, ctx))
 
 
 def test_load_shared_runtime_dependencies_raises_when_plugin_missing(

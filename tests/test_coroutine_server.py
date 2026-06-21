@@ -16,8 +16,8 @@ import livekit.agents.ipc.proc_pool as _proc_pool_mod
 import pytest
 from livekit.agents import AgentServer
 
-from openrtc.execution.coroutine import CoroutinePool
-from openrtc.execution.coroutine_server import _CoroutineAgentServer
+from openrtc.runtime.coroutine_runtime import CoroutinePool
+from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
 
 def test_coroutine_server_default_max_concurrent_sessions_is_50() -> None:
@@ -195,9 +195,7 @@ def test_coroutine_server_supervisor_callback_logs_and_schedules_aclose(
     server.aclose = _fake_aclose  # type: ignore[method-assign]
 
     async def _scenario() -> None:
-        with caplog.at_level(
-            logging.ERROR, logger="openrtc.execution.coroutine_server"
-        ):
+        with caplog.at_level(logging.ERROR, logger="openrtc.runtime.coroutine_server"):
             server._on_consecutive_failure_limit(7)
         # The scheduled task fires on the next loop iteration.
         await asyncio.sleep(0)

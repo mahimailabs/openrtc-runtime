@@ -29,8 +29,8 @@ import pytest
 from livekit.agents import Agent, AgentServer
 
 from openrtc import AgentPool
-from openrtc.core.pool import _run_universal_session
-from openrtc.core.routing import _resolve_agent_config
+from openrtc.core.wiring import run_session
+from openrtc.routing.resolver import _resolve_agent_config
 
 
 class _DemoAgent(Agent):
@@ -109,7 +109,7 @@ def test_universal_entrypoint_runs_under_both_modes(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
 
     pool = AgentPool(isolation=isolation)  # type: ignore[arg-type]
     pool.add("demo", _DemoAgent, greeting="hi")
@@ -126,7 +126,7 @@ def test_universal_entrypoint_runs_under_both_modes(
         connect=lambda: _no_op_async(),
     )
 
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
 
     assert started == ["_DemoAgent"]
 
@@ -137,7 +137,7 @@ async def _no_op_async() -> None:
 
 def test_process_mode_server_is_vanilla_agent_server() -> None:
     """v0.0.17 invariant: process mode hands callers an unwrapped AgentServer."""
-    from openrtc.execution.coroutine_server import _CoroutineAgentServer
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
     pool = AgentPool(isolation="process")
 
@@ -170,13 +170,13 @@ def test_process_mode_does_not_import_coroutine_subsystem(
     coroutine modules from ``sys.modules`` and constructing a process
     pool does not re-import them.
     """
-    for name in ("openrtc.execution.coroutine_server",):
+    for name in ("openrtc.runtime.coroutine_server",):
         monkeypatch.delitem(sys.modules, name, raising=False)
 
     pool = AgentPool(isolation="process")
     assert isinstance(pool.server, AgentServer)
     # The coroutine_server module should not have been re-imported.
-    assert "openrtc.execution.coroutine_server" not in sys.modules
+    assert "openrtc.runtime.coroutine_server" not in sys.modules
 
 
 @pytest.mark.parametrize("isolation", ["coroutine", "process"])

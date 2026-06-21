@@ -17,7 +17,7 @@ import pytest
 from livekit.agents import JobContext
 from livekit.agents.ipc.job_executor import JobStatus
 
-from openrtc.execution.coroutine import CoroutineJobExecutor
+from openrtc.runtime.coroutine_runtime import CoroutineJobExecutor
 
 
 def _info(job_id: str = "x") -> Any:

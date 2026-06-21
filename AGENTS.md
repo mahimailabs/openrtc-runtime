@@ -158,6 +158,37 @@ Example expectations:
 
 ---
 
+## House style (readability convention)
+
+OpenRTC favors code that reads like one human wrote it. Follow these rules in new and edited code.
+
+- Module docstring: one line stating the module's single responsibility. Add a paragraph only to record a non-obvious invariant a reader would otherwise violate.
+- Class docstring: one line. Function or method docstring: one line, only where it earns it (public or non-trivial). Do not write Args/Returns/Raises blocks; type hints carry parameter and return information.
+- Comments explain why, not what. Single-line, sparse. No TODO/FIXME/XXX debt markers.
+- Fixed file skeleton: module docstring, then `from __future__ import annotations`, then imports (stdlib, third-party, first-party), then a module logger if used, then private `_CONSTANTS`, then private `_helpers`, then the public class(es), then `__all__` at the bottom.
+- One responsibility per file. Size is earned only by facades and aggregators.
+- Protocol seams follow the `observability/base_observer.py` model: a `@runtime_checkable` Protocol for a pure contract, a small ABC only when the base carries shared code, concretes that conform structurally, and selection kept outside the abstraction.
+
+### Package grouping convention
+
+OpenRTC organizes `src/openrtc/` into two kinds of packages, and contributors must follow this convention when adding or moving modules:
+
+**Family packages** (`routing/`, `runtime/`, `observability/`, `cli/`): contain a related set of variants that implement a common contract.
+
+- `base_<kind>.py` holds the contract (a `Protocol` or abstract base). Example: `base_routing.py` defines `RoutingStrategy`.
+- `<variant>_<kind>.py` siblings each implement one concrete variant. Example: `metadata_routing.py`, `room_prefix_routing.py`.
+- Selection logic lives in a separate, dedicated module (`resolver.py`, `registry.py`), not inside the base or the variants.
+- Non-variant helpers that support the family but are not themselves a variant keep plain names. Example: `prewarm.py` in `runtime/` is a shared helper, not a runtime variant.
+
+**Foundational packages** (`core/`, `utils/`): contain flat, plain-named modules. No `base_` prefix, no variant naming. These modules are dependencies for the rest of the package, not members of a variant family.
+
+When adding a new module, decide which category it belongs to before choosing a name:
+- New variant of an existing family: follow the `<variant>_<kind>.py` pattern and place it in the family package.
+- New shared contract for a family: name it `base_<kind>.py`.
+- New foundational helper with no family: place it in `core/` or `utils/` with a plain descriptive name.
+
+---
+
 ## Documentation Expectations
 
 - Public classes and functions should have concise docstrings
@@ -416,6 +447,6 @@ All commands are documented in `CONTRIBUTING.md`. Quick reference:
 - The `tests/conftest.py` shim targets the `livekit-agents` pin in `pyproject.toml` (~1.4.x today) and only implements APIs OpenRTC uses. When upgrading LiveKit or adding new `livekit.agents` usage, extend the shim or confirm tests pass with the real SDK (`uv sync` + `uv run pytest`). If imports behave oddly, check whether the shim path is active vs. the real package.
 - Version is derived from git tags via `hatch-vcs`. In a dev checkout the version will be something like `0.0.9.dev0+g<hash>`.
 - `mypy` is enforced in CI alongside Ruff; run `uv run mypy src/` before pushing type-sensitive changes.
-- Running `openrtc start` or `openrtc dev` requires a running LiveKit server and provider API keys. For development validation, use `openrtc list` which exercises discovery and routing without network dependencies. The optional sidecar metrics TUI (`openrtc tui`, requires `openrtc[tui]` / dev deps) tails `./openrtc-metrics.jsonl` by default (same path as `--metrics-jsonl` on the worker; override with `--watch`).
+- Running `openrtc start` or `openrtc dev` requires a running LiveKit server and provider API keys. For development validation, use `openrtc list` which exercises discovery and routing without network dependencies. Pass `--metrics-jsonl` on the worker to emit per-session metrics to a JSONL file (default `./openrtc-metrics.jsonl`); tail or script that file (for example `tail -f openrtc-metrics.jsonl` or pipe it through `jq`) to inspect throughput.
 - `pytest-cov` is in the dev dependency group; CI uses `--cov-fail-under=80`; run
   `uv run pytest --cov=openrtc --cov-report=xml --cov-fail-under=80` to match.

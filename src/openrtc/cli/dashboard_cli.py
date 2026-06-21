@@ -11,13 +11,13 @@ from rich.table import Table
 from rich.text import Text
 
 from openrtc.core.config import AgentConfig
-from openrtc.observability.metrics import (
+from openrtc.observability.footprint import (
     agent_disk_footprints,
-    estimate_shared_worker_savings,
     file_size_bytes,
     format_byte_size,
-    get_process_resident_set_info,
 )
+from openrtc.observability.resident_set import get_process_resident_set_info
+from openrtc.observability.savings import estimate_shared_worker_savings
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 
 console = Console()
@@ -25,7 +25,7 @@ console = Console()
 
 def _format_percent(saved_bytes: int | None, baseline_bytes: int | None) -> str:
     if saved_bytes is None or baseline_bytes is None or baseline_bytes == 0:
-        return "—"
+        return "-"
     return f"{(saved_bytes / baseline_bytes) * 100:.0f}%"
 
 
@@ -52,7 +52,7 @@ def _build_sessions_table(snapshot: PoolRuntimeSnapshot) -> Table:
         ):
             table.add_row(agent_name, str(count))
     else:
-        table.add_row("—", "0")
+        table.add_row("-", "0")
     return table
 
 
@@ -83,7 +83,7 @@ def build_runtime_dashboard(snapshot: PoolRuntimeSnapshot) -> Panel:
     left.add_row("Active", str(snapshot.active_sessions))
     left.add_row("Total handled", str(snapshot.total_sessions_started))
     left.add_row("Failures", str(snapshot.total_session_failures))
-    left.add_row("Last route", snapshot.last_routed_agent or "—")
+    left.add_row("Last route", snapshot.last_routed_agent or "-")
 
     right = Table.grid(padding=(0, 1))
     right.add_column(style="bold magenta")
@@ -195,7 +195,7 @@ def print_list_rich_table(
                 sz = file_size_bytes(config.source_path)
                 row.append(format_byte_size(sz))
             else:
-                row.append("—")
+                row.append("-")
         table.add_row(*row)
 
     console.print(table)
@@ -307,7 +307,7 @@ def print_resource_summary_rich(discovered: list[AgentConfig]) -> None:
 
     if rss_info.bytes_value is not None:
         lines.append(
-            f"{format_byte_size(rss_info.bytes_value)} — {rss_info.description}"
+            f"{format_byte_size(rss_info.bytes_value)} ({rss_info.description})"
         )
     else:
         lines.append(
@@ -361,7 +361,7 @@ def print_resource_summary_plain(discovered: list[AgentConfig]) -> None:
     if rss_info.bytes_value is not None:
         print(
             f"  Resident set metric ({rss_info.metric}): "
-            f"{format_byte_size(rss_info.bytes_value)} — {rss_info.description}"
+            f"{format_byte_size(rss_info.bytes_value)} ({rss_info.description})"
         )
     else:
         print(

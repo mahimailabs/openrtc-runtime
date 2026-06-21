@@ -1,11 +1,11 @@
-"""Resolve which registered agent should handle an incoming session."""
+"""RoutingStrategy Protocol and shared helper functions for the routing family."""
 
 from __future__ import annotations
 
 import json
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from livekit.agents import JobContext
 
@@ -16,36 +16,13 @@ logger = logging.getLogger("openrtc")
 _METADATA_AGENT_KEYS = ("agent", "demo")
 
 
-def _resolve_agent_config(
-    agents: Mapping[str, AgentConfig],
-    ctx: JobContext,
-) -> AgentConfig:
-    """Resolve the agent for a session from metadata or fallback order."""
-    if not agents:
-        raise RuntimeError("No agents are registered in the pool.")
+@runtime_checkable
+class RoutingStrategy(Protocol):
+    """Resolve the agent for a session, or return None to defer to the next strategy."""
 
-    selected_name = _agent_name_from_metadata(getattr(ctx.job, "metadata", None))
-    if selected_name is not None:
-        return _get_registered_agent(agents, selected_name, source="job metadata")
-
-    selected_name = _agent_name_from_metadata(getattr(ctx.room, "metadata", None))
-    if selected_name is not None:
-        return _get_registered_agent(agents, selected_name, source="room metadata")
-
-    room_name = getattr(ctx.room, "name", None)
-    if isinstance(room_name, str):
-        for agent_name, config in agents.items():
-            if room_name.startswith(f"{agent_name}-"):
-                logger.info(
-                    "Resolved agent '%s' via room name prefix from room '%s'.",
-                    agent_name,
-                    room_name,
-                )
-                return config
-
-    default_agent = next(iter(agents.values()))
-    logger.info("Resolved agent '%s' via default fallback.", default_agent.name)
-    return default_agent
+    def resolve(
+        self, agents: Mapping[str, AgentConfig], ctx: JobContext
+    ) -> AgentConfig | None: ...
 
 
 def _agent_name_from_metadata(metadata: Any) -> str | None:

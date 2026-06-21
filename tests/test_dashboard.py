@@ -1,4 +1,4 @@
-"""Unit tests for ``openrtc.cli.dashboard`` rendering helpers.
+"""Unit tests for ``openrtc.cli.dashboard_cli`` rendering helpers.
 
 The CLI integration tests cover the happy paths via ``CliRunner``; this
 module pins the small pure helpers (`_format_percent`, `_memory_style`,
@@ -14,7 +14,7 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
-from openrtc.cli.dashboard import (
+from openrtc.cli.dashboard_cli import (
     _format_percent,
     _memory_style,
     _truncate_cell,
@@ -32,9 +32,9 @@ class TinyAgent(Agent):
 
 
 def test_format_percent_returns_dash_when_inputs_missing() -> None:
-    assert _format_percent(None, 100) == "—"
-    assert _format_percent(50, None) == "—"
-    assert _format_percent(50, 0) == "—"
+    assert _format_percent(None, 100) == "-"
+    assert _format_percent(50, None) == "-"
+    assert _format_percent(50, 0) == "-"
 
 
 def test_format_percent_rounds_ratio_to_zero_decimals() -> None:
@@ -63,14 +63,14 @@ def test_truncate_cell_passes_short_strings_through_unchanged() -> None:
 def test_print_list_rich_table_renders_dash_for_missing_source_path(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A registered agent without ``source_path`` shows ``—`` in the source column."""
+    """A registered agent without ``source_path`` shows ``-`` in the source column."""
     pool = AgentPool()
     pool.add("a", TinyAgent)
 
     print_list_rich_table([pool.get("a")], resources=True)
 
     out = capsys.readouterr().out
-    assert "—" in out
+    assert "-" in out
 
 
 def test_print_list_plain_includes_source_size_for_known_paths(
@@ -109,7 +109,7 @@ def test_print_resource_summary_plain_handles_unavailable_rss(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """When RSS is unavailable, the unavailable-metric branch fires."""
-    from openrtc.cli import dashboard as dashboard_module
+    from openrtc.cli import dashboard_cli as dashboard_module
 
     monkeypatch.setattr(
         dashboard_module,
@@ -129,7 +129,7 @@ def test_print_resource_summary_plain_handles_unavailable_rss(
 
 def test_build_list_json_payload_omits_resource_keys_when_resources_disabled() -> None:
     """Branch: ``include_resources=False`` skips both per-agent and summary resource keys."""
-    from openrtc.cli.dashboard import build_list_json_payload
+    from openrtc.cli.dashboard_cli import build_list_json_payload
 
     pool = AgentPool()
     pool.add("a", TinyAgent)
@@ -152,7 +152,7 @@ def test_print_resource_summary_rich_handles_unavailable_rss(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The Rich summary uses the alternate "unavailable" string when RSS is None."""
-    from openrtc.cli import dashboard as dashboard_module
+    from openrtc.cli import dashboard_cli as dashboard_module
 
     monkeypatch.setattr(
         dashboard_module,

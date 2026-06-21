@@ -6,12 +6,14 @@ from pathlib import Path
 import pytest
 from livekit.agents import Agent
 
-import openrtc.observability.metrics as resources_module
+import openrtc.observability.resident_set as resources_module
 from openrtc.core.pool import AgentPool
-from openrtc.observability.metrics import (
+from openrtc.observability.footprint import (
     agent_disk_footprints,
     file_size_bytes,
     format_byte_size,
+)
+from openrtc.observability.resident_set import (
     get_process_resident_set_info,
     process_resident_set_bytes,
 )
@@ -111,7 +113,7 @@ def test_file_size_bytes_returns_zero_when_path_missing(tmp_path: Path) -> None:
 
 
 def test_estimate_savings_short_circuits_when_agent_count_zero() -> None:
-    from openrtc.observability.metrics import estimate_shared_worker_savings
+    from openrtc.observability.savings import estimate_shared_worker_savings
 
     estimate = estimate_shared_worker_savings(agent_count=0, shared_worker_bytes=100)
 
@@ -120,7 +122,7 @@ def test_estimate_savings_short_circuits_when_agent_count_zero() -> None:
 
 
 def test_estimate_savings_short_circuits_when_shared_worker_bytes_none() -> None:
-    from openrtc.observability.metrics import estimate_shared_worker_savings
+    from openrtc.observability.savings import estimate_shared_worker_savings
 
     estimate = estimate_shared_worker_savings(agent_count=3, shared_worker_bytes=None)
 
@@ -132,12 +134,12 @@ def test_get_process_resident_set_info_for_linux_branch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The Linux branch reads VmRSS via the ``_linux_rss_bytes`` helper."""
-    from openrtc.observability import metrics as metrics_module
+    from openrtc.observability import resident_set as resident_set_module
 
-    monkeypatch.setattr(metrics_module.sys, "platform", "linux")
-    monkeypatch.setattr(metrics_module, "_linux_rss_bytes", lambda: 4096)
+    monkeypatch.setattr(resident_set_module.sys, "platform", "linux")
+    monkeypatch.setattr(resident_set_module, "_linux_rss_bytes", lambda: 4096)
 
-    info = metrics_module.get_process_resident_set_info()
+    info = resident_set_module.get_process_resident_set_info()
 
     assert info.metric == "linux_vm_rss"
     assert info.bytes_value == 4096
@@ -147,11 +149,11 @@ def test_get_process_resident_set_info_for_unknown_platform(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Non-Linux non-Darwin platforms get the unavailable sentinel."""
-    from openrtc.observability import metrics as metrics_module
+    from openrtc.observability import resident_set as resident_set_module
 
-    monkeypatch.setattr(metrics_module.sys, "platform", "win32")
+    monkeypatch.setattr(resident_set_module.sys, "platform", "win32")
 
-    info = metrics_module.get_process_resident_set_info()
+    info = resident_set_module.get_process_resident_set_info()
 
     assert info.metric == "unavailable"
     assert info.bytes_value is None
@@ -160,7 +162,7 @@ def test_get_process_resident_set_info_for_unknown_platform(
 def test_linux_rss_bytes_parses_proc_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from openrtc.observability import metrics as metrics_module
+    from openrtc.observability import resident_set as resident_set_module
 
     fake_status = (
         "Name:\tagent\nVmPeak:\t  131072 kB\nVmRSS:\t  2048 kB\nVmHWM:\t  4096 kB\n"
@@ -171,49 +173,49 @@ def test_linux_rss_bytes_parses_proc_status(
             return fake_status
         raise AssertionError(f"unexpected read_text on {self!s}")
 
-    monkeypatch.setattr(metrics_module.Path, "read_text", _fake_read_text)
+    monkeypatch.setattr(resident_set_module.Path, "read_text", _fake_read_text)
 
-    assert metrics_module._linux_rss_bytes() == 2048 * 1024
+    assert resident_set_module._linux_rss_bytes() == 2048 * 1024
 
 
 def test_linux_rss_bytes_returns_none_when_proc_unreadable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from openrtc.observability import metrics as metrics_module
+    from openrtc.observability import resident_set as resident_set_module
 
     def _raise(_self: Path, *_args: object, **_kwargs: object) -> str:
         raise OSError("no procfs")
 
-    monkeypatch.setattr(metrics_module.Path, "read_text", _raise)
+    monkeypatch.setattr(resident_set_module.Path, "read_text", _raise)
 
-    assert metrics_module._linux_rss_bytes() is None
+    assert resident_set_module._linux_rss_bytes() is None
 
 
 def test_linux_rss_bytes_returns_none_when_vmrss_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from openrtc.observability import metrics as metrics_module
+    from openrtc.observability import resident_set as resident_set_module
 
     def _no_vmrss(_self: Path, *_args: object, **_kwargs: object) -> str:
         return "Name:\tagent\nVmPeak:\t  131072 kB\n"
 
-    monkeypatch.setattr(metrics_module.Path, "read_text", _no_vmrss)
+    monkeypatch.setattr(resident_set_module.Path, "read_text", _no_vmrss)
 
-    assert metrics_module._linux_rss_bytes() is None
+    assert resident_set_module._linux_rss_bytes() is None
 
 
 def test_linux_rss_bytes_continues_loop_when_vmrss_line_has_no_value(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Branch: a ``VmRSS:`` line without a value falls through to the next line."""
-    from openrtc.observability import metrics as metrics_module
+    from openrtc.observability import resident_set as resident_set_module
 
     def _malformed_then_good(_self: Path, *_args: object, **_kwargs: object) -> str:
         return "VmRSS:\nName:\tagent\n"
 
-    monkeypatch.setattr(metrics_module.Path, "read_text", _malformed_then_good)
+    monkeypatch.setattr(resident_set_module.Path, "read_text", _malformed_then_good)
 
-    assert metrics_module._linux_rss_bytes() is None
+    assert resident_set_module._linux_rss_bytes() is None
 
 
 def test_macos_rss_bytes_returns_none_when_getrusage_raises(
@@ -222,14 +224,14 @@ def test_macos_rss_bytes_returns_none_when_getrusage_raises(
     """``OSError`` from ``getrusage`` surfaces as ``None``."""
     import resource
 
-    from openrtc.observability import metrics as metrics_module
+    from openrtc.observability import resident_set as resident_set_module
 
     def _raise(_who: int) -> object:
         raise OSError("no rusage")
 
     monkeypatch.setattr(resource, "getrusage", _raise)
 
-    assert metrics_module._macos_rss_bytes() is None
+    assert resident_set_module._macos_rss_bytes() is None
 
 
 def test_macos_rss_bytes_returns_none_when_value_non_positive(
@@ -239,13 +241,13 @@ def test_macos_rss_bytes_returns_none_when_value_non_positive(
     import resource
     from types import SimpleNamespace
 
-    from openrtc.observability import metrics as metrics_module
+    from openrtc.observability import resident_set as resident_set_module
 
     monkeypatch.setattr(
         resource, "getrusage", lambda _who: SimpleNamespace(ru_maxrss=0)
     )
 
-    assert metrics_module._macos_rss_bytes() is None
+    assert resident_set_module._macos_rss_bytes() is None
 
 
 def test_runtime_metrics_store_record_session_finished_keeps_positive_count() -> None:

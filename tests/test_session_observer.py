@@ -9,8 +9,8 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
-from openrtc.core.pool import _run_universal_session
-from openrtc.observability.observer import (
+from openrtc.core.wiring import run_session
+from openrtc.observability.base_observer import (
     SessionInfo,
     SessionObserver,
     SessionOutcome,
@@ -117,7 +117,7 @@ def test_build_session_info_defends_missing_attrs() -> None:
 
 
 def test_coerce_metadata_edge_cases() -> None:
-    from openrtc.observability.observer import _coerce_metadata
+    from openrtc.observability.base_observer import _coerce_metadata
 
     assert _coerce_metadata("") == {}
     assert _coerce_metadata("   ") == {}
@@ -231,12 +231,12 @@ def _ctx_with_proc(**kw: object) -> types.SimpleNamespace:
 
 
 def test_observer_notified_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
     obs = _RecordingObserver()
     pool = AgentPool(observers=[obs])
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc(room_name="restaurant-1", job_id="job-1")
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
     assert len(obs.starts) == 1
     start_info, _session = obs.starts[0]
     assert isinstance(start_info, SessionInfo)
@@ -248,33 +248,33 @@ def test_observer_notified_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_observer_notified_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FailingSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FailingSession)
     obs = _RecordingObserver()
     pool = AgentPool(observers=[obs])
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with pytest.raises(ValueError, match="greeting failed"):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(run_session(pool._runtime_state, ctx))
     assert obs.ends[0].status is SessionStatus.FAILED
     assert isinstance(obs.ends[0].error, ValueError)
     assert pool._runtime_state.metrics.total_session_failures == 1
 
 
 def test_observer_notified_on_cancellation(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _CancelledSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _CancelledSession)
     obs = _RecordingObserver()
     pool = AgentPool(observers=[obs])
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(run_session(pool._runtime_state, ctx))
     assert obs.ends[0].status is SessionStatus.CANCELLED
 
 
 def test_raising_observer_does_not_break_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
 
     class _Raises:
         async def on_session_start(self, info: object, session: object) -> None:
@@ -287,16 +287,16 @@ def test_raising_observer_does_not_break_session(
     pool = AgentPool(observers=[_Raises(), good])
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
     assert len(good.ends) == 1
 
 
 def test_no_observers_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
     pool = AgentPool()
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
-    asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+    asyncio.run(run_session(pool._runtime_state, ctx))
     assert pool._runtime_state.metrics.total_sessions_started == 1
 
 
@@ -324,13 +324,13 @@ def test_end_fires_without_start_when_session_start_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """on_session_end fires with no paired on_session_start if start() fails."""
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _StartFailingSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _StartFailingSession)
     obs = _RecordingObserver()
     pool = AgentPool(observers=[obs])
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with pytest.raises(ValueError, match="start failed"):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(run_session(pool._runtime_state, ctx))
     assert obs.starts == []  # start never fired (no live session)
     assert len(obs.ends) == 1
     assert obs.ends[0].status is SessionStatus.FAILED
@@ -340,7 +340,7 @@ def test_observer_raising_cancellederror_is_isolated(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An observer that raises CancelledError on its own does not crash the session."""
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
 
     class _CancelObserver:
         async def on_session_start(self, info: object, session: object) -> None:
@@ -354,7 +354,7 @@ def test_observer_raising_cancellederror_is_isolated(
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with caplog.at_level(logging.WARNING, logger="openrtc"):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))  # no crash
+        asyncio.run(run_session(pool._runtime_state, ctx))  # no crash
     assert len(good.ends) == 1  # the well-behaved observer still got its end
     assert "on_session_start" in caplog.text
 
@@ -363,8 +363,8 @@ def test_start_notification_uses_short_timeout_not_drain(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The hot-path start notify is bounded by a short timeout, not the drain budget."""
-    monkeypatch.setattr("openrtc.core.pool.AgentSession", _FakeSession)
-    monkeypatch.setattr("openrtc.core.pool._OBSERVER_START_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
+    monkeypatch.setattr("openrtc.core.wiring._OBSERVER_START_TIMEOUT_SECONDS", 0.01)
 
     class _SlowStart:
         async def on_session_start(self, info: object, session: object) -> None:
@@ -378,13 +378,13 @@ def test_start_notification_uses_short_timeout_not_drain(
     pool.add("restaurant", _Agent, greeting="hi")
     ctx = _ctx_with_proc()
     with caplog.at_level(logging.WARNING, logger="openrtc"):
-        asyncio.run(_run_universal_session(pool._runtime_state, ctx))
+        asyncio.run(run_session(pool._runtime_state, ctx))
     assert "failed on_session_start" in caplog.text
 
 
 def test_genuine_task_cancellation_propagates_through_invoke_observer() -> None:
     """A real cancellation of the session task propagates (it is not swallowed)."""
-    from openrtc.observability.observer import _invoke_observer
+    from openrtc.observability.base_observer import _invoke_observer
 
     class _Hang:
         async def on_session_end(self, info: object, outcome: object) -> None:

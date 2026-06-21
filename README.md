@@ -37,7 +37,7 @@ Run N LiveKit voice agents in one worker. Pay the model-load cost once.
     <li><a href="#routing">Routing</a></li>
     <li><a href="#greetings-and-session-options">Greetings and session options</a></li>
     <li><a href="#provider-configuration">Provider configuration</a></li>
-    <li><a href="#cli-and-tui">CLI and TUI</a></li>
+    <li><a href="#cli">CLI</a></li>
     <li><a href="#public-api-at-a-glance">Public API at a glance</a></li>
     <li><a href="#project-structure">Project structure</a></li>
     <li><a href="#contributing">Contributing</a></li>
@@ -71,17 +71,11 @@ With **uv** (recommended in [CONTRIBUTING.md](CONTRIBUTING.md)):
 
 ```bash
 uv add openrtc
-uv add "openrtc[cli,tui]"
+uv add "openrtc[cli]"
 ```
 
 ```bash
 pip install 'openrtc[cli]'
-```
-
-Optional Textual sidecar for live metrics:
-
-```bash
-pip install 'openrtc[cli,tui]'
 ```
 
 Set the same variables you use for any LiveKit worker:
@@ -432,9 +426,9 @@ pool = AgentPool(observers=[LoggingObserver()])  # or pool.add_observer(...)
 
 `on_session_start` receives the live `AgentSession`, which is where you subscribe to its metrics. `on_session_end` receives the terminal outcome (`SUCCESS`, `FAILED`, or `CANCELLED`). Observer calls are isolated: a raising or slow observer is logged and skipped, never crashing the session. In `process` isolation mode an observer must be picklable, so build live resources lazily on the first `on_session_start`.
 
-## CLI and TUI
+## CLI
 
-Install `openrtc[cli]` to get `openrtc` on your PATH. Subcommands follow the LiveKit Agents CLI shape (`dev`, `start`, `console`, `connect`, `download-files`), plus `list` and `tui`. For most commands you can pass the agents directory (or, for `tui`, the metrics JSONL file) as the first path argument instead of `--agents-dir` / `--watch`.
+Install `openrtc[cli]` to get `openrtc` on your PATH. Subcommands follow the LiveKit Agents CLI shape (`dev`, `start`, `console`, `connect`, `download-files`), plus `list`. For most commands you can pass the agents directory as the first path argument instead of `--agents-dir`.
 
 **List what discovery would register** (defaults are string passthroughs for `livekit-agents`, not constructed provider objects):
 
@@ -458,9 +452,9 @@ openrtc start ./agents
 openrtc dev ./agents
 ```
 
-Same as ``openrtc dev --agents-dir ./agents``. The metrics JSONL file is **optional**: add a second path only when you want JSONL output (same as ``--metrics-jsonl``), e.g. ``openrtc dev ./agents ./openrtc-metrics.jsonl`` for ``openrtc tui``.
+Same as ``openrtc dev --agents-dir ./agents``. The metrics JSONL file is **optional**: add a second path only when you want JSONL output (same as ``--metrics-jsonl``), e.g. ``openrtc dev ./agents ./openrtc-metrics.jsonl``.
 
-Optional visibility: `--dashboard` prints a Rich summary in the terminal. `--metrics-json-file ./runtime.json` overwrites a JSON snapshot on each tick. Use that for scripts, dashboards, or CI. For JSON Lines plus a separate terminal UI, use `--metrics-jsonl ./openrtc-metrics.jsonl` on the worker and `openrtc tui` in another terminal (it tails `./openrtc-metrics.jsonl` by default; override with `--watch`) after `pip install 'openrtc[cli,tui]'`.
+Optional visibility: `--dashboard` prints a Rich summary in the terminal. `--metrics-json-file ./runtime.json` overwrites a JSON snapshot on each tick. Use that for scripts, dashboards, or CI. For a streaming feed, use `--metrics-jsonl ./openrtc-metrics.jsonl` on the worker: it appends one JSON object per line as metrics arrive. Tail it with `tail -f ./openrtc-metrics.jsonl` or pipe it through `jq`, and any log shipper or script can consume the JSON Lines.
 
 Stable machine output: `openrtc list --json` and `--plain`. Combine `--resources` when you want footprint hints. OpenRTC-only flags are stripped before the handoff to LiveKit’s CLI parser.
 
@@ -504,31 +498,52 @@ On `AgentPool`:
 src/openrtc/
 ├── __init__.py
 ├── py.typed
-├── types.py               # ProviderValue and related typing
-├── tui/
-│   ├── __init__.py
-│   └── app.py             # optional Textual sidecar
-├── cli/
-│   ├── __init__.py        # re-exports `main` and `app`
-│   ├── entry.py           # lazy console entry / missing-extra hint
-│   ├── commands.py        # Typer commands and programmatic main()
-│   ├── types.py           # shared CLI option aliases
-│   ├── dashboard.py       # Rich dashboard and list output
-│   ├── reporter.py        # background metrics reporter thread
-│   ├── livekit.py         # LiveKit argv/env handoff, pool run
-│   └── params.py          # shared worker handoff option bundles
-├── core/
-│   └── pool.py            # AgentPool, discovery, routing
-└── observability/
-    ├── metrics.py         # RuntimeMetricsStore, footprint helpers
-    ├── snapshot.py        # PoolRuntimeSnapshot dataclass
-    └── stream.py          # JSONL metrics schema
+├── core/                  # foundational, flat (pool, config, discovery, wiring)
+│   ├── pool.py            # AgentPool facade
+│   ├── config.py          # AgentConfig, AgentDiscoveryConfig, agent_config
+│   ├── discovery.py       # file-system discovery helpers
+│   ├── serialization.py   # spawn-safe config serialization
+│   ├── turn_handling.py   # turn-detector integration
+│   └── wiring.py          # AgentSession assembly helpers
+├── routing/               # family: base_routing.py + variant siblings + resolver
+│   ├── base_routing.py    # RoutingStrategy protocol
+│   ├── metadata_routing.py
+│   ├── room_prefix_routing.py
+│   ├── default_routing.py
+│   └── resolver.py        # selects active strategy
+├── runtime/               # family: base_runtime.py + variant siblings + registry
+│   ├── base_runtime.py    # RuntimeBackend protocol
+│   ├── coroutine_runtime.py
+│   ├── process_runtime.py
+│   ├── coroutine_server.py
+│   ├── prewarm.py         # shared prewarm helpers (non-variant)
+│   ├── resources.py       # shared resource cache
+│   ├── file_watcher.py    # hot-reload file watcher
+│   └── registry.py        # selects active runtime
+├── observability/         # family: base_observer.py + base_sink.py + concretes
+│   ├── base_observer.py   # SessionObserver protocol
+│   ├── base_sink.py       # MetricsSink protocol
+│   ├── jsonl_sink.py      # JSONL metrics schema and writer
+│   ├── metrics.py         # RuntimeMetricsStore, footprint helpers
+│   ├── snapshot.py        # PoolRuntimeSnapshot dataclass
+│   ├── resident_set.py    # RSS memory helpers
+│   ├── savings.py         # cost-savings estimator
+│   └── footprint.py       # per-session memory footprint
+├── cli/                   # family: base_cli.py + variant siblings
+│   ├── base_cli.py        # shared Typer args and parameter bundles
+│   ├── main_cli.py        # top-level Typer app and subcommands
+│   ├── dashboard_cli.py   # Rich dashboard and list output
+│   ├── entry_cli.py       # lazy console entry / missing-extra hint
+│   ├── livekit_cli.py     # LiveKit argv/env handoff, pool run
+│   └── reporter_cli.py    # background metrics reporter thread
+└── utils/                 # foundational, flat
+    ├── types.py           # ProviderValue and related typing
+    └── validation.py      # input validation helpers
 ```
 
-- `core/pool.py`: `AgentPool`, discovery, routing
+- `core/pool.py`: `AgentPool` facade; discovery, routing, and session assembly all delegate to focused modules
 - `cli/`: Typer/Rich CLI (`openrtc[cli]`)
-- `observability/stream.py`: JSONL metrics schema
-- `tui/app.py`: optional Textual sidecar (`openrtc[tui]`)
+- `observability/jsonl_sink.py`: JSONL metrics schema and writer
 
 ## Contributing
 

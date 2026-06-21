@@ -11,8 +11,8 @@ from pathlib import Path
 
 import typer
 
-from openrtc.cli.params import SharedLiveKitWorkerOptions
-from openrtc.cli.reporter import RuntimeReporter
+from openrtc.cli.base_cli import SharedLiveKitWorkerOptions
+from openrtc.cli.reporter_cli import RuntimeReporter
 from openrtc.core.config import AgentConfig
 from openrtc.core.pool import AgentPool
 
@@ -109,16 +109,6 @@ def _inject_worker_start_dev_console(argv: list[str]) -> list[str]:
     return out
 
 
-def _inject_tui_watch_positional(argv: list[str]) -> list[str]:
-    """``tui ./metrics.jsonl`` → ``tui --watch ./metrics.jsonl`` when ``--watch`` absent."""
-    rest = argv[1:]
-    if not rest or rest[0].startswith("-"):
-        return argv
-    if any(t == "--watch" or t.startswith("--watch=") for t in rest):
-        return argv
-    return [argv[0], "--watch", rest[0], *rest[1:]]
-
-
 def inject_cli_positional_paths(argv: list[str]) -> list[str]:
     """Rewrite common positional shortcuts into explicit flags before Typer parses.
 
@@ -132,8 +122,6 @@ def inject_cli_positional_paths(argv: list[str]) -> list[str]:
         return _inject_worker_start_dev_console(argv)
     if sub in {"list", "connect", "download-files"}:
         return _inject_agents_dir_positional(argv)
-    if sub == "tui":
-        return _inject_tui_watch_positional(argv)
     return argv
 
 

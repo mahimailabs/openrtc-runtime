@@ -27,7 +27,7 @@ features:
   - title: LiveKit-native runtime
     details: Built on livekit-agents with familiar dev, start, console, and connect-style workflows. Drop into `isolation="process"` for v0.0.17 parity when you need hard process isolation.
   - title: CLI and observability
-    details: Optional openrtc CLI with JSON output, resource hints, JSONL metrics, and a Textual sidecar TUI.
+    details: Optional openrtc CLI with JSON output, resource hints, and JSONL metrics.
 ---
 
 ## Read the docs

@@ -45,7 +45,7 @@ from typing import Any
 
 import numpy as np
 
-from openrtc.observability.metrics import process_resident_set_bytes
+from openrtc.observability.resident_set import process_resident_set_bytes
 
 _FRAME_S = 0.02  # 20 ms per frame -> 50 fps, the live audio cadence
 _SAMPLE_INTERVAL_S = 0.005

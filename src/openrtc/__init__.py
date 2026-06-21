@@ -4,14 +4,14 @@ from importlib.metadata import PackageNotFoundError, version
 
 from .core.config import AgentConfig, AgentDiscoveryConfig, agent_config
 from .core.pool import AgentPool
-from .execution.file_watcher import FileChange, FileWatcher
-from .observability.observer import (
+from .observability.base_observer import (
     SessionInfo,
     SessionObserver,
     SessionOutcome,
     SessionStatus,
 )
-from .types import ProviderValue
+from .runtime.file_watcher import FileChange, FileWatcher
+from .utils.types import ProviderValue
 
 try:
     __version__ = version("openrtc")

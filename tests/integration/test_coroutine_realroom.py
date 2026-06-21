@@ -42,8 +42,8 @@ from livekit.agents import Agent
 from livekit.agents.job import get_job_context
 
 from openrtc import AgentPool
-from openrtc.execution.coroutine_server import _CoroutineAgentServer
-from openrtc.observability.metrics import process_resident_set_bytes
+from openrtc.observability.resident_set import process_resident_set_bytes
+from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
 from .conftest import LiveKitDevServer
 
