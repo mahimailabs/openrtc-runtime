@@ -335,7 +335,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         http_proxy: str | None,
         loop: asyncio.AbstractEventLoop,
         session_end_timeout: float | None = None,
-        simulation_end_fnc: Callable[[JobContext], Awaitable[None]] | None = None,
+        simulation_end_fnc: Callable[[Any], Any] | None = None,
         max_concurrent_sessions: int = 50,
         consecutive_failure_limit: int = 5,
         on_consecutive_failure_limit: Callable[[int], None] | None = None,
@@ -561,7 +561,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         )
         if self._simulation_end_fnc is not None:
             with contextlib.suppress(Exception):
-                ctx._simulation_end_fnc = self._simulation_end_fnc  # type: ignore[assignment]
+                ctx._simulation_end_fnc = self._simulation_end_fnc
         return ctx
 
     def _on_executor_done(self, executor: JobExecutor) -> None:
