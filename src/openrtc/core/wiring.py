@@ -12,8 +12,7 @@ from livekit.agents import AgentSession
 
 from openrtc.core.config import AgentConfig
 from openrtc.core.turn_handling import _build_session_kwargs
-from openrtc.observability.metrics import RuntimeMetricsStore
-from openrtc.observability.observer import (
+from openrtc.observability.base_observer import (
     SessionInfo,
     SessionObserver,
     _build_session_info,
@@ -21,6 +20,7 @@ from openrtc.observability.observer import (
     _notify_session_end,
     _notify_session_start,
 )
+from openrtc.observability.metrics import RuntimeMetricsStore
 from openrtc.routing.resolver import _resolve_agent_config
 from openrtc.runtime.prewarm import _prewarm_worker
 from openrtc.runtime.resources import PrewarmResources

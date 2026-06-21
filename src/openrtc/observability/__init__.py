@@ -1,4 +1,4 @@
-from openrtc.observability.observer import (
+from openrtc.observability.base_observer import (
     SessionInfo,
     SessionObserver,
     SessionOutcome,

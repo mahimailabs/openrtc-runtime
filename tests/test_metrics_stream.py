@@ -10,9 +10,7 @@ from pathlib import Path
 import pytest
 
 from openrtc.cli.commands import RuntimeReporter
-from openrtc.observability.metrics import MetricsStreamEvent
-from openrtc.observability.snapshot import PoolRuntimeSnapshot
-from openrtc.observability.stream import (
+from openrtc.observability.jsonl_sink import (
     KIND_EVENT,
     KIND_SNAPSHOT,
     METRICS_STREAM_SCHEMA_VERSION,
@@ -20,6 +18,8 @@ from openrtc.observability.stream import (
     parse_metrics_jsonl_line,
     snapshot_envelope,
 )
+from openrtc.observability.metrics import MetricsStreamEvent
+from openrtc.observability.snapshot import PoolRuntimeSnapshot
 
 
 def _read_jsonl_lines(path: Path) -> list[str]:

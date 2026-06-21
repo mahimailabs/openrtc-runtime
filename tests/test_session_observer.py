@@ -10,7 +10,7 @@ from livekit.agents import Agent
 
 from openrtc import AgentPool
 from openrtc.core.wiring import run_session
-from openrtc.observability.observer import (
+from openrtc.observability.base_observer import (
     SessionInfo,
     SessionObserver,
     SessionOutcome,
@@ -117,7 +117,7 @@ def test_build_session_info_defends_missing_attrs() -> None:
 
 
 def test_coerce_metadata_edge_cases() -> None:
-    from openrtc.observability.observer import _coerce_metadata
+    from openrtc.observability.base_observer import _coerce_metadata
 
     assert _coerce_metadata("") == {}
     assert _coerce_metadata("   ") == {}
@@ -384,7 +384,7 @@ def test_start_notification_uses_short_timeout_not_drain(
 
 def test_genuine_task_cancellation_propagates_through_invoke_observer() -> None:
     """A real cancellation of the session task propagates (it is not swallowed)."""
-    from openrtc.observability.observer import _invoke_observer
+    from openrtc.observability.base_observer import _invoke_observer
 
     class _Hang:
         async def on_session_end(self, info: object, outcome: object) -> None:

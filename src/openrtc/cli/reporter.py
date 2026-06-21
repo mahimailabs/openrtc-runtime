@@ -12,7 +12,7 @@ from rich.panel import Panel
 
 from openrtc.cli.dashboard import build_runtime_dashboard, console
 from openrtc.core.pool import AgentPool
-from openrtc.observability.stream import JsonlMetricsSink
+from openrtc.observability.jsonl_sink import JsonlMetricsSink
 
 
 class RuntimeReporter:

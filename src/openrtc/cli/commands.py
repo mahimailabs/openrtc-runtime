@@ -49,7 +49,7 @@ from openrtc.cli.types import (
     MetricsJsonlIntervalArg,
 )
 from openrtc.core.pool import AgentPool
-from openrtc.observability.stream import DEFAULT_METRICS_JSONL_FILENAME
+from openrtc.observability.jsonl_sink import DEFAULT_METRICS_JSONL_FILENAME
 
 logger = logging.getLogger("openrtc")
 
