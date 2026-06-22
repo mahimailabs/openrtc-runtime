@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from livekit import rtc
 from livekit.agents import JobContext, JobExecutorType, JobProcess, utils
+from livekit.agents.utils import http_context
 
 try:
     from livekit.agents.ipc import inference_executor as inference_executor_mod
@@ -208,6 +209,11 @@ class CoroutineJobExecutor:
         token: contextvars.Token[JobContext] | None = None
         with contextlib.suppress(Exception):
             token = _JobContextVar.set(ctx)
+        # Bind a per-job aiohttp session factory so plugins that resolve
+        # utils.http_context.http_session() lazily (Cartesia TTS, the server
+        # API, etc.) get a session, mirroring livekit's per-process runner.
+        with contextlib.suppress(Exception):
+            http_context._new_session_ctx()
 
         # Shutdown triggers (all optional for stub contexts): ctx.shutdown()
         # via on_shutdown, and the room "disconnected" event (mirrors
@@ -279,6 +285,10 @@ class CoroutineJobExecutor:
                         "session_end_fnc raised in CoroutineJobExecutor",
                         extra=self.logging_extra(),
                     )
+            # Close the per-job aiohttp session (upstream teardown order:
+            # after session_end_fnc, before the job-context reset).
+            with contextlib.suppress(Exception):
+                await http_context._close_http_ctx()
             if token is not None:
                 with contextlib.suppress(Exception):
                     _JobContextVar.reset(token)
