@@ -155,6 +155,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.5.0] - 2026-06-22
+
+## What's Changed
+* Open a per-job HTTP context in coroutine (density) mode by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/48
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.4.0...v0.5.0
+
+---
+
 ## [0.4.0] - 2026-06-21
 
 ## What's Changed
