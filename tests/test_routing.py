@@ -34,8 +34,14 @@ class FakeProcess:
 
 
 @dataclass
+class FakeJobRoom:
+    name: str = ""
+
+
+@dataclass
 class FakeJob:
     metadata: Any = None
+    room: Any = None
 
 
 @dataclass
@@ -54,8 +60,12 @@ class FakeJobContext:
         job_metadata: Any = None,
         room_metadata: Any = None,
         room_name: str = "general-room",
+        job_room_name: str | None = None,
     ) -> None:
-        self.job = FakeJob(metadata=job_metadata)
+        self.job = FakeJob(
+            metadata=job_metadata,
+            room=FakeJobRoom(name=job_room_name) if job_room_name is not None else None,
+        )
         self.room = FakeRoom(metadata=room_metadata, name=room_name)
         self.proc = FakeProcess()
         self.events: list[str] = []
@@ -137,6 +147,18 @@ def test_resolve_agent_prefers_agent_key_over_demo_key(pool: AgentPool) -> None:
 
 def test_resolve_agent_matches_room_name_prefix(pool: AgentPool) -> None:
     ctx = FakeJobContext(room_name="dental-follow-up")
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_matches_job_room_name_when_rtc_room_unconnected(
+    pool: AgentPool,
+) -> None:
+    """Real rooms: routing must use the job room name (the rtc.Room name is
+    empty until connect, and routing runs before connect)."""
+    ctx = FakeJobContext(room_name="", job_room_name="dental-follow-up")
 
     resolved = _resolve_agent_config(pool._agents, ctx)
 
@@ -377,7 +399,8 @@ def test_handle_session_generates_greeting_after_connect(
     assert session.events == ["start", "generate_reply"]
     assert ctx.events == ["connect"]
     assert session.generated_instructions == ["Welcome to reservations."]
-    assert EVENT_LOG == ["start", "connect", "generate_reply"]
+    # connect runs before start so on_enter sees a connected room.
+    assert EVENT_LOG == ["connect", "start", "generate_reply"]
 
 
 def test_handle_session_skips_greeting_when_not_configured(
@@ -393,4 +416,5 @@ def test_handle_session_skips_greeting_when_not_configured(
     assert session.events == ["start"]
     assert ctx.events == ["connect"]
     assert session.generated_instructions == []
-    assert EVENT_LOG == ["start", "connect"]
+    # connect runs before start so on_enter sees a connected room.
+    assert EVENT_LOG == ["connect", "start"]

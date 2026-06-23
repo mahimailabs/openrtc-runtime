@@ -78,11 +78,17 @@ async def run_session(
     session, config, info = build_session(runtime_state, ctx)
     try:
         runtime_state.metrics.record_session_started(config.name)
+        # Connect before starting the session. start() fires the agent's
+        # on_enter as a detached task (livekit schedules it with
+        # wait_on_enter=False); if the room is not connected yet, any on_enter
+        # that touches room.local_participant raises "cannot access local
+        # participant before connecting". connect() is idempotent, so start()'s
+        # own internal connect is a no-op.
+        await ctx.connect()
         await session.start(
             agent=config.agent_cls(),  # type: ignore[call-arg]
             room=ctx.room,
         )
-        await ctx.connect()
         await _notify_session_start(
             runtime_state.observers,
             info,
