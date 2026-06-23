@@ -155,6 +155,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.6.0] - 2026-06-23
+
+## What's Changed
+* Fix real-room session lifecycle (connect before start) and routing, with a two-agent integration guard by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/49
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.5.0...v0.6.0
+
+---
+
 ## [0.5.0] - 2026-06-22
 
 ## What's Changed
