@@ -19,7 +19,11 @@ services:
   livekit:
     image: livekit/livekit-server:v1.7
     container_name: openrtc-livekit-test
-    command: ["--dev", "--bind", "0.0.0.0"]
+    # --node-ip 127.0.0.1 makes the SFU advertise a loopback ICE candidate so a
+    # host client (the integration test) can reach the published media ports.
+    # Without it the server advertises the container IP and real-room WebRTC
+    # (simulate_job(fake_job=False)) times out with "wait_pc_connection timed out".
+    command: ["--dev", "--bind", "0.0.0.0", "--node-ip", "127.0.0.1"]
     ports:
       - "7880:7880"     # WebSocket signaling (LIVEKIT_URL)
       - "7881:7881"     # TCP media fallback
