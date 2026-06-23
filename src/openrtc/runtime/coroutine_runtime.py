@@ -209,11 +209,6 @@ class CoroutineJobExecutor:
         token: contextvars.Token[JobContext] | None = None
         with contextlib.suppress(Exception):
             token = _JobContextVar.set(ctx)
-        # Bind a per-job aiohttp session factory so plugins that resolve
-        # utils.http_context.http_session() lazily (Cartesia TTS, the server
-        # API, etc.) get a session, mirroring livekit's per-process runner.
-        with contextlib.suppress(Exception):
-            http_context._new_session_ctx()
 
         # Shutdown triggers (all optional for stub contexts): ctx.shutdown()
         # via on_shutdown, and the room "disconnected" event (mirrors
@@ -285,10 +280,6 @@ class CoroutineJobExecutor:
                         "session_end_fnc raised in CoroutineJobExecutor",
                         extra=self.logging_extra(),
                     )
-            # Close the per-job aiohttp session (upstream teardown order:
-            # after session_end_fnc, before the job-context reset).
-            with contextlib.suppress(Exception):
-                await http_context._close_http_ctx()
             if token is not None:
                 with contextlib.suppress(Exception):
                     _JobContextVar.reset(token)
@@ -432,6 +423,13 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
 
         self._shared_proc = proc
         self._started = True
+        # One http session for the worker's lifetime: plugin instances (STT,
+        # TTS) are shared across all coroutine jobs and cache the aiohttp
+        # ClientSession on first use. A per-job close invalidates that cache for
+        # every subsequent job ("Session is closed" on ws_connect). Open once
+        # here; close in aclose().
+        with contextlib.suppress(Exception):
+            http_context._new_session_ctx()
 
     @property
     def shared_process(self) -> JobProcess | None:
@@ -470,28 +468,31 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         self._started = False
 
         executors = list(self._executors)
-        if not executors:
-            return
+        if executors:
 
-        async def _close_all() -> None:
-            await asyncio.gather(
-                *(ex.aclose() for ex in executors),
-                return_exceptions=True,
-            )
+            async def _close_all() -> None:
+                await asyncio.gather(
+                    *(ex.aclose() for ex in executors),
+                    return_exceptions=True,
+                )
 
-        try:
-            await asyncio.wait_for(_close_all(), timeout=self._close_timeout)
-        except TimeoutError:
-            logger.warning(
-                "CoroutinePool aclose timed out after %.1fs; "
-                "escalating to kill for %d executor(s)",
-                self._close_timeout,
-                len(executors),
-            )
-            for ex in executors:
-                kill_method = getattr(ex, "kill", None)
-                if callable(kill_method):
-                    kill_method()
+            try:
+                await asyncio.wait_for(_close_all(), timeout=self._close_timeout)
+            except TimeoutError:
+                logger.warning(
+                    "CoroutinePool aclose timed out after %.1fs; "
+                    "escalating to kill for %d executor(s)",
+                    self._close_timeout,
+                    len(executors),
+                )
+                for ex in executors:
+                    kill_method = getattr(ex, "kill", None)
+                    if callable(kill_method):
+                        kill_method()
+
+        # Close the worker-lifetime http session after all jobs have stopped.
+        with contextlib.suppress(Exception):
+            await http_context._close_http_ctx()
 
     async def launch_job(self, info: RunningJobInfo) -> None:
         """Allocate a per-session executor, emit lifecycle events, and schedule its entrypoint."""
