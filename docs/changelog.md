@@ -155,6 +155,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.7.0] - 2026-06-23
+
+## What's Changed
+* fix(coroutine): use worker-lifetime http session instead of per-job by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/50
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.6.0...v0.7.0
+
+---
+
 ## [0.6.0] - 2026-06-23
 
 ## What's Changed
