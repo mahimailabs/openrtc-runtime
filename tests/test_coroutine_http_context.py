@@ -1,17 +1,12 @@
-"""Regression test: coroutine mode must open the LiveKit http session context.
+"""Regression tests: coroutine mode HTTP session lifecycle.
 
-RED today (http-context bug): ``CoroutineJobExecutor`` runs the entrypoint
-without ever calling ``http_context._new_session_ctx()``, so any plugin that
-lazily calls ``livekit.agents.utils.http_context.http_session()`` (Cartesia
-TTS, the server API, etc.) raises ``RuntimeError: Attempted to use an http
-session outside of a job context``. Upstream binds the http session factory
-only in the process/thread runner (``ipc/job_proc_lazy_main.py``), which
-coroutine mode bypasses entirely.
-
-These drive one coroutine-pool session and assert (1) ``http_session()``
-resolves inside the entrypoint, and (2) that session is closed on teardown.
-Both fail on today's code and pass once the executor opens and closes the
-http context around the entrypoint.
+The HTTP session must be a worker-lifetime resource, not per-job. Plugin
+instances (STT, TTS) are shared across all coroutine jobs in one worker. They
+cache the aiohttp ClientSession on first use (``self._session =
+http_context.http_session()``). Closing the session at per-job teardown
+invalidates that cache — every subsequent job hits ``Session is closed`` on
+ws_connect. The fix: open once in ``CoroutinePool.start()``, close once in
+``CoroutinePool.aclose()``.
 """
 
 from __future__ import annotations
@@ -107,18 +102,94 @@ async def test_coroutine_entrypoint_can_use_http_session() -> None:
 
 
 @pytest.mark.asyncio
-async def test_coroutine_closes_http_session_on_teardown() -> None:
-    """The per-job http session is closed when the job finishes."""
+async def test_coroutine_http_session_stays_open_after_job_closes_at_pool_aclose() -> (
+    None
+):
+    """The http session outlives individual jobs and closes only when the pool closes.
+
+    Plugin instances cache ``http_session()`` on first use. If openrtc closed
+    the session at job teardown, every subsequent job would find the cached
+    session closed. This asserts the session is open after a job finishes and
+    closed only after ``pool.aclose()``.
+    """
     captured: dict[str, Any] = {}
 
     async def _entrypoint(_ctx: Any) -> None:
         captured["session"] = http_context.http_session()
 
-    await _drive_one(_make_pool(_entrypoint), "job-http-1")
+    pool = _make_pool(_entrypoint)
+    await pool.start()
+    try:
+        await pool.launch_job(_stub_running_job_info("job-lifetime-1"))
+        for ex in list(pool.processes):
+            task = getattr(ex, "_task", None)
+            if task is not None:
+                await task
 
-    session = captured.get("session")
-    assert session is not None, captured
-    assert session.closed is True, (
-        "http session was not closed on teardown; "
-        "_close_http_ctx() did not run in the finally."
+        session = captured.get("session")
+        assert session is not None, (
+            "http_session() was not captured inside the entrypoint"
+        )
+        assert not session.closed, (
+            "http session was closed after one job finished; "
+            "this breaks any shared plugin (STT/TTS) that cached it on first use."
+        )
+    finally:
+        await pool.aclose()
+
+    assert session is not None
+    assert session.closed, "http session was not closed after pool.aclose()"
+
+
+@pytest.mark.asyncio
+async def test_coroutine_shared_plugin_reuses_session_across_jobs() -> None:
+    """Shared plugin instances reuse the same open session across sequential jobs.
+
+    This is the direct regression test for the bug: Deepgram STT / Cartesia TTS
+    instances are shared across all coroutine jobs. They cache the aiohttp
+    ClientSession on first use. Job 1 populates the cache; job 2 must find the
+    same session still open. Closing the session per-job (the previous behavior)
+    broke this: job 2 would hit 'Session is closed' on ws_connect and die.
+    """
+
+    class _SharedPlugin:
+        """Simulates a livekit STT/TTS plugin that caches http_session() once."""
+
+        def __init__(self) -> None:
+            self._session: Any = None
+
+        def use(self) -> None:
+            if self._session is None:
+                self._session = http_context.http_session()
+            if self._session.closed:
+                raise RuntimeError("Session is closed")
+
+    plugin = _SharedPlugin()
+    errors: list[str] = []
+
+    async def _entrypoint(_ctx: Any) -> None:
+        try:
+            plugin.use()
+        except RuntimeError as exc:
+            errors.append(str(exc))
+
+    pool = _make_pool(_entrypoint)
+    await pool.start()
+    try:
+        for job_id in ("job-shared-1", "job-shared-2"):
+            await pool.launch_job(_stub_running_job_info(job_id))
+            for ex in list(pool.processes):
+                task = getattr(ex, "_task", None)
+                if task is not None:
+                    await task
+    finally:
+        await pool.aclose()
+
+    assert errors == [], (
+        "Shared plugin found a closed session on job reuse — "
+        "the per-job http teardown is still active: " + str(errors)
+    )
+    assert plugin._session is not None
+    assert plugin._session.closed, (
+        "Expected the worker-lifetime http session to be closed after pool.aclose()"
     )
