@@ -103,6 +103,16 @@ class _CoroutineAgentServer(AgentServer):
         unregistered: bool = False,
     ) -> None:
         """Patch ipc.proc_pool.ProcPool for one run() invocation, then delegate to AgentServer.run."""
+        # Register the EOU inference runner before worker.py decides whether to
+        # start InferenceProcExecutor. worker.py checks
+        # _InferenceRunner.registered_runners *before* calling setup_fnc
+        # (prewarm), so the lazy import inside _prewarm_worker is too late.
+        # Importing MultilingualModel here registers the runner as a side effect,
+        # mirroring how standard livekit-agents users import at the top level.
+        with contextlib.suppress(Exception):
+            from livekit.plugins.turn_detector.multilingual import (  # noqa: F401
+                MultilingualModel as _M,
+            )
         with self._patched_proc_pool():
             await super().run(devmode=devmode, unregistered=unregistered)
 

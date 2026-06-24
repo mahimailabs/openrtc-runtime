@@ -430,6 +430,12 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         # here; close in aclose().
         with contextlib.suppress(Exception):
             http_context._new_session_ctx()
+        # Wire the inference executor to proc so _supports_multilingual_turn_detection
+        # finds it. Standard mode sets this inside each subprocess worker; coroutine
+        # mode has a single shared proc and must set it here.
+        if self._inference_executor is not None:
+            with contextlib.suppress(Exception):
+                self._shared_proc.inference_executor = self._inference_executor  # type: ignore[attr-defined]
 
     @property
     def shared_process(self) -> JobProcess | None:
