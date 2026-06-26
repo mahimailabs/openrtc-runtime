@@ -155,6 +155,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.8.0] - 2026-06-26
+
+## What's Changed
+* feat(coroutine): wire inference executor so multilingual turn detection by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/51
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.7.0...v0.8.0
+
+---
+
 ## [0.7.0] - 2026-06-23
 
 ## What's Changed
