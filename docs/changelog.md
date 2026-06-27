@@ -157,6 +157,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.9.0] - 2026-06-27
+
+## What's Changed
+* fix(routing): resolve room metadata from ctx.job.room.metadata before… by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/52
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.8.0...v0.9.0
+
+---
+
 ## [0.8.0] - 2026-06-26
 
 ## What's Changed
