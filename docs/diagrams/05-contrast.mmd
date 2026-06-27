@@ -1,0 +1,64 @@
+flowchart LR
+  subgraph vanilla["Without OpenRTC"]
+    direction TB
+    W1["Worker Process<br>WebSocket to LiveKit"]
+    subgraph proc1["OS Process - Call 1"]
+      direction TB
+      I1["Python interpreter"]
+      VAD1["Silero VAD weights"]
+      TD1["Turn detector weights"]
+      SDK1["livekit-agents SDK"]
+      R1["rtc.Room WebRTC peer"]
+      S1["AgentSession state"]
+    end
+    subgraph proc2["OS Process - Call 2"]
+      direction TB
+      I2["Python interpreter"]
+      VAD2["Silero VAD weights"]
+      TD2["Turn detector weights"]
+      SDK2["livekit-agents SDK"]
+      R2["rtc.Room WebRTC peer"]
+      S2["AgentSession state"]
+    end
+    subgraph procN["OS Process - Call N"]
+      direction TB
+      IN["Python interpreter"]
+      VADN["Silero VAD weights"]
+      TDN["Turn detector weights"]
+      SDKN["livekit-agents SDK"]
+      RN["rtc.Room WebRTC peer"]
+      SN["AgentSession state"]
+    end
+    W1 -->|"spawn"| proc1
+    W1 -->|"spawn"| proc2
+    W1 -->|"spawn"| procN
+    proc1 -->|"WebRTC"| LiveKit1(["LiveKit Cloud"])
+    proc2 -->|"WebRTC"| LiveKit1
+    procN -->|"WebRTC"| LiveKit1
+  end
+
+  subgraph openrtc["With OpenRTC"]
+    direction TB
+    W2["Worker Process<br>WebSocket to LiveKit"]
+    subgraph singleproc["Single OS Process - shared heap"]
+      direction TB
+      SVAD["Silero VAD loaded once"]
+      STD["Turn detector loaded once"]
+      subgraph task1["asyncio.Task - Call 1"]
+        R21["rtc.Room WebRTC peer"]
+        AS1["AgentSession state"]
+      end
+      subgraph task2["asyncio.Task - Call 2"]
+        R22["rtc.Room WebRTC peer"]
+        AS2["AgentSession state"]
+      end
+      subgraph taskN["asyncio.Task - Call 50"]
+        R2N["rtc.Room WebRTC peer"]
+        ASN["AgentSession state"]
+      end
+    end
+    W2 -->|"in-process"| singleproc
+    task1 -->|"WebRTC"| LiveKit2(["LiveKit Cloud"])
+    task2 -->|"WebRTC"| LiveKit2
+    taskN -->|"WebRTC"| LiveKit2
+  end

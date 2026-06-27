@@ -1,0 +1,48 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "OpenRTC",
+  "logo": {
+    "light": "/public/logo.png",
+    "dark": "/public/logo.png"
+  },
+  "favicon": "/public/logo.svg",
+  "colors": {
+    "primary": "#006f94",
+    "light": "#5ae4ff",
+    "dark": "#006f94"
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/mahimailabs/openrtc"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "PyPI",
+    "url": "https://pypi.org/project/openrtc"
+  },
+  "navigation": [
+    {
+      "group": "Introduction",
+      "pages": ["index", "getting-started"]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": ["concepts/architecture"]
+    },
+    {
+      "group": "Reference",
+      "pages": [
+        "api/pool",
+        "cli",
+        "examples",
+        "benchmarks/density-v0.1",
+        "changelog",
+        "deployment/github-pages"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/mahimailabs/openrtc"
+  }
+}

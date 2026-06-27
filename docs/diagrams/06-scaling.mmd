@@ -1,0 +1,22 @@
+flowchart TB
+  subgraph legend["Memory at N concurrent calls"]
+    direction TB
+    subgraph baseline_proc["Vanilla livekit-agents"]
+      direction TB
+      F1["N x ~3 GB per OS process"]
+      F2["Models duplicated N times"]
+      F3["10 calls ~30 GB RAM"]
+      F4["50 calls ~150 GB RAM"]
+      F1 --> F2 --> F3 --> F4
+    end
+    subgraph baseline_rtc["OpenRTC coroutine mode"]
+      direction TB
+      G1["Shared base once per worker"]
+      G2["VAD plus turn detector paid once"]
+      G3["Per session 50-65 MB total"]
+      G4["50 calls target 60 MB each"]
+      G5["50 calls roughly 3 GB worker"]
+      G1 --> G2 --> G3 --> G4 --> G5
+    end
+  end
+  baseline_proc -->|"30-50x more RAM"| baseline_rtc

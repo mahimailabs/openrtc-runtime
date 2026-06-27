@@ -1,0 +1,45 @@
+sequenceDiagram
+    participant LK as LiveKit SFU
+    participant W as AgentServer<br>main process
+    participant PP as ProcPool
+    participant SUB as Job Subprocess<br>_JobProc
+    participant ROOM as rtc.Room<br>WebRTC peer
+    participant PROV as STT LLM TTS<br>provider APIs
+
+    W->>LK: WorkerMessage register<br>WebSocket
+    LK->>W: RegisterWorkerResponse worker_id<br>WebSocket
+    W->>PP: ProcPool.start
+    PP->>SUB: spawn warm subprocess<br>in-process
+    SUB->>SUB: prewarm_fnc loads VAD<br>and turn detector
+
+    LK->>W: ServerMessage availability<br>WebSocket
+    W->>LK: WorkerMessage available True<br>WebSocket
+    LK->>W: ServerMessage assignment room and token<br>WebSocket
+
+    W->>PP: launch_job
+    PP->>SUB: StartJobRequest<br>Unix socketpair
+    SUB->>SUB: create rtc.Room<br>set JobContextVar<br>open http_context
+
+    SUB->>ROOM: ctx.connect room URL and token
+    ROOM->>LK: WebRTC DTLS SRTP join<br>WebRTC
+
+    loop STT to LLM to TTS pipeline
+        ROOM->>SUB: participant audio track<br>WebRTC
+        SUB->>PROV: STT streaming audio<br>HTTP
+        PROV->>SUB: transcript text<br>HTTP
+        SUB->>PROV: LLM chat completion<br>HTTP
+        PROV->>SUB: response tokens<br>HTTP
+        SUB->>PROV: TTS synthesis<br>HTTP
+        PROV->>SUB: audio frames<br>HTTP
+        SUB->>ROOM: publish agent audio<br>WebRTC
+        ROOM->>LK: outbound media<br>WebRTC
+    end
+
+    LK->>ROOM: room disconnect signal<br>WebRTC
+    ROOM->>SUB: shutdown triggered
+    SUB->>SUB: session.aclose 60s timeout
+    SUB->>SUB: session_end_fnc
+    SUB->>SUB: http_context close<br>JobContextVar reset
+    SUB->>W: ShuttingDown then Exiting<br>Unix socketpair
+    W->>LK: WorkerMessage update_job SUCCESS<br>WebSocket
+    PP->>SUB: spawn fresh warm subprocess

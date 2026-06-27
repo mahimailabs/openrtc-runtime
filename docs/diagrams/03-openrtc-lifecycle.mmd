@@ -1,0 +1,53 @@
+sequenceDiagram
+    participant LK as LiveKit Cloud
+    participant WS as AgentServer WS loop
+    participant CP as CoroutinePool
+    participant EX as CoroutineJobExecutor
+    participant RS as run_session
+    participant Room as rtc.Room WebRTC
+    participant Prov as STT LLM TTS
+
+    Note over WS: Worker registers via WebSocket
+    WS->>LK: WorkerMessage register
+    LK-->>WS: ServerMessage job available
+    WS->>LK: WorkerMessage accept
+    LK-->>WS: ServerMessage job assigned
+
+    WS->>CP: launch_job info in-process
+    CP->>EX: create CoroutineJobExecutor in-process
+    CP->>EX: launch_job info in-process
+    EX->>EX: loop create_task run_entrypoint
+
+    Note over EX: asyncio Task starts
+    EX->>EX: JobContextVar set ctx
+    EX->>EX: open per-job http_context (the fix)
+    EX->>RS: await entrypoint_fnc ctx in-process
+
+    RS->>RS: routing chain resolves AgentConfig
+    RS->>RS: read shared VAD from proc userdata
+    RS->>RS: build AgentSession stt llm tts vad
+    RS->>Room: session start agent room WebRTC
+    RS->>Room: ctx connect WebRTC
+    Room-->>RS: room connected WebRTC
+
+    Note over RS,Prov: Live voice loop
+    Room->>RS: user audio frames WebRTC
+    RS->>Prov: STT transcribe HTTP WebSocket
+    Prov-->>RS: transcript HTTP WebSocket
+    RS->>Prov: LLM completion HTTP WebSocket
+    Prov-->>RS: reply text HTTP WebSocket
+    RS->>Prov: TTS synthesize HTTP WebSocket
+    Prov-->>RS: audio bytes HTTP WebSocket
+    RS->>Room: synthesized audio frames WebRTC
+
+    Note over EX: User disconnects
+    Room->>EX: room disconnected event in-process
+    EX->>EX: shutdown_fut resolved in-process
+    EX->>RS: await teardown in-process
+    RS->>RS: primary aclose max 60s in-process
+    RS->>RS: on_session_end callbacks in-process
+    EX->>EX: close per-job http_context
+    EX->>EX: JobContextVar reset in-process
+    EX->>CP: done callback on_executor_done
+    CP->>CP: remove executor emit process_closed
+    WS->>LK: WorkerMessage status update
