@@ -1,0 +1,71 @@
+flowchart TB
+    LK["LiveKit SFU"]
+    PROV["STT LLM TTS provider APIs<br>OpenAI Deepgram etc"]
+    W["AgentServer main process<br>single WebSocket to LK"]
+
+    LK -- "WebSocket signaling" --> W
+
+    subgraph SHARED ["SHARED main process only"]
+        W
+        PP["ProcPool<br>idle subprocess queue"]
+        W --> PP
+    end
+
+    subgraph SUB1 ["Subprocess 1 approx 3 GB RAM"]
+        direction TB
+        VAD1["Silero VAD model<br>DUPLICATED"]
+        TD1["Turn detector weights<br>DUPLICATED"]
+        HEAP1["Python interpreter and SDK<br>DUPLICATED"]
+        HTTP1["aiohttp ClientSession<br>DUPLICATED"]
+        LOOP1["asyncio event loop<br>DUPLICATED"]
+        JOB1["Job 1<br>rtc.Room and AgentSession<br>STT LLM TTS tasks"]
+        VAD1 --- JOB1
+        TD1 --- JOB1
+        HEAP1 --- JOB1
+        HTTP1 --- JOB1
+        LOOP1 --- JOB1
+    end
+
+    subgraph SUB2 ["Subprocess 2 approx 3 GB RAM"]
+        direction TB
+        VAD2["Silero VAD model<br>DUPLICATED"]
+        TD2["Turn detector weights<br>DUPLICATED"]
+        HEAP2["Python interpreter and SDK<br>DUPLICATED"]
+        HTTP2["aiohttp ClientSession<br>DUPLICATED"]
+        LOOP2["asyncio event loop<br>DUPLICATED"]
+        JOB2["Job 2<br>rtc.Room and AgentSession<br>STT LLM TTS tasks"]
+        VAD2 --- JOB2
+        TD2 --- JOB2
+        HEAP2 --- JOB2
+        HTTP2 --- JOB2
+        LOOP2 --- JOB2
+    end
+
+    subgraph SUB3 ["Subprocess 3 approx 3 GB RAM"]
+        direction TB
+        VAD3["Silero VAD model<br>DUPLICATED"]
+        TD3["Turn detector weights<br>DUPLICATED"]
+        HEAP3["Python interpreter and SDK<br>DUPLICATED"]
+        HTTP3["aiohttp ClientSession<br>DUPLICATED"]
+        LOOP3["asyncio event loop<br>DUPLICATED"]
+        JOB3["Job 3<br>rtc.Room and AgentSession<br>STT LLM TTS tasks"]
+        VAD3 --- JOB3
+        TD3 --- JOB3
+        HEAP3 --- JOB3
+        HTTP3 --- JOB3
+        LOOP3 --- JOB3
+    end
+
+    PP -- "StartJobRequest<br>Unix socketpair" --> SUB1
+    PP -- "StartJobRequest<br>Unix socketpair" --> SUB2
+    PP -- "StartJobRequest<br>Unix socketpair" --> SUB3
+
+    JOB1 -- "WebRTC media" --> LK
+    JOB2 -- "WebRTC media" --> LK
+    JOB3 -- "WebRTC media" --> LK
+    JOB1 -- "HTTP" --> PROV
+    JOB2 -- "HTTP" --> PROV
+    JOB3 -- "HTTP" --> PROV
+
+    NOTE["N calls equals N subprocesses<br>Each approx 3 GB RAM<br>Total approx N times 3 GB<br>Nothing shared across subprocesses"]
+    style NOTE fill:#fef3c7,stroke:#d97706,color:#000

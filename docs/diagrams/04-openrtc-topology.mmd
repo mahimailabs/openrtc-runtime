@@ -1,0 +1,69 @@
+flowchart TB
+    LK["LiveKit Cloud"]
+
+    subgraph worker["ONE OS Process one event loop one heap"]
+        direction TB
+
+        subgraph shared["SHARED across all sessions"]
+            direction LR
+            WS_LOOP["AgentServer<br>Worker WS loop"]
+            CP["CoroutinePool<br>ProcPool replacement"]
+            PROC["Singleton JobProcess<br>shared_proc"]
+            VAD["Silero VAD<br>loaded once"]
+            TURN["MultilingualModel<br>turn detector once"]
+            METRICS["RuntimeMetricsStore<br>shared"]
+            PROC --> VAD
+            PROC --> TURN
+        end
+
+        subgraph task1["asyncio Task Session 1 ~50-65 MB"]
+            direction TB
+            EX1["CoroutineJobExecutor 1"]
+            CTX1["JobContext 1"]
+            SESS1["AgentSession 1<br>STT LLM TTS state"]
+            ROOM1["rtc.Room 1<br>WebRTC peer"]
+            EX1 --> CTX1 --> SESS1 --> ROOM1
+        end
+
+        subgraph task2["asyncio Task Session 2 ~50-65 MB"]
+            direction TB
+            EX2["CoroutineJobExecutor 2"]
+            CTX2["JobContext 2"]
+            SESS2["AgentSession 2<br>STT LLM TTS state"]
+            ROOM2["rtc.Room 2<br>WebRTC peer"]
+            EX2 --> CTX2 --> SESS2 --> ROOM2
+        end
+
+        subgraph task3["asyncio Task Session 3 ~50-65 MB"]
+            direction TB
+            EX3["CoroutineJobExecutor 3"]
+            CTX3["JobContext 3"]
+            SESS3["AgentSession 3<br>STT LLM TTS state"]
+            ROOM3["rtc.Room 3<br>WebRTC peer"]
+            EX3 --> CTX3 --> SESS3 --> ROOM3
+        end
+
+        WS_LOOP -->|"launch_job in-process"| CP
+        CP -->|"create executor in-process"| EX1
+        CP -->|"create executor in-process"| EX2
+        CP -->|"create executor in-process"| EX3
+
+        PROC -.->|"vad shared in-process"| CTX1
+        PROC -.->|"vad shared in-process"| CTX2
+        PROC -.->|"vad shared in-process"| CTX3
+        PROC -.->|"turn detector shared"| CTX1
+    end
+
+    LK -->|"job dispatch WebSocket"| WS_LOOP
+    WS_LOOP -->|"heartbeat WebSocket"| LK
+
+    PROV["STT LLM TTS<br>provider APIs"]
+    ROOM1 -->|"WebRTC"| LK
+    ROOM2 -->|"WebRTC"| LK
+    ROOM3 -->|"WebRTC"| LK
+    SESS1 -->|"HTTP WebSocket"| PROV
+    SESS2 -->|"HTTP WebSocket"| PROV
+    SESS3 -->|"HTTP WebSocket"| PROV
+
+    NOTE["Models paid ONCE per worker<br>vs once per process in vanilla<br>Target 50 sessions per worker<br>Vanilla 1 session at ~3 GB each"]
+    style NOTE fill:#fffbcc,stroke:#ccc,color:#333
