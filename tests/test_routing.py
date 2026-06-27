@@ -36,6 +36,7 @@ class FakeProcess:
 @dataclass
 class FakeJobRoom:
     name: str = ""
+    metadata: Any = None
 
 
 @dataclass
@@ -61,10 +62,18 @@ class FakeJobContext:
         room_metadata: Any = None,
         room_name: str = "general-room",
         job_room_name: str | None = None,
+        job_room_metadata: Any = None,
     ) -> None:
+        if job_room_name is not None or job_room_metadata is not None:
+            job_room: FakeJobRoom | None = FakeJobRoom(
+                name=job_room_name or "",
+                metadata=job_room_metadata,
+            )
+        else:
+            job_room = None
         self.job = FakeJob(
             metadata=job_metadata,
-            room=FakeJobRoom(name=job_room_name) if job_room_name is not None else None,
+            room=job_room,
         )
         self.room = FakeRoom(metadata=room_metadata, name=room_name)
         self.proc = FakeProcess()
@@ -418,3 +427,61 @@ def test_handle_session_skips_greeting_when_not_configured(
     assert session.generated_instructions == []
     # connect runs before start so on_enter sees a connected room.
     assert EVENT_LOG == ["connect", "start"]
+
+
+# ---------------------------------------------------------------------------
+# Room-metadata pre-connect routing (job.room.metadata takes precedence)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_agent_reads_job_room_metadata_before_connect(pool: AgentPool) -> None:
+    """Room-metadata routing resolves from ctx.job.room.metadata when the rtc room is not yet connected.
+
+    Before the fix, ctx.room.metadata is empty pre-connect so the strategy falls
+    through to the default fallback even though the room was created with metadata.
+    """
+    ctx = FakeJobContext(
+        job_room_metadata='{"agent": "dental"}',
+        room_metadata=None,
+        room_name="general-room",
+    )
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_room_metadata_falls_back_to_rtc_room_metadata(
+    pool: AgentPool,
+) -> None:
+    """Backward compat: ctx.room.metadata is still used when job room carries no metadata."""
+    ctx = FakeJobContext(room_metadata='{"agent": "dental"}')
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_job_metadata_unaffected_by_room_metadata_fix(
+    pool: AgentPool,
+) -> None:
+    """Job-metadata routing (source_attr='job') is not changed by the room-metadata fix."""
+    ctx = FakeJobContext(job_metadata='{"agent": "dental"}')
+
+    resolved = _resolve_agent_config(pool._agents, ctx)
+
+    assert resolved.name == "dental"
+
+
+def test_resolve_agent_room_metadata_returns_none_when_both_absent(
+    pool: AgentPool,
+) -> None:
+    """Room-metadata strategy returns None without crashing when job room and rtc room both lack metadata."""
+    from openrtc.routing.metadata_routing import _MetadataStrategy
+
+    strategy = _MetadataStrategy(source_attr="room", source_label="room metadata")
+    ctx = FakeJobContext(room_name="general-room")
+
+    result = strategy.resolve(pool._agents, ctx)
+
+    assert result is None
