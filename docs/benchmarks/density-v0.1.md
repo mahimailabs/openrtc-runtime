@@ -1,3 +1,10 @@
+---
+title: Density Benchmark
+sidebarTitle: Density Benchmark (v0.1)
+description: 50+ concurrent sessions per worker at under 4 GB peak RSS — methodology and results.
+icon: gauge-high
+---
+
 # Density Benchmark — v0.1
 
 Phase 1 success gate from `docs/design/v0.1.md` §7:

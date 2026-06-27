@@ -1,3 +1,9 @@
+---
+title: AgentPool
+description: Full API reference for AgentPool, AgentConfig, add(), discover(), run(), and routing.
+icon: code
+---
+
 # AgentPool API
 
 ## Imports

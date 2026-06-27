@@ -23,22 +23,75 @@
   },
   "navigation": [
     {
-      "group": "Introduction",
-      "pages": ["index", "getting-started"]
+      "tab": "Overview",
+      "groups": [
+        {
+          "group": "Introduction",
+          "pages": ["index", "getting-started"]
+        }
+      ]
     },
     {
-      "group": "Core Concepts",
-      "pages": ["concepts/architecture"]
+      "tab": "Concepts",
+      "groups": [
+        {
+          "group": "Architecture",
+          "pages": [
+            "concepts/architecture",
+            "concepts/routing"
+          ]
+        },
+        {
+          "group": "Performance",
+          "pages": [
+            "benchmarks/density-v0.1"
+          ]
+        }
+      ]
     },
     {
-      "group": "Reference",
-      "pages": [
-        "api/pool",
-        "cli",
-        "examples",
-        "benchmarks/density-v0.1",
-        "changelog",
-        "deployment/github-pages"
+      "tab": "API Reference",
+      "groups": [
+        {
+          "group": "Core Library",
+          "pages": [
+            "api/pool"
+          ]
+        },
+        {
+          "group": "CLI",
+          "pages": [
+            "cli"
+          ]
+        },
+        {
+          "group": "Examples",
+          "pages": [
+            "examples"
+          ]
+        }
+      ]
+    },
+    {
+      "tab": "Deployment",
+      "groups": [
+        {
+          "group": "Hosting",
+          "pages": [
+            "deployment/mintlify"
+          ]
+        }
+      ]
+    },
+    {
+      "tab": "Changelog",
+      "groups": [
+        {
+          "group": "Releases",
+          "pages": [
+            "changelog"
+          ]
+        }
       ]
     }
   ],

@@ -1,3 +1,9 @@
+---
+title: CLI Reference
+description: All openrtc subcommands, flags, runtime knobs, and metrics output options.
+icon: terminal
+---
+
 # CLI
 
 OpenRTC ships a console script named `openrtc` (Typer + Rich) for discovery-based

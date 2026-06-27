@@ -1,3 +1,9 @@
+---
+title: Changelog
+description: All notable changes to OpenRTC, including migration notes and version history.
+icon: clock-rotate-left
+---
+
 # Changelog
 
 All notable changes to this project are documented here.
