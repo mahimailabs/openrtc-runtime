@@ -12,6 +12,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### v0.9.0 — routing: resolve room metadata from the job's room assignment so it works before connect
+
 ### v0.1.0 — coroutine-mode worker (default behavior change)
 
 > **Heads up:** the default isolation flips from process-per-session to
