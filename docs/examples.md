@@ -74,14 +74,19 @@ pool.run()
 
 ## Routing between agents
 
-With both agents registered, OpenRTC routes each call by room or job metadata:
+With both agents registered, OpenRTC routes each call by room or job metadata.
 
-```bash
-# Route to the restaurant agent via job metadata
+Route by job metadata (pass as JSON string when dispatching):
+
+```json
 {"agent": "restaurant"}
+```
 
-# Route to dental via room name prefix
-# room: dental-call-123  →  routes to DentalAgent
+Route by room name prefix (no metadata needed):
+
+```
+dental-call-123   ->  DentalAgent
+restaurant-room-1 ->  RestaurantAgent
 ```
 
 See [Routing](/concepts/routing) for the full priority chain.
