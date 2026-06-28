@@ -78,7 +78,7 @@ OpenRTC reads `ctx.job.room.metadata` (priority 3) — the LiveKit dispatch syst
 
 If neither job nor room metadata contains an `"agent"` key, OpenRTC checks whether the room name starts with a registered agent name followed by `-`:
 
-```
+```text
 dental-call-1234    →  dental
 restaurant-room-42  →  restaurant
 general-chat        →  (no match, falls through to default)

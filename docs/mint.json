@@ -28,6 +28,10 @@
         {
           "group": "Introduction",
           "pages": ["index", "getting-started"]
+        },
+        {
+          "group": "Examples",
+          "pages": ["examples"]
         }
       ]
     },
@@ -62,12 +66,6 @@
           "group": "CLI",
           "pages": [
             "cli"
-          ]
-        },
-        {
-          "group": "Examples",
-          "pages": [
-            "examples"
           ]
         }
       ]
