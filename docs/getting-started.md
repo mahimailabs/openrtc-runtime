@@ -1,3 +1,9 @@
+---
+title: Getting Started
+description: Install OpenRTC and run your first multi-agent LiveKit worker.
+icon: rocket
+---
+
 # Getting Started
 
 ## Requirements

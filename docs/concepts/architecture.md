@@ -1,3 +1,9 @@
+---
+title: Architecture
+description: How OpenRTC's coroutine-mode worker, session lifecycle, and shared prewarm work.
+icon: sitemap
+---
+
 # Architecture
 
 OpenRTC keeps the public API intentionally narrow.

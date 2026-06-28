@@ -5,41 +5,12 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'
-      - '.github/workflows/deploy-docs.yml'
-  push:
-    branches:
-      - main
-    paths:
-      - 'docs/**'
-      - '.github/workflows/docs.yml'
-      - '.github/workflows/deploy-docs.yml'
 
 jobs:
-  build-docs:
+  validate-mint-json:
+    name: Validate mint.json
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: docs
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Cache npm
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-20-${{ hashFiles('docs/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-20-
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build documentation
-        run: npm run docs:build
+      - uses: actions/checkout@v4
+      - name: Validate mint.json is valid JSON
+        run: python3 -c "import json, sys; json.load(open('docs/mint.json')); print('mint.json is valid')"
