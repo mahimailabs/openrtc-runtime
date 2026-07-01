@@ -46,6 +46,7 @@ The default one-worker-per-agent model in `livekit-agents` reloads the same stac
 | **Shared prewarm** | Silero VAD and the turn detector load once per worker in coroutine mode, not once per agent. |
 | **Coroutine or process isolation** | Default coroutine runs each session as an `asyncio.Task`; `process` keeps one subprocess per session with hard isolation. |
 | **Metadata routing** | Ordered resolution across job metadata, room metadata, room-name prefix, then first-registered fallback. |
+| **Hot reload** | Edit an agent file and `openrtc dev` swaps live sessions on their next turn, no dropped calls. A bad save rolls back. |
 | **Session observers** | Structural-typed async start/end hooks for telemetry, isolated so a slow or raising observer never crashes the session. |
 | **JSONL metrics stream** | Append-only JSON Lines of pool snapshots and lifecycle events for `tail -f`, `jq`, or a log shipper. |
 | **LiveKit-shaped CLI** | `start` / `dev` / `console` / `connect` / `download-files` plus an OpenRTC-only `list`, with an optional Rich dashboard. |
@@ -205,6 +206,31 @@ pool = AgentPool(observers=[LoggingObserver()])   # or pool.add_observer(...)
 
 `on_session_start` receives the live `AgentSession` (subscribe to its metrics there). `on_session_end` receives a `SessionOutcome` with status `SUCCESS`, `FAILED`, or `CANCELLED`, and may fire without a matching start if a session dies before going live. Observer calls are isolated: a slow or raising observer is logged and skipped, never crashing the session. Register before `run()`; under `process` isolation an observer must be picklable, so build live resources lazily inside `on_session_start`.
 
+## Hot reload
+
+Edit an agent file while calls are in flight, and OpenRTC swaps every live session to the new class on its next turn. This is something `livekit-agents` cannot do (each session is its own process); OpenRTC can because the agent class is a shared-memory object.
+
+```bash
+openrtc dev ./agents        # coroutine mode watches your files; on by default
+openrtc dev ./agents --no-watch          # opt out
+openrtc dev ./agents --watch-path ./lib  # watch extra paths
+```
+
+On save, the module is re-imported into a fresh namespace and validated (compile + import) **before** any swap. livekit's `update_agent` blocks new turns and drains the in-flight one, so the current turn finishes on the old class and the next runs the new, with no dropped audio. Guarantees:
+
+- **Rollback-safe.** A `SyntaxError`, `ImportError`, or missing `Agent` subclass keeps the running class and logs the error with `file:line`. A bad save never poisons the pool.
+- **Loud feedback.** Each reload logs `[reload] agent.py changed -> swapped N sessions in Xms`.
+- **Opt-out for critical flows.** Wrap a block that must not change class mid-flight:
+
+  ```python
+  from openrtc import pin_reload
+
+  with pin_reload(ctx.session):
+      ...  # payment confirmation, multi-step auth: no swap until this exits
+  ```
+
+Hot reload is coroutine-mode only (process mode runs one subprocess per session). `openrtc start` never hot reloads. Enable it programmatically with `AgentPool(enable_hot_reload=True)`.
+
 ## CLI
 
 Install `openrtc[cli]` to put `openrtc` on your PATH. Five subcommands mirror the LiveKit Agents shape (`start`, `dev`, `console`, `connect`, `download-files`), plus an OpenRTC-only `list`. Pass the agents directory as the first positional path instead of `--agents-dir`.
@@ -219,7 +245,7 @@ openrtc start ./agents                           # production worker (after expo
 openrtc dev   ./agents ./openrtc-metrics.jsonl   # 2nd positional path = --metrics-jsonl
 ```
 
-Flags are scoped per command: `--json` / `--plain` / `--resources` on `list`; `--isolation` / `--max-concurrent-sessions` on the worker commands; the metrics and dashboard flags on the worker commands and `connect`. `--metrics-jsonl` appends one JSON object per line (an envelope of `schema_version`, `kind` (`snapshot` or `event`), `seq`, `wall_time_unix`, and `payload`), interleaving pool snapshots with `session_started` / `session_finished` / `session_failed` events for `tail -f` or `jq`. OpenRTC-only flags are stripped before the handoff to LiveKit's CLI parser. Full flag lists: [docs/cli.md](docs/cli.md).
+Flags are scoped per command: `--json` / `--plain` / `--resources` on `list`; `--isolation` / `--max-concurrent-sessions` on the worker commands; `--no-watch` / `--watch-path` control [hot reload](#hot-reload) on `dev`; the metrics and dashboard flags on the worker commands and `connect`. `--metrics-jsonl` appends one JSON object per line (an envelope of `schema_version`, `kind` (`snapshot` or `event`), `seq`, `wall_time_unix`, and `payload`), interleaving pool snapshots with `session_started` / `session_finished` / `session_failed` events for `tail -f` or `jq`. OpenRTC-only flags are stripped before the handoff to LiveKit's CLI parser. Full flag lists: [docs/cli.md](docs/cli.md).
 
 ## Architecture
 
@@ -242,7 +268,7 @@ Prewarm runs once as the worker's setup function and caches VAD and turn detecto
 
 ## Public API at a glance
 
-The public surface is exactly `openrtc.__all__`, 12 names. Everything else is internal and not treated as stable.
+The public surface is exactly `openrtc.__all__`, 14 names. Everything else is internal and not treated as stable.
 
 | Export | What it is |
 | :--- | :--- |
@@ -256,6 +282,7 @@ The public surface is exactly `openrtc.__all__`, 12 names. Everything else is in
 | `SessionOutcome` | Frozen dataclass: `status`, `error`, `ended_at`, `duration_seconds`. |
 | `SessionStatus` | Enum: `SUCCESS`, `FAILED`, `CANCELLED`. |
 | `FileWatcher` / `FileChange` | `watchfiles`-backed hot-reload watcher and its change record. |
+| `pin_reload` / `is_pinned` | Context manager to exclude a session from mid-flow class swaps, and its predicate. |
 | `__version__` | Resolved from `importlib.metadata`. |
 
 **`AgentPool(...)`** (all keyword-only, all optional):
@@ -268,8 +295,10 @@ The public surface is exactly `openrtc.__all__`, 12 names. Everything else is in
 | `max_concurrent_sessions` | `50` | Coroutine backpressure threshold (positive int). |
 | `consecutive_failure_limit` | `5` | Coroutine supervisor threshold (positive int). |
 | `drain_timeout` | `30` | Seconds to wait for in-flight sessions after SIGTERM (positive int). |
+| `enable_hot_reload` | `False` | Watch agent files and swap live sessions on the next turn (coroutine mode only). |
+| `watch_paths` | `None` | Extra paths to watch; `None` auto-discovers the worker's user modules. |
 
-**Methods:** `add`, `discover`, `list_agents`, `get`, `remove`, `add_observer`, `run`, `runtime_snapshot`, `drain_metrics_stream_events`. **Read-only properties:** `isolation`, `max_concurrent_sessions`, `consecutive_failure_limit`, `drain_timeout`, `server`. `add()` raises on an empty or duplicate name and on an `agent_cls` that is not a `livekit.agents.Agent` subclass; direct `**session_options` override the same keys in `session_kwargs`.
+**Methods:** `add`, `discover`, `list_agents`, `get`, `remove`, `add_observer`, `run`, `runtime_snapshot`, `drain_metrics_stream_events`. **Read-only properties:** `isolation`, `max_concurrent_sessions`, `consecutive_failure_limit`, `drain_timeout`, `enable_hot_reload`, `server`. `add()` raises on an empty or duplicate name and on an `agent_cls` that is not a `livekit.agents.Agent` subclass; direct `**session_options` override the same keys in `session_kwargs`.
 
 <details>
 <summary><b>Project structure</b></summary>

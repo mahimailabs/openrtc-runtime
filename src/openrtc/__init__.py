@@ -10,6 +10,7 @@ from .observability.base_observer import (
     SessionOutcome,
     SessionStatus,
 )
+from .reload.pin import is_pinned, pin_reload
 from .runtime.file_watcher import FileChange, FileWatcher
 from .utils.types import ProviderValue
 
@@ -34,4 +35,6 @@ __all__ = [
     "SessionStatus",
     "__version__",
     "agent_config",
+    "is_pinned",
+    "pin_reload",
 ]

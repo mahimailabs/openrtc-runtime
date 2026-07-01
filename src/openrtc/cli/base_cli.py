@@ -114,6 +114,33 @@ MaxConcurrentSessionsArg = Annotated[
     ),
 ]
 
+NoWatchArg = Annotated[
+    bool,
+    typer.Option(
+        "--no-watch",
+        help=(
+            "Disable hot reload on 'openrtc dev'. By default 'dev' in coroutine "
+            "mode watches your agent files and swaps live sessions on the next "
+            "turn. Ignored by 'start' / 'console', which never hot reload."
+        ),
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
+WatchPathArg = Annotated[
+    list[Path] | None,
+    typer.Option(
+        "--watch-path",
+        help=(
+            "Extra path to watch for hot reload (repeatable). Defaults to the "
+            "worker's auto-discovered user modules."
+        ),
+        resolve_path=True,
+        path_type=Path,
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
 DashboardArg = Annotated[
     bool,
     typer.Option(
@@ -269,6 +296,16 @@ def agent_pool_runtime_kwargs(
     }
 
 
+def resolve_hot_reload(subcommand: str, *, no_watch: bool, isolation: str) -> bool:
+    """Decide whether a worker command enables hot reload.
+
+    Only ``dev`` hot reloads, and only in coroutine mode (process mode cannot
+    swap classes in place). ``--no-watch`` turns it off; ``start`` / ``console``
+    never hot reload.
+    """
+    return subcommand == "dev" and not no_watch and isolation == "coroutine"
+
+
 @dataclass(frozen=True)
 class SharedLiveKitWorkerOptions:
     """Options shared by ``start`` / ``dev`` / ``console`` / ``connect`` handoff paths.
@@ -293,6 +330,8 @@ class SharedLiveKitWorkerOptions:
     metrics_jsonl_interval: float | None
     isolation: str = "coroutine"
     max_concurrent_sessions: int = 50
+    enable_hot_reload: bool = False
+    watch_paths: tuple[Path, ...] | None = None
 
     def agent_pool_kwargs(self) -> dict[str, Any]:
         return {
@@ -306,6 +345,8 @@ class SharedLiveKitWorkerOptions:
                 isolation=self.isolation,
                 max_concurrent_sessions=self.max_concurrent_sessions,
             ),
+            "enable_hot_reload": self.enable_hot_reload,
+            "watch_paths": list(self.watch_paths) if self.watch_paths else None,
         }
 
     @classmethod
@@ -328,6 +369,8 @@ class SharedLiveKitWorkerOptions:
         metrics_jsonl_interval: float | None = None,
         isolation: str = "coroutine",
         max_concurrent_sessions: int = 50,
+        enable_hot_reload: bool = False,
+        watch_paths: tuple[Path, ...] | None = None,
     ) -> SharedLiveKitWorkerOptions:
         return cls(
             agents_dir=agents_dir,
@@ -346,6 +389,8 @@ class SharedLiveKitWorkerOptions:
             metrics_jsonl_interval=metrics_jsonl_interval,
             isolation=isolation,
             max_concurrent_sessions=max_concurrent_sessions,
+            enable_hot_reload=enable_hot_reload,
+            watch_paths=watch_paths,
         )
 
     @classmethod

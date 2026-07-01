@@ -34,7 +34,8 @@
       "group": "Architecture",
       "pages": [
         "concepts/architecture",
-        "concepts/routing"
+        "concepts/routing",
+        "concepts/hot-reload"
       ]
     },
     {

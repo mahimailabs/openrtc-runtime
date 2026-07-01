@@ -60,6 +60,8 @@ class AgentPool:
         max_concurrent_sessions: int = 50,
         consecutive_failure_limit: int = 5,
         drain_timeout: int = 30,
+        enable_hot_reload: bool = False,
+        watch_paths: list[Path] | None = None,
     ) -> None:
         """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
 
@@ -92,6 +94,9 @@ class AgentPool:
         self._default_tts = default_tts
         self._default_greeting = default_greeting
         wire_pool(self._server, self._runtime_state)
+        self._enable_hot_reload = enable_hot_reload
+        if enable_hot_reload:
+            self._setup_hot_reload(watch_paths)
 
     def _build_server(self) -> AgentServer:
         """Construct the underlying LiveKit server matching ``isolation``."""
@@ -101,6 +106,32 @@ class AgentPool:
             drain_timeout=self._drain_timeout,
         )
         return resolve_server_builder(self._isolation)(params)
+
+    def _setup_hot_reload(self, watch_paths: list[Path] | None) -> None:
+        """Wire live-session tracking and the reload coordinator onto the worker.
+
+        Hot reload is coroutine-mode only: process mode runs one subprocess per
+        session and cannot swap an agent class in place.
+        """
+        if self._isolation != "coroutine":
+            raise ValueError(
+                "enable_hot_reload requires isolation='coroutine'; process mode "
+                "runs one subprocess per session and cannot hot reload."
+            )
+        from openrtc.reload.coordinator import ReloadCoordinator
+        from openrtc.reload.session_registry import LiveSessionRegistry
+        from openrtc.runtime.coroutine_server import _CoroutineAgentServer
+
+        registry = LiveSessionRegistry()
+        self.add_observer(registry)
+        coordinator = ReloadCoordinator(self._agents, registry)
+        assert isinstance(self._server, _CoroutineAgentServer)
+        self._server.attach_reload(coordinator.on_change, watch_paths)
+
+    @property
+    def enable_hot_reload(self) -> bool:
+        """Whether hot reload is active for this pool (coroutine mode only)."""
+        return self._enable_hot_reload
 
     @property
     def isolation(self) -> IsolationMode:
