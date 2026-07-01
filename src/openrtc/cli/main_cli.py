@@ -32,8 +32,11 @@ from openrtc.cli.base_cli import (
     MetricsJsonFileArg,
     MetricsJsonlArg,
     MetricsJsonlIntervalArg,
+    NoWatchArg,
     SharedLiveKitWorkerOptions,
+    WatchPathArg,
     agent_provider_kwargs,
+    resolve_hot_reload,
 )
 from openrtc.cli.dashboard_cli import (
     build_list_json_payload,
@@ -191,7 +194,12 @@ def _make_standard_livekit_worker_handler(subcommand: str) -> Callable[..., None
         metrics_jsonl_interval: MetricsJsonlIntervalArg = None,
         isolation: IsolationArg = "coroutine",
         max_concurrent_sessions: MaxConcurrentSessionsArg = 50,
+        no_watch: NoWatchArg = False,
+        watch_path: WatchPathArg = None,
     ) -> None:
+        enable_hot_reload = resolve_hot_reload(
+            subcommand, no_watch=no_watch, isolation=isolation
+        )
         _delegate_discovered_pool_to_livekit(
             subcommand,
             SharedLiveKitWorkerOptions.from_cli(
@@ -211,6 +219,8 @@ def _make_standard_livekit_worker_handler(subcommand: str) -> Callable[..., None
                 metrics_jsonl_interval=metrics_jsonl_interval,
                 isolation=isolation,
                 max_concurrent_sessions=max_concurrent_sessions,
+                enable_hot_reload=enable_hot_reload,
+                watch_paths=tuple(watch_path) if watch_path else None,
             ),
         )
 
