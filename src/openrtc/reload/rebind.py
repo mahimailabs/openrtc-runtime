@@ -62,8 +62,10 @@ def rebind_agent(
     for session in registry.sessions_for(config.name):
         if is_pinned(session):
             continue
-        if type(session.current_agent) is not old_cls:
-            # Already on the new class, or handed off elsewhere; leave it be.
+        if type(session.current_agent) is new_cls:
+            # Already on the newest class (e.g. re-entrant reload); leave it be.
+            # A session still on an older class (it was pinned through an earlier
+            # swap and has since unpinned) catches up to new_cls here.
             continue
         try:
             # User Agent subclasses override __init__ with no required args, the
