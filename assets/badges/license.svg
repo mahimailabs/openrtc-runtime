@@ -1,0 +1,10 @@
+<svg width="128" height="30" viewBox="0 0 128 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#172C4E"/><stop offset="1" stop-color="#0E1B33"/></linearGradient></defs>
+  <rect x="0.5" y="0.5" width="127" height="29" rx="14.5" fill="url(#bg)" stroke="#3B5C8E"/>
+  <g transform="translate(11,7)">
+    <path d="M5.6 10.2L4 15L8 13.1L12 15L10.4 10.2" fill="#EB5F36"/>
+    <circle cx="8" cy="6.4" r="5" fill="#0E1B33" stroke="#7694C4" stroke-width="1.6"/>
+    <path d="M5.9 6.4L7.3 7.9L10.1 5" stroke="#7694C4" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="34" y="19.5" font-family="Inter, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12.5" font-weight="600" fill="#ffffff">MIT License</text>
+</svg>

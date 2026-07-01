@@ -1,96 +1,68 @@
 <div align="center">
-  <a href="https://github.com/mahimailabs/openrtc">
-    <img src="assets/banner.png" alt="OpenRTC Banner" width="100%" />
-  </a>
+
+<a href="https://github.com/mahimailabs/openrtc-runtime">
+  <img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/wordings.png" alt="OpenRTC" width="480" />
+</a>
+
+<p>
+  <a href="https://openrtc.mintlify.app"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/docs.svg" height="30" alt="Docs"/></a>
+  <a href="https://pypi.org/project/openrtc/"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/pypi.svg" height="30" alt="PyPI"/></a>
+  <img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/python.svg" height="30" alt="Python 3.11 to 3.13"/>
+  <a href="https://docs.livekit.io/agents"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/livekit.svg" height="30" alt="LiveKit Agents 1.x"/></a>
+  <a href="LICENSE"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/license.svg" height="30" alt="MIT License"/></a>
+</p>
+
+[**Docs**](https://openrtc.mintlify.app) · [**Quick start**](#quick-start) · [**Isolation**](#isolation-modes) · [**Routing**](#routing) · [**API**](#public-api-at-a-glance)
+
 </div>
 
-<br />
+```python
+from openrtc import AgentPool
+from my_agents import RestaurantAgent, DentalAgent, SupportAgent
 
-# openrtc-python
-
-Run N LiveKit voice agents in one worker. Pay the model-load cost once.
-
-*PyPI package name: [`openrtc`](https://pypi.org/project/openrtc/).*
-
-<br />
-
-<div align="center">
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python Version"></a>
-  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
-  <a href="https://pypi.org/project/openrtc/"><img src="https://img.shields.io/pypi/v/openrtc.svg" alt="PyPI version"></a>
-  <a href="https://codecov.io/gh/mahimairaja/openrtc-python"><img src="https://codecov.io/gh/mahimairaja/openrtc-python/graph/badge.svg?token=W7VQ5FGSA9" alt="codecov"></a>
-  <a href="https://github.com/mahimairaja/openrtc-python/actions/workflows/test.yml"><img src="https://github.com/mahimairaja/openrtc-python/actions/workflows/test.yml/badge.svg" alt="CI"></a>
-</div>
-
-<br />
-
-<details>
-  <summary><b>Table of Contents</b></summary>
-  <ol>
-    <li><a href="#the-problem">The problem</a></li>
-    <li><a href="#what-openrtc-does">What openrtc does</a></li>
-    <li><a href="#installation">Installation</a></li>
-    <li><a href="#quick-start-explicit-registration-with-add">Quick start: explicit registration with add()</a></li>
-    <li><a href="#quick-start-one-python-file-per-agent-with-discover">Quick start: one Python file per agent with discover()</a></li>
-    <li><a href="#memory-before-and-after">Memory: before and after</a></li>
-    <li><a href="#routing">Routing</a></li>
-    <li><a href="#greetings-and-session-options">Greetings and session options</a></li>
-    <li><a href="#provider-configuration">Provider configuration</a></li>
-    <li><a href="#cli">CLI</a></li>
-    <li><a href="#public-api-at-a-glance">Public API at a glance</a></li>
-    <li><a href="#project-structure">Project structure</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#license">License</a></li>
-  </ol>
-</details>
-
-<br />
-
-## The problem
-
-You already ship three voice agents with `livekit-agents`. Each agent is its own worker on the same VPS. Every worker process loads the same shared stack: Python runtime, Silero VAD, and the turn-detection model. You are not loading three different models. You are loading the same stack three times because the process boundary forces it. On a 1–2 GB instance, that shows up as duplicate resident set for every idle worker. You pay RAM for copies you do not need.
-
-## What openrtc does
-
-`openrtc` gives you one `AgentPool` in one worker: prewarm runs once, each incoming call still gets its own `AgentSession`, and you register multiple `Agent` subclasses on the pool so dispatch can pick one per session from metadata or fallbacks. This package does not replace your agent code. It does not sit between you and `livekit.agents.Agent`, `@function_tool`, `RunContext`, `on_enter`, `on_exit`, `llm_node`, `stt_node`, or `tts_node`. You keep your subclasses and tools as they are. You change how many workers you run, not how you write an agent.
-
-## Installation
-
-OpenRTC **requires Python 3.11 or newer**. The LiveKit Silero / turn-detector
-plugins depend on `onnxruntime`, which does not ship supported wheels for
-Python 3.10 in current releases—use 3.11+ to avoid install failures.
-
-```bash
-pip install openrtc
+pool = AgentPool()                       # one worker, prewarm once
+pool.add("restaurant", RestaurantAgent)  # standard livekit.agents.Agent subclasses
+pool.add("dental", DentalAgent)
+pool.add("support", SupportAgent)
+pool.run()                               # N agents share one Silero VAD + turn detector
 ```
 
-The base install pulls in `livekit-agents[openai,silero,turn-detector]` so shared prewarm has the plugins it expects. The package ships a **PEP 561** `py.typed` marker for downstream type checkers.
+A thin multi-agent layer for [LiveKit Agents](https://docs.livekit.io/agents). Register many standard `livekit.agents.Agent` subclasses on one `AgentPool` and host them in a single worker: shared prewarm (Silero VAD, turn detector) loads once instead of once per worker, and every incoming call still gets its own `AgentSession`. OpenRTC never introduces a base class and never sits between you and `@function_tool`, `RunContext`, `on_enter`, `on_exit`, or the `*_node` hooks. You change how many workers you run, not how you write an agent.
 
-With **uv** (recommended in [CONTRIBUTING.md](CONTRIBUTING.md)):
+## Why OpenRTC
+
+The default one-worker-per-agent model in `livekit-agents` reloads the same stack (Python runtime, Silero VAD, turn detector) in every process. OpenRTC answers the questions an operator actually asks:
+
+- **How many agents per box?** One worker hosts every registered agent, each session an `asyncio.Task` over a shared `JobProcess`. The density benchmark clears 50+ concurrent sessions per worker under a 4 GB peak-RSS budget with headroom (see [Density](#density)).
+- **Do I rewrite my agents?** No. Your `Agent` subclasses, tools, and provider objects are unchanged; you delete per-worker boilerplate (`entrypoint`, `AgentSession` wiring, `cli.run_app`) and register classes on one pool.
+- **What does it cost in RAM?** Prewarm loads once per worker, not once per agent, so you stop paying resident set for copies you do not need.
+- **What if I need hard isolation?** Pass `isolation="process"` for the one-subprocess-per-session model with independent crashes and livekit's per-session memory caps.
+
+## Features
+
+| Capability | What it gives you |
+| :--- | :--- |
+| **One worker, many agents** | Register N standard `Agent` subclasses on a single `AgentPool`; dispatch resolves one per call. |
+| **Shared prewarm** | Silero VAD and the turn detector load once per worker in coroutine mode, not once per agent. |
+| **Coroutine or process isolation** | Default coroutine runs each session as an `asyncio.Task`; `process` keeps one subprocess per session with hard isolation. |
+| **Metadata routing** | Ordered resolution across job metadata, room metadata, room-name prefix, then first-registered fallback. |
+| **Session observers** | Structural-typed async start/end hooks for telemetry, isolated so a slow or raising observer never crashes the session. |
+| **JSONL metrics stream** | Append-only JSON Lines of pool snapshots and lifecycle events for `tail -f`, `jq`, or a log shipper. |
+| **LiveKit-shaped CLI** | `start` / `dev` / `console` / `connect` / `download-files` plus an OpenRTC-only `list`, with an optional Rich dashboard. |
+| **No base class** | Your `Agent` subclasses, `@function_tool`, `RunContext`, and node hooks stay exactly as written. |
+
+Full release history: [docs/changelog.md](docs/changelog.md).
+
+## Quick start
 
 ```bash
-uv add openrtc
-uv add "openrtc[cli]"
+pip install openrtc            # or: uv add openrtc
+pip install "openrtc[cli]"     # adds the openrtc CLI (rich + typer)
 ```
 
-```bash
-pip install 'openrtc[cli]'
-```
+Requires Python 3.11 to 3.13 (`>=3.11,<3.14`; the transitive `onnxruntime` behind Silero and the turn detector has no 3.10 wheels). The base install pulls `livekit-agents[openai,silero,turn-detector]>=1.5,<1.7` and `watchfiles`. Ships a PEP 561 `py.typed` marker. Set `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` as for any LiveKit worker.
 
-Set the same variables you use for any LiveKit worker:
-
-```bash
-export LIVEKIT_URL=ws://localhost:7880
-export LIVEKIT_API_KEY=devkey
-export LIVEKIT_API_SECRET=secret
-```
-
-For OpenAI-backed plugins, set `OPENAI_API_KEY` as you already do.
-
-## Quick start: explicit registration with `add()`
-
-Use this when you want every agent registered in one place with explicit names and providers.
+**Explicit registration with `add()`** when you want every agent named and configured in one place:
 
 ```python
 from livekit.agents import Agent
@@ -103,39 +75,21 @@ class RestaurantAgent(Agent):
         super().__init__(instructions="You help callers make restaurant bookings.")
 
 
-class DentalAgent(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions="You help callers manage dental appointments.")
-
-
-pool = AgentPool()
+pool = AgentPool(default_llm=openai.responses.LLM(model="gpt-4.1-mini"))
 pool.add(
     "restaurant",
     RestaurantAgent,
     stt=openai.STT(model="gpt-4o-mini-transcribe"),
-    llm=openai.responses.LLM(model="gpt-4.1-mini"),
     tts=openai.TTS(model="gpt-4o-mini-tts"),
     greeting="Welcome to reservations.",
-)
-pool.add(
-    "dental",
-    DentalAgent,
-    stt=openai.STT(model="gpt-4o-mini-transcribe"),
-    llm=openai.responses.LLM(model="gpt-4.1-mini"),
-    tts=openai.TTS(model="gpt-4o-mini-tts"),
 )
 pool.run()
 ```
 
-## Quick start: one Python file per agent with `discover()`
-
-Use this when you prefer one module per agent and optional `@agent_config(...)` on each class.
-
-Create a directory (for example `agents/`) and add one `.py` file per agent. Then:
+**One file per agent with `discover()`** when you prefer a module per agent and optional `@agent_config(...)`:
 
 ```python
 from pathlib import Path
-
 from livekit.plugins import openai
 from openrtc import AgentPool
 
@@ -148,9 +102,8 @@ pool.discover(Path("./agents"))
 pool.run()
 ```
 
-Example file `agents/restaurant.py`:
-
 ```python
+# agents/restaurant.py
 from livekit.agents import Agent
 from openrtc import agent_config
 
@@ -161,253 +114,79 @@ class RestaurantAgent(Agent):
         super().__init__(instructions="You help callers make restaurant bookings.")
 ```
 
-If a module has no `@agent_config`, the agent name defaults to the filename stem. STT, LLM, TTS, and greeting fall back to the pool defaults.
-
-Discovered agents work with `livekit dev` and spawn-based workers on macOS. For `add()`, define agent classes at module scope so worker reload can import them.
-
-## Migrating from livekit-agents
-
-Already running one or more `livekit-agents` workers? Each is its own process that
-loads the same VAD and turn-detector models. Collapse them into one `AgentPool`
-worker without changing your agents.
-
-**Before** (one worker per agent, N processes):
-
-```python
-# restaurant_worker.py  (plus a near-identical dental_worker.py, support_worker.py, ...)
-from livekit import agents
-from livekit.agents import Agent, AgentSession
-from livekit.plugins import openai, silero
-
-
-class RestaurantAgent(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions="You help callers book tables.")
-
-
-async def entrypoint(ctx: agents.JobContext) -> None:
-    session = AgentSession(
-        stt=openai.STT(), llm=openai.LLM(), tts=openai.TTS(), vad=silero.VAD.load()
-    )
-    await session.start(agent=RestaurantAgent(), room=ctx.room)
-    await ctx.connect()
-
-
-if __name__ == "__main__":
-    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))
-```
-
-**After** (one worker, N agents, one shared prewarm):
-
-```python
-# worker.py
-from livekit.agents import Agent
-from livekit.plugins import openai
-from openrtc import AgentPool
-
-
-class RestaurantAgent(Agent):  # unchanged
-    def __init__(self) -> None:
-        super().__init__(instructions="You help callers book tables.")
-
-
-class DentalAgent(Agent):  # unchanged
-    def __init__(self) -> None:
-        super().__init__(instructions="You help callers manage appointments.")
-
-
-pool = AgentPool(default_stt=openai.STT(), default_llm=openai.LLM(), default_tts=openai.TTS())
-pool.add("restaurant", RestaurantAgent)
-pool.add("dental", DentalAgent)
-pool.run()
-```
-
-Your `Agent` subclasses, tools, and provider objects are unchanged. You delete the
-per-worker boilerplate (`entrypoint`, `AgentSession` wiring, `cli.run_app`) and
-register the agents on one pool; OpenRTC owns prewarm, routing, and per-call
-session construction. On the first run the worker logs the win, for example:
-
-```text
-OpenRTC: 2 agents in 1 worker (baseline ~410 MB). 2 separate livekit-agents
-workers would cost ~820 MB; sharing one worker saves ~410 MB of idle baseline
-(assumes equal per-worker baselines).
-```
-
-See [Routing](#routing) for how each incoming call resolves to one registered agent.
-
-## Memory: before and after
-
-Assume an illustrative **~400 MB** idle baseline per worker for the shared stack (VAD, turn detector, and similar). Your measured RSS will differ by provider, model, and OS.
-
-| | Before openrtc | After openrtc |
-| --- | --- | --- |
-| Three workers, same stack | about **3 × 400 MB ≈ 1.2 GB** idle baseline (three loads) | — |
-| One worker, three registered agents | — | about **one × 400 MB** idle baseline (one load) plus per-session overhead |
-
-Exact numbers depend on your providers, concurrency, and call patterns. The win is not loading that stack once per agent worker.
+Without `@agent_config` the agent name defaults to the filename stem, and STT/LLM/TTS/greeting fall back to the pool defaults. Provider slots accept either instantiated plugin objects (`openai.STT(...)`) or shorthand strings (`"openai/gpt-4o-mini-transcribe"`), which the LiveKit runtime resolves at session construction. OpenRTC installs a sensible default `turn_handling` (multilingual turn detector with VAD interruption); override it per agent via `session_kwargs`. Define classes at module scope so spawn-based worker reload can import them. Depth: [openrtc.mintlify.app](https://openrtc.mintlify.app).
 
 ## Isolation modes
 
-`AgentPool` accepts an `isolation` argument that picks how each session
-runs inside the worker. The v0.1 default is `"coroutine"`; pass
-`isolation="process"` to opt back into the v0.0.x behavior:
+`AgentPool(isolation=...)` picks how each session runs inside the worker. Coroutine is the default; pass `isolation="process"` to opt into the one-subprocess-per-session model.
 
 ```python
 pool = AgentPool(
-    isolation="coroutine",          # default in v0.1
-    max_concurrent_sessions=50,     # backpressure threshold (coroutine only)
+    isolation="coroutine",         # default
+    max_concurrent_sessions=50,    # advisory backpressure (coroutine only)
+    consecutive_failure_limit=5,   # supervisor threshold (coroutine only)
+    drain_timeout=30,              # seconds to wait for in-flight sessions on SIGTERM
 )
 ```
 
 | Aspect | `coroutine` (default) | `process` |
-| --- | --- | --- |
-| Sessions per worker | Many (one `asyncio.Task` per session, shared `JobProcess`) | One (each session is its own subprocess via `livekit-agents` `ProcPool`) |
-| Prewarm cost (VAD, turn detector) | Paid once per worker | Paid once per session subprocess |
-| Crash isolation | Cooperative: an unhandled exception in one session is logged and marked FAILED; siblings continue. After `consecutive_failure_limit` (default 5) the worker calls `aclose()` so the platform restarts it. | Hard: each subprocess crashes independently; siblings unaffected. |
-| Per-session memory cap | Not enforced (asyncio shares one process) | Enforced via `livekit-agents` `job_memory_limit_mb` |
-| Backpressure | `current_load() = active / max_concurrent_sessions` reported as worker load; LiveKit dispatch routes elsewhere at `>= load_threshold` | `livekit-agents` default load math (CPU-based) |
-| When to pick | High density on a single host; cost-sensitive deployments. | Regulatory/compliance requires hard process isolation; per-session memory caps required. |
+| :--- | :--- | :--- |
+| Sessions per worker | Many. One `asyncio.Task` per session over a shared `JobProcess`. | One. Each session is its own subprocess via `livekit-agents` `ProcPool`. |
+| Prewarm (VAD, turn detector) | Loaded once per worker. | Loaded once per session subprocess. |
+| Crash isolation | Cooperative: an unhandled exception is logged and the session marked `FAILED`; siblings continue. `consecutive_failure_limit` consecutive failures (default 5) schedule `aclose()` so the platform restarts the worker; one `SUCCESS` resets the counter. | Hard: each subprocess crashes independently. |
+| Per-session memory cap | No cap knob (one process); livekit's `job_memory_limit_mb` has no effect here. | Configure livekit-agents' own `job_memory_limit_mb` worker option. |
+| Backpressure | `current_load() = active / max_concurrent_sessions`, reported to LiveKit dispatch. Advisory only (unclamped, not a hard gate); sessions past the threshold still launch. | `livekit-agents` default CPU-based load. |
+| Dependency surface | Uses `livekit-agents` private job internals; pinned to `>=1.5,<1.7`. An unsupported version fails import with a message pointing to `isolation="process"`. | Public, version-stable API. |
+| When to pick | High density on one host; cost-sensitive deployments. | Regulatory hard isolation; per-session memory caps. |
 
-### Density: coroutine vs process at 10/25/50/100 sessions
+`max_concurrent_sessions` (50), `consecutive_failure_limit` (5), and `drain_timeout` (30) are validated as positive integers. On SIGTERM the worker drains: it stops accepting jobs and waits up to `drain_timeout` seconds for in-flight sessions before cancelling.
 
-From the v0.1 stub-workload benchmark (`tests/benchmarks/density.py`,
-results recorded at `docs/benchmarks/density-v0.1.md`):
+### Density
 
-| Sessions | `coroutine` peak RSS | `process` est. peak RSS | Within 4 GB budget |
-| ---: | ---: | ---: | :---: |
-|  10 |   165 MB | ~30 GB  | coroutine ✓ / process ✗ |
-|  25 |   230 MB | ~75 GB  | coroutine ✓ / process ✗ |
-|  50 |   367 MB | ~150 GB | coroutine ✓ / process ✗ |
-| 100 |   617 MB | ~300 GB | coroutine ✓ / process ✗ |
+From the stub-workload benchmark (`tests/benchmarks/density.py`, results in [`docs/benchmarks/density-v0.1.md`](docs/benchmarks/density-v0.1.md); macOS arm64, Python 3.13, single worker). The gate: 50+ concurrent sessions per worker at 4 GB peak RSS with no errors. It passes with headroom.
 
-The same harness scales cleanly to 200 sessions (1073 MB) and 500
-sessions (1370 MB) without breaching the 4 GB budget — see the full
-results doc for the headroom sweep.
+| Concurrent sessions | Coroutine peak RSS | Delta over idle | Result |
+| ---: | ---: | ---: | :--- |
+| 50 | ~367 MB | ~251 MB | 50/50 ok |
+| 100 | 617 MB | 502 MB | ok |
+| 200 | 1073 MB | 957 MB | ok |
+| 500 | 1370 MB | 1256 MB | ok (8 GB cap) |
 
-**How the process column was estimated.** Each `livekit-agents`
-subprocess loads the Silero VAD + turn-detector models per worker
-process (~250-400 MB of model weights) plus the WebRTC peer connection
-and Python runtime, settling at the **~3 GB per process** baseline
-documented in `docs/audit-2026-05-02.md`. Multiply by `N` for the
-total. We do not run process mode at N>2 in CI for this reason.
+Process mode instead loads the runtime plus models per session (~3 GB each, see [docs/audit-2026-05-02.md](docs/audit-2026-05-02.md)), so the same 50 sessions would need ~150 GB; coroutine mode shares one process.
 
-**Stub-workload caveat.** The benchmark allocates ~5 MB per session to
-stress task scheduling, not a realistic ~60 MB/session WebRTC + LLM
-footprint. Validate against the §8.4 real-LiveKit integration test
-(which needs `docker compose -f docker-compose.test.yml up -d` and
-`OPENAI_API_KEY`) before quoting a per-session memory number to your
-operators.
+**Throughput is the other half.** N sessions share one event loop and one GIL, so `tests/benchmarks/throughput.py` drives real Silero VAD over synthetic 16 kHz PCM and measures steady-state loop p99: it stays well under a 100 ms budget to 100 sessions with flat RSS. Read both as an on-loop-CPU ceiling, not a full-pipeline guarantee: the harness stubs the WebRTC/STT/LLM/TTS path and the ~250 to 400 MB model footprint. Measure on your own hardware before quoting a sessions-per-worker number.
 
-### Throughput: steady-state event-loop p99
-
-Memory density is only half the question. N sessions share one event loop and
-one GIL, so the other half is whether the loop keeps up.
-`tests/benchmarks/throughput.py` drives N concurrent sessions through the real
-Silero VAD over synthetic 16 kHz PCM at 50 fps (the continuous on-loop CPU cost)
-and measures event-loop p99 latency, separating the startup burst from steady
-state.
+**Prove it on your machine** (no LiveKit server, no API keys, no model download):
 
 ```bash
-uv run python tests/benchmarks/throughput.py --sessions 1,10,25,50,100
+uv run python examples/density_demo.py                # 16 sessions
+uv run python examples/density_demo.py --sessions 50  # the gap widens with N
 ```
-
-Sample sweep (Apple M-series laptop, `vad` workload, steady state):
-
-| Sessions | steady-state loop p99 | peak RSS |
-| ---: | ---: | ---: |
-|   1 | 0.9 ms | 160 MB |
-|  10 | 1.3 ms | 160 MB |
-|  25 | 1.2 ms | 160 MB |
-|  50 | 1.1 ms | 160 MB |
-| 100 | 2.8 ms | 160 MB |
-
-Steady-state VAD inference stays well under a 100 ms loop-latency budget to 100
-sessions, with flat resident memory (the model loads once). The expensive,
-bursty part is session *startup* (each `session.start()` plus greeting), which
-the benchmark reports as a separate `startup_p99` column and which dominates
-early-life latency. This workload models the continuous VAD path, not the full
-STT/LLM/TTS orchestration, so read it as the on-loop-CPU ceiling rather than a
-full-pipeline guarantee. Run it on your own hardware before quoting a
-sessions-per-worker number.
-
-### Prove it on your machine
-
-The process column above is estimated. This script measures both models for
-real on your laptop: it spawns one subprocess per session for the
-process-per-session model, runs the same number of sessions as `asyncio`
-tasks in a single process for the coroutine model, then prints the memory
-used each way. No LiveKit server, no API keys, no model download.
-
-```bash
-uv run python examples/density_demo.py                 # 16 sessions
-uv run python examples/density_demo.py --sessions 32   # the gap widens with N
-uv run python examples/density_demo.py --sessions 50 --load-vad   # adds the shared Silero VAD model
-```
-
-Sample output (Apple M-series laptop, import-only mode):
 
 ```text
-Hosting 16 concurrent voice sessions. Measuring resident memory.
-
-  livekit-agents (process per session):     1861 MB total   ( 116.3 MB/session)
-  OpenRTC coroutine pool (one process):      195 MB total   (  12.2 MB/session)
-
-  OpenRTC uses 9.5x less memory for the same 16 sessions.
+livekit-agents (process per session):   1861 MB total  (116.3 MB/session)
+OpenRTC coroutine pool (one process):     195 MB total  ( 12.2 MB/session)
+OpenRTC uses 9.5x less memory for the same 16 sessions.
 ```
-
-Your numbers vary by machine, and the ratio grows as you raise `--sessions`
-(the coroutine pool pays the import cost once and amortizes it across every
-session). This default mode counts only the `livekit-agents` import cost, so
-it is a conservative lower bound: `--load-vad` adds the shared Silero VAD
-model weights (paid once in the pool, once per process otherwise), and
-`tests/benchmarks/density.py --sessions 50` proves the 50-sessions-under-4-GB
-ceiling. The full script is [examples/density_demo.py](examples/density_demo.py).
 
 ## Routing
 
-One process hosts several agent classes, so each session must resolve to a single registered name. `AgentPool` resolves the agent in this order:
+One worker hosts several agent classes, so each session resolves to one registered name. The chain is evaluated in order, and the first match wins:
 
 1. `ctx.job.metadata["agent"]`
 2. `ctx.job.metadata["demo"]`
-3. `ctx.room.metadata["agent"]`
-4. `ctx.room.metadata["demo"]`
-5. room name prefix match, such as `restaurant-call-123`
-6. the first registered agent
+3. room metadata `["agent"]`
+4. room metadata `["demo"]`
+5. room-name prefix match (agent name followed by a literal hyphen, e.g. `restaurant-call-123`)
+6. first registered agent (fallback)
 
-If metadata names an agent that is not registered, you get a `ValueError` instead of a silent fallback.
+Within a source, `agent` outranks `demo`. Metadata may be a JSON object string or a mapping; blank strings, non-JSON strings, and JSON scalars are ignored and defer to the next strategy. The room-metadata strategies read `ctx.job.room.metadata` first (authoritative before `ctx.connect()`, when `ctx.room.metadata` is still empty).
 
-## Greetings and session options
-
-You can pass a greeting and extra `AgentSession` options per registration.
-
-```python
-pool.add(
-    "restaurant",
-    RestaurantAgent,
-    greeting="Welcome to reservations.",
-    session_kwargs={"turn_handling": {"interruption": {"enabled": False}}},
-    max_tool_steps=4,
-    preemptive_generation=True,
-)
-```
-
-Direct keyword arguments win over the same keys inside `session_kwargs`.
-
-By default, OpenRTC sets explicit `turn_handling` with the multilingual turn detector and VAD-based interruption. To opt into adaptive interruption, pass `session_kwargs={"turn_handling": {"interruption": {"mode": "adaptive"}}}`.
-
-## Provider configuration
-
-Pass instantiated provider objects through to `livekit-agents` unchanged, for example:
-
-- `openai.STT(model="gpt-4o-mini-transcribe")`
-- `openai.responses.LLM(model="gpt-4.1-mini")`
-- `openai.TTS(model="gpt-4o-mini-tts")`
-
-If you pass strings such as `openai/gpt-4.1-mini`, OpenRTC leaves them as-is and the LiveKit runtime interprets them for your deployment.
+A value naming an **unregistered** agent raises eagerly instead of falling through: `ValueError("Unknown agent '<name>' requested via <job metadata|room metadata>.")`. An empty pool raises `RuntimeError("No agents are registered in the pool.")`. Routing never falls back silently. Full rules: [routing docs](https://openrtc.mintlify.app).
 
 ## Session observers
 
-Attach external telemetry to every session without subclassing or touching OpenRTC internals. Any object with two async methods is a `SessionObserver` (structural typing, no base class):
+Attach external telemetry to every session without subclassing or touching internals. Any object with two async methods satisfies the `SessionObserver` protocol (structural typing, no base class):
 
 ```python
 from openrtc import AgentPool, SessionInfo, SessionOutcome
@@ -421,78 +200,79 @@ class LoggingObserver:
         print(f"done: {info.agent_name} -> {outcome.status.value}")
 
 
-pool = AgentPool(observers=[LoggingObserver()])  # or pool.add_observer(...)
+pool = AgentPool(observers=[LoggingObserver()])   # or pool.add_observer(...)
 ```
 
-`on_session_start` receives the live `AgentSession`, which is where you subscribe to its metrics. `on_session_end` receives the terminal outcome (`SUCCESS`, `FAILED`, or `CANCELLED`). Observer calls are isolated: a raising or slow observer is logged and skipped, never crashing the session. In `process` isolation mode an observer must be picklable, so build live resources lazily on the first `on_session_start`.
+`on_session_start` receives the live `AgentSession` (subscribe to its metrics there). `on_session_end` receives a `SessionOutcome` with status `SUCCESS`, `FAILED`, or `CANCELLED`, and may fire without a matching start if a session dies before going live. Observer calls are isolated: a slow or raising observer is logged and skipped, never crashing the session. Register before `run()`; under `process` isolation an observer must be picklable, so build live resources lazily inside `on_session_start`.
 
 ## CLI
 
-Install `openrtc[cli]` to get `openrtc` on your PATH. Subcommands follow the LiveKit Agents CLI shape (`dev`, `start`, `console`, `connect`, `download-files`), plus `list`. For most commands you can pass the agents directory as the first path argument instead of `--agents-dir`.
-
-**List what discovery would register** (defaults are string passthroughs for `livekit-agents`, not constructed provider objects):
+Install `openrtc[cli]` to put `openrtc` on your PATH. Five subcommands mirror the LiveKit Agents shape (`start`, `dev`, `console`, `connect`, `download-files`), plus an OpenRTC-only `list`. Pass the agents directory as the first positional path instead of `--agents-dir`.
 
 ```bash
-openrtc list \
-  ./agents \
+openrtc list ./agents \
   --default-stt openai/gpt-4o-mini-transcribe \
   --default-llm openai/gpt-4.1-mini \
   --default-tts openai/gpt-4o-mini-tts
+
+openrtc start ./agents                           # production worker (after exporting LIVEKIT_*)
+openrtc dev   ./agents ./openrtc-metrics.jsonl   # 2nd positional path = --metrics-jsonl
 ```
 
-**Run a production worker** (after exporting `LIVEKIT_*`):
+Flags are scoped per command: `--json` / `--plain` / `--resources` on `list`; `--isolation` / `--max-concurrent-sessions` on the worker commands; the metrics and dashboard flags on the worker commands and `connect`. `--metrics-jsonl` appends one JSON object per line (an envelope of `schema_version`, `kind` (`snapshot` or `event`), `seq`, `wall_time_unix`, and `payload`), interleaving pool snapshots with `session_started` / `session_finished` / `session_failed` events for `tail -f` or `jq`. OpenRTC-only flags are stripped before the handoff to LiveKit's CLI parser. Full flag lists: [docs/cli.md](docs/cli.md).
 
-```bash
-openrtc start ./agents
+## Architecture
+
+```mermaid
+flowchart TB
+    LK[LiveKit dispatch] --> POOL[AgentPool: one worker process]
+    POOL --> PW[Shared prewarm: Silero VAD plus turn detector, loaded once]
+    POOL --> ROUTE{Routing chain}
+    ROUTE -->|job metadata| REG[Registered Agent subclasses]
+    ROUTE -->|room metadata| REG
+    ROUTE -->|room-name prefix| REG
+    ROUTE -->|first-registered fallback| REG
+    REG --> SESS[Per-session AgentSession: one asyncio.Task each]
+    PW --> SESS
+    SESS --> OBS[SessionObservers]
+    SESS --> SINK[runtime_snapshot plus JSONL metrics sink]
 ```
 
-**Run a development worker**:
-
-```bash
-openrtc dev ./agents
-```
-
-Same as ``openrtc dev --agents-dir ./agents``. The metrics JSONL file is **optional**: add a second path only when you want JSONL output (same as ``--metrics-jsonl``), e.g. ``openrtc dev ./agents ./openrtc-metrics.jsonl``.
-
-Optional visibility: `--dashboard` prints a Rich summary in the terminal. `--metrics-json-file ./runtime.json` overwrites a JSON snapshot on each tick. Use that for scripts, dashboards, or CI. For a streaming feed, use `--metrics-jsonl ./openrtc-metrics.jsonl` on the worker: it appends one JSON object per line as metrics arrive. Tail it with `tail -f ./openrtc-metrics.jsonl` or pipe it through `jq`, and any log shipper or script can consume the JSON Lines.
-
-Stable machine output: `openrtc list --json` and `--plain`. Combine `--resources` when you want footprint hints. OpenRTC-only flags are stripped before the handoff to LiveKit’s CLI parser.
-
-Full flag lists live in [docs/cli.md](docs/cli.md).
+Prewarm runs once as the worker's setup function and caches VAD and turn detector in `proc.userdata`. For each job the universal entrypoint runs the routing chain, instantiates the chosen `Agent` subclass, builds an `AgentSession` from cached defaults plus per-agent overrides, and starts it as a task on the shared loop. Registration data is spawn-safe, so it survives serialization to worker subprocesses. [Architecture deep dive](https://openrtc.mintlify.app).
 
 ## Public API at a glance
 
-Everything openrtc exposes publicly is listed here. Anything else is internal and not treated as stable.
+The public surface is exactly `openrtc.__all__`, 12 names. Everything else is internal and not treated as stable.
 
-- `AgentPool`
-- `AgentConfig`
-- `AgentDiscoveryConfig`
-- `agent_config(...)`
-- `ProviderValue` — type alias for STT/LLM/TTS slot values (provider ID strings or LiveKit plugin instances)
+| Export | What it is |
+| :--- | :--- |
+| `AgentPool` | The pool facade. Register agents, run one worker. |
+| `AgentConfig` | Per-agent registration record from `add()` / `discover()` (spawn-safe dataclass). |
+| `AgentDiscoveryConfig` | Per-file discovery metadata attached by `@agent_config`. |
+| `agent_config` | Keyword-only decorator tagging an `Agent` subclass with name/stt/llm/tts/greeting. |
+| `ProviderValue` | Type alias `str \| object` for STT/LLM/TTS slots (provider ID string or plugin instance). |
+| `SessionObserver` | `@runtime_checkable` protocol: async `on_session_start` / `on_session_end`. |
+| `SessionInfo` | Frozen dataclass: `agent_name`, `room_name`, `job_id`, `metadata`, `started_at`. |
+| `SessionOutcome` | Frozen dataclass: `status`, `error`, `ended_at`, `duration_seconds`. |
+| `SessionStatus` | Enum: `SUCCESS`, `FAILED`, `CANCELLED`. |
+| `FileWatcher` / `FileChange` | `watchfiles`-backed hot-reload watcher and its change record. |
+| `__version__` | Resolved from `importlib.metadata`. |
 
-`AgentPool(...)` constructor (all keyword-only, all optional):
+**`AgentPool(...)`** (all keyword-only, all optional):
 
-- `default_stt`, `default_llm`, `default_tts`, `default_greeting` — pool-wide defaults applied when `add()` / `discover()` doesn't override them.
-- `isolation: "coroutine" | "process"` (v0.1) — worker isolation mode. Default `"coroutine"` runs every session as an `asyncio.Task` in one worker; `"process"` keeps the v0.0.x one-subprocess-per-session behavior.
-- `max_concurrent_sessions: int` (v0.1) — coroutine-mode backpressure threshold. Default `50`. The worker reports `load >= 1.0` to LiveKit dispatch once this many sessions are in flight; ignored under `isolation="process"`.
-- `consecutive_failure_limit: int` (v0.1) — coroutine-mode supervisor threshold. Default `5`. After this many non-`SUCCESS` session terminations the worker calls `aclose()` so the deployment platform can restart it; ignored under `isolation="process"`.
+| Parameter | Default | Purpose |
+| :--- | :--- | :--- |
+| `default_stt` / `default_llm` / `default_tts` / `default_greeting` | `None` | Pool-wide defaults applied when `add()` / `discover()` does not override them. |
+| `observers` | `None` | `Sequence[SessionObserver]` registered during init. |
+| `isolation` | `"coroutine"` | `"coroutine"` or `"process"` worker isolation mode. |
+| `max_concurrent_sessions` | `50` | Coroutine backpressure threshold (positive int). |
+| `consecutive_failure_limit` | `5` | Coroutine supervisor threshold (positive int). |
+| `drain_timeout` | `30` | Seconds to wait for in-flight sessions after SIGTERM (positive int). |
 
-On `AgentPool`:
+**Methods:** `add`, `discover`, `list_agents`, `get`, `remove`, `add_observer`, `run`, `runtime_snapshot`, `drain_metrics_stream_events`. **Read-only properties:** `isolation`, `max_concurrent_sessions`, `consecutive_failure_limit`, `drain_timeout`, `server`. `add()` raises on an empty or duplicate name and on an `agent_cls` that is not a `livekit.agents.Agent` subclass; direct `**session_options` override the same keys in `session_kwargs`.
 
-- `add(...)`
-- `discover(...)`
-- `list_agents()`
-- `get(name)`
-- `remove(name)`
-- `run()`
-- `runtime_snapshot()`
-- `drain_metrics_stream_events()` — for JSONL export paths (mainly CLI; rare in app code)
-- `server`
-- `isolation` (read-only property, v0.1)
-- `max_concurrent_sessions` (read-only property, v0.1)
-- `consecutive_failure_limit` (read-only property, v0.1)
-
-## Project structure
+<details>
+<summary><b>Project structure</b></summary>
 
 ```text
 src/openrtc/
@@ -505,31 +285,31 @@ src/openrtc/
 │   ├── serialization.py   # spawn-safe config serialization
 │   ├── turn_handling.py   # turn-detector integration
 │   └── wiring.py          # AgentSession assembly helpers
-├── routing/               # family: base_routing.py + variant siblings + resolver
+├── routing/               # base_routing.py + variant siblings + resolver
 │   ├── base_routing.py    # RoutingStrategy protocol
 │   ├── metadata_routing.py
 │   ├── room_prefix_routing.py
 │   ├── default_routing.py
-│   └── resolver.py        # selects active strategy
-├── runtime/               # family: base_runtime.py + variant siblings + registry
+│   └── resolver.py        # ordered strategy chain
+├── runtime/               # base_runtime.py + variant siblings + registry
 │   ├── base_runtime.py    # RuntimeBackend protocol
 │   ├── coroutine_runtime.py
 │   ├── process_runtime.py
 │   ├── coroutine_server.py
-│   ├── prewarm.py         # shared prewarm helpers (non-variant)
+│   ├── prewarm.py         # shared prewarm helpers
 │   ├── resources.py       # shared resource cache
-│   ├── file_watcher.py    # hot-reload file watcher
+│   ├── file_watcher.py    # FileWatcher / FileChange, hot reload
 │   └── registry.py        # selects active runtime
-├── observability/         # family: base_observer.py + base_sink.py + concretes
+├── observability/         # base_observer.py + base_sink.py + concretes
 │   ├── base_observer.py   # SessionObserver protocol
-│   ├── base_sink.py       # MetricsSink protocol
+│   ├── base_sink.py       # metrics sink protocol
 │   ├── jsonl_sink.py      # JSONL metrics schema and writer
 │   ├── metrics.py         # RuntimeMetricsStore, footprint helpers
 │   ├── snapshot.py        # PoolRuntimeSnapshot dataclass
 │   ├── resident_set.py    # RSS memory helpers
 │   ├── savings.py         # cost-savings estimator
 │   └── footprint.py       # per-session memory footprint
-├── cli/                   # family: base_cli.py + variant siblings
+├── cli/                   # base_cli.py + variant siblings
 │   ├── base_cli.py        # shared Typer args and parameter bundles
 │   ├── main_cli.py        # top-level Typer app and subcommands
 │   ├── dashboard_cli.py   # Rich dashboard and list output
@@ -541,15 +321,29 @@ src/openrtc/
     └── validation.py      # input validation helpers
 ```
 
-- `core/pool.py`: `AgentPool` facade; discovery, routing, and session assembly all delegate to focused modules
-- `cli/`: Typer/Rich CLI (`openrtc[cli]`)
-- `observability/jsonl_sink.py`: JSONL metrics schema and writer
+</details>
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). CI runs **Ruff** and **mypy** on pull
-requests alongside the test suite.
+```bash
+git clone https://github.com/mahimailabs/openrtc-runtime
+cd openrtc-runtime
+uv sync --group dev
+uv run pytest
+```
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. CI runs Ruff and mypy (strict) alongside the suite, with a combined line + branch coverage gate at 99%.
+
+## Community
+
+[![Star History Chart](https://api.star-history.com/svg?repos=mahimailabs/openrtc-runtime&type=Date)](https://star-history.com/#mahimailabs/openrtc-runtime&Date)
+
+<a href="https://github.com/mahimailabs/openrtc-runtime/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=mahimailabs/openrtc-runtime&max=40&columns=10&anon=0" alt="Contributors" />
+</a>
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE). Fork it, ship it.
+
+Built by [Mahimai Raja](https://mahimai.dev), founder of [Mahimai AI](https://mahimai.ca), a voice AI company, in public. Standing on [LiveKit Agents](https://github.com/livekit/agents).

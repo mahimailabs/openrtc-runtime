@@ -1,0 +1,9 @@
+<svg width="82" height="30" viewBox="0 0 82 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#172C4E"/><stop offset="1" stop-color="#0E1B33"/></linearGradient></defs>
+  <rect x="0.5" y="0.5" width="81" height="29" rx="14.5" fill="url(#bg)" stroke="#3B5C8E"/>
+  <g transform="translate(11,7)">
+    <path d="M8 1.4L14 4.7V11.3L8 14.6L2 11.3V4.7Z" fill="#7694C4"/>
+    <path d="M2 4.7L8 8L14 4.7M8 8V14.6" stroke="#0E1B33" stroke-width="0.9" fill="none"/>
+  </g>
+  <text x="34" y="19.5" font-family="Inter, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12.5" font-weight="600" fill="#ffffff">PyPI</text>
+</svg>
