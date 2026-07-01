@@ -1,0 +1,11 @@
+<svg width="154" height="30" viewBox="0 0 154 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#172C4E"/><stop offset="1" stop-color="#0E1B33"/></linearGradient></defs>
+  <rect x="0.5" y="0.5" width="153" height="29" rx="14.5" fill="url(#bg)" stroke="#3B5C8E"/>
+  <g transform="translate(11,7)" fill="#7694C4">
+    <rect x="1" y="6" width="2.2" height="4" rx="1.1"/>
+    <rect x="4.4" y="3.5" width="2.2" height="9" rx="1.1"/>
+    <rect x="7.8" y="1.4" width="2.2" height="13.2" rx="1.1"/>
+    <rect x="11.2" y="4.5" width="2.2" height="7" rx="1.1"/>
+  </g>
+  <text x="34" y="19.5" font-family="Inter, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12.5" font-weight="600" fill="#ffffff">LiveKit Agents</text>
+</svg>

@@ -24,9 +24,11 @@ dependencies = [
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://github.com/mahimailabs/openrtc"
-Issues = "https://github.com/mahimailabs/openrtc/issues"
-Repository = "https://github.com/mahimailabs/openrtc"
+Homepage = "https://github.com/mahimailabs/openrtc-runtime"
+Documentation = "https://openrtc.mintlify.app"
+Issues = "https://github.com/mahimailabs/openrtc-runtime/issues"
+Repository = "https://github.com/mahimailabs/openrtc-runtime"
+Changelog = "https://openrtc.mintlify.app/changelog"
 
 [project.scripts]
 openrtc = "openrtc.cli:main"
