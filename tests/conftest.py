@@ -70,6 +70,17 @@ except ImportError:
         async def connect(self) -> None:
             return None
 
+    class JobRequest:
+        def __init__(self) -> None:
+            self.job = types.SimpleNamespace(metadata=None)
+            self.room = types.SimpleNamespace(name="", metadata=None)
+
+        async def accept(self, **_kwargs: Any) -> None:
+            return None
+
+        async def reject(self, **_kwargs: Any) -> None:
+            return None
+
     class JobProcess:
         def __init__(self) -> None:
             self.userdata: dict[str, Any] = {}
@@ -88,6 +99,7 @@ except ImportError:
     agents_module.AgentServer = AgentServer
     agents_module.AgentSession = AgentSession
     agents_module.JobContext = JobContext
+    agents_module.JobRequest = JobRequest
     agents_module.JobProcess = JobProcess
     agents_module.RunContext = RunContext
     agents_module.function_tool = function_tool

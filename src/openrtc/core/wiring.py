@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from livekit.agents import JobContext
 
     from openrtc.runtime.base_runtime import SessionRuntime
+    from openrtc.utils.types import RequestFilter
 
 logger = logging.getLogger("openrtc")
 
@@ -114,7 +115,16 @@ async def run_session(
         )
 
 
-def wire_pool(server: SessionRuntime, runtime_state: _PoolRuntimeState) -> None:
-    """Bind prewarm and the session entrypoint onto the server."""
+def wire_pool(
+    server: SessionRuntime,
+    runtime_state: _PoolRuntimeState,
+    request_fnc: RequestFilter | None = None,
+) -> None:
+    """Bind prewarm and the session entrypoint onto the server.
+
+    ``request_fnc`` is LiveKit's per-job accept/reject hook. When ``None`` the
+    hook is left at LiveKit's default (accept every job), preserving existing
+    behavior; a filter lets the worker scope which rooms it handles.
+    """
     server.setup_fnc = partial(_prewarm_worker, runtime_state)
-    server.rtc_session()(partial(run_session, runtime_state))
+    server.rtc_session(on_request=request_fnc)(partial(run_session, runtime_state))

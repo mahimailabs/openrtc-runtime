@@ -12,7 +12,7 @@ from .observability.base_observer import (
 )
 from .reload.pin import is_pinned, pin_reload
 from .runtime.file_watcher import FileChange, FileWatcher
-from .utils.types import ProviderValue
+from .utils.types import ProviderValue, RequestFilter
 
 try:
     __version__ = version("openrtc")
@@ -29,6 +29,7 @@ __all__ = [
     "FileChange",
     "FileWatcher",
     "ProviderValue",
+    "RequestFilter",
     "SessionInfo",
     "SessionObserver",
     "SessionOutcome",

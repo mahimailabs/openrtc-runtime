@@ -23,6 +23,22 @@ class DemoAgent(Agent):
         super().__init__(instructions="Test agent")
 
 
+class _FakeRequest:
+    """Minimal ``JobRequest`` stand-in that records accept/reject."""
+
+    def __init__(self, *, room_name: str = "") -> None:
+        self.job = SimpleNamespace(metadata=None)
+        self.room = SimpleNamespace(name=room_name, metadata=None)
+        self.accepted = False
+        self.rejected = False
+
+    async def accept(self, **_kwargs: object) -> None:
+        self.accepted = True
+
+    async def reject(self, **_kwargs: object) -> None:
+        self.rejected = True
+
+
 def test_add_registers_agent() -> None:
     pool = AgentPool()
 
@@ -36,6 +52,46 @@ def test_add_registers_agent() -> None:
 
     assert config.name == "test"
     assert pool.list_agents() == ["test"]
+
+
+def test_request_fnc_defaults_to_none() -> None:
+    pool = AgentPool()
+
+    assert pool.request_fnc is None
+
+
+def test_request_fnc_is_stored() -> None:
+    async def _filter(_req: object) -> None:
+        return None
+
+    pool = AgentPool(request_fnc=_filter)
+
+    assert pool.request_fnc is _filter
+
+
+def test_accept_only_registered_rooms_builds_owning_filter() -> None:
+    pool = AgentPool(accept_only_registered_rooms=True)
+    pool.add("alpha", DemoAgent)
+    request_fnc = pool.request_fnc
+    assert request_fnc is not None
+
+    owned = _FakeRequest(room_name="alpha-call-1")
+    asyncio.run(request_fnc(owned))
+    assert owned.accepted is True
+    assert owned.rejected is False
+
+    foreign = _FakeRequest(room_name="t_9f2c")
+    asyncio.run(request_fnc(foreign))
+    assert foreign.rejected is True
+    assert foreign.accepted is False
+
+
+def test_request_fnc_and_accept_flag_are_mutually_exclusive() -> None:
+    async def _filter(_req: object) -> None:
+        return None
+
+    with pytest.raises(ValueError, match="request_fnc"):
+        AgentPool(request_fnc=_filter, accept_only_registered_rooms=True)
 
 
 def test_isolation_defaults_to_coroutine() -> None:
