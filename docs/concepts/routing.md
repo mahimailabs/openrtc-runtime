@@ -90,6 +90,55 @@ This is convenient for low-config deployments where the room naming convention i
 
 If no strategy matches, OpenRTC routes to the **first registered agent** (the first call to `pool.add()`). This means a single-agent pool always resolves, and a multi-agent pool has a sensible default for sessions that carry no routing signal.
 
+## Scoping which rooms a worker accepts
+
+The priority chain runs **after** a worker has accepted a job, and thanks to the default fallback it always resolves *some* agent. That is the right behavior for a worker that owns its LiveKit project, but the wrong behavior when workers share one.
+
+Under automatic dispatch, LiveKit offers every room to every registered worker. If two OpenRTC workers (or an OpenRTC worker beside a non-OpenRTC agent) share a project, each worker would accept rooms meant for the other and default-route them onto its first agent.
+
+Filter jobs one layer earlier, at acceptance time, with LiveKit's per-job `on_request` hook:
+
+<Note>
+A request filter decides **whether** to take a job; the priority chain decides **which** agent handles the jobs you took. They are independent: a job that passes the filter still runs through the full chain.
+</Note>
+
+### Convenience: accept only your own rooms
+
+```python
+pool = AgentPool(accept_only_registered_rooms=True)
+pool.add("support", SupportAgent)
+pool.add("billing", BillingAgent)
+```
+
+The worker accepts a job only when an **explicit** routing signal maps it to one of this pool's agents:
+
+- job or room metadata names a registered agent (`{"agent": "support"}`), or
+- the room name is prefixed with a registered agent name (`support-call-123`).
+
+Everything else is rejected via `req.reject()`. This mirrors the priority chain **minus the default fallback**, so foreign rooms (which no registered agent claims) are declined instead of grabbed. Metadata naming an unregistered agent is treated as "not mine" and rejected, never raised.
+
+### Full control: a custom filter
+
+Pass any async `on_request` handler as `request_fnc`:
+
+```python
+from openrtc import AgentPool, RequestFilter
+from livekit.agents import JobRequest
+
+
+async def only_support_rooms(req: JobRequest) -> None:
+    if req.room.name.startswith("support-"):
+        await req.accept()
+    else:
+        await req.reject()
+
+
+support_filter: RequestFilter = only_support_rooms
+pool = AgentPool(request_fnc=support_filter)
+```
+
+`request_fnc` defaults to `None` (accept every job, LiveKit's default). It is mutually exclusive with `accept_only_registered_rooms`. `RequestFilter` is exported for typing your own filters.
+
 ## Error behavior
 
 | Condition | Behavior |
