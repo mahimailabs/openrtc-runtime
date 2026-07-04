@@ -54,6 +54,27 @@ def test_add_registers_agent() -> None:
     assert pool.list_agents() == ["test"]
 
 
+def test_memory_watermarks_default_to_livekit_values() -> None:
+    pool = AgentPool()
+
+    assert pool.memory_warn_mb == 1000.0
+    assert pool.memory_limit_mb == 0.0
+
+
+def test_memory_watermarks_accept_custom_values() -> None:
+    pool = AgentPool(memory_warn_mb=2000, memory_limit_mb=3500)
+
+    assert pool.memory_warn_mb == 2000.0
+    assert pool.memory_limit_mb == 3500.0
+    # The values reach the underlying AgentServer.
+    assert pool.server._job_memory_limit_mb == 3500.0
+
+
+def test_memory_limit_rejects_negative() -> None:
+    with pytest.raises(ValueError, match=r"memory_limit_mb must be >= 0"):
+        AgentPool(memory_limit_mb=-1)
+
+
 def test_request_fnc_defaults_to_none() -> None:
     pool = AgentPool()
 

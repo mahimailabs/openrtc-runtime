@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-__all__ = ["require_positive_int", "validate_isolation"]
+__all__ = [
+    "require_non_negative_number",
+    "require_positive_int",
+    "validate_isolation",
+]
 
 _ISOLATION_MODES = ("coroutine", "process")
 
@@ -14,6 +18,19 @@ def require_positive_int(name: str, value: object) -> int:
     if value < 1:
         raise ValueError(f"{name} must be >= 1, got {value}.")
     return value
+
+
+def require_non_negative_number(name: str, value: object) -> float:
+    """Return ``value`` as a float if it is a non-bool number >= 0, else raise.
+
+    Used for memory watermarks where ``0`` means "disabled" (livekit's own
+    convention for ``memory_limit_mb``).
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(f"{name} must be a number, got {type(value).__name__}.")
+    if value < 0:
+        raise ValueError(f"{name} must be >= 0, got {value}.")
+    return float(value)
 
 
 def validate_isolation(value: str) -> str:

@@ -104,6 +104,19 @@ class _CoroutineAgentServer(AgentServer):
             return
         loop.create_task(self.aclose())
 
+    def _on_memory_limit_exceeded(self, rss_mb: float) -> None:
+        """Schedule ``aclose()`` so the worker exits and is restarted after an RSS breach."""
+        logger.error(
+            "supervisor: worker RSS %.0f MB exceeded memory_limit_mb; "
+            "invoking AgentServer.aclose() so the worker can exit and restart",
+            rss_mb,
+        )
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        loop.create_task(self.aclose())
+
     def _build_pool_factory(self) -> Callable[..., CoroutinePool]:
         """Return the ``ProcPool`` replacement factory that builds a ``CoroutinePool``."""
 
@@ -113,6 +126,7 @@ class _CoroutineAgentServer(AgentServer):
                 max_concurrent_sessions=self._max_concurrent_sessions,
                 consecutive_failure_limit=self._consecutive_failure_limit,
                 on_consecutive_failure_limit=self._on_consecutive_failure_limit,
+                on_memory_limit_exceeded=self._on_memory_limit_exceeded,
             )
             self._coroutine_pool = pool
             return pool
@@ -172,4 +186,6 @@ def build_server(params: ServerParams) -> _CoroutineAgentServer:
         max_concurrent_sessions=params.max_concurrent_sessions,
         consecutive_failure_limit=params.consecutive_failure_limit,
         drain_timeout=params.drain_timeout,
+        job_memory_warn_mb=params.memory_warn_mb,
+        job_memory_limit_mb=params.memory_limit_mb,
     )

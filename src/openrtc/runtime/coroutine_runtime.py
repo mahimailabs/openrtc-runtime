@@ -28,11 +28,33 @@ except ImportError as exc:  # pragma: no cover
         "(>=1.5,<1.7) or use isolation='process' (the public, version-stable mode)."
     ) from exc
 
+from openrtc.observability.resident_set import process_resident_set_bytes
 from openrtc.utils.validation import require_positive_int
 
 # Mirrors upstream livekit-agents 1.6.2: primary AgentSession.aclose() is
 # bounded at 60 s during teardown so a hung session never stalls cleanup.
 _SESSION_ACLOSE_TIMEOUT = 60.0
+
+# How often the worker-level RSS watermark is sampled (MAH-161). Coroutine mode
+# runs every session in one process, so caps are worker-level, not per-session.
+_MEMORY_CHECK_INTERVAL_SECONDS = 5.0
+_BYTES_PER_MB = 1024 * 1024
+
+
+def _memory_watermark_action(
+    rss_mb: float, warn_mb: float, limit_mb: float
+) -> Literal["ok", "warn", "limit"]:
+    """Classify a worker RSS reading against its warn/limit watermarks.
+
+    A watermark of ``0`` (livekit's default for ``memory_limit_mb``) disables
+    that band. ``limit`` takes precedence over ``warn`` when both would trip.
+    """
+    if limit_mb > 0 and rss_mb >= limit_mb:
+        return "limit"
+    if warn_mb > 0 and rss_mb >= warn_mb:
+        return "warn"
+    return "ok"
+
 
 if TYPE_CHECKING:
     from livekit.agents.ipc.job_executor import JobExecutor
@@ -348,6 +370,8 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         max_concurrent_sessions: int = 50,
         consecutive_failure_limit: int = 5,
         on_consecutive_failure_limit: Callable[[int], None] | None = None,
+        on_memory_limit_exceeded: Callable[[float], None] | None = None,
+        memory_check_interval: float = _MEMORY_CHECK_INTERVAL_SECONDS,
         **_extra: Any,
     ) -> None:
         super().__init__()
@@ -389,6 +413,13 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         self._started = False
         self._draining = False
         self._shared_proc: JobProcess | None = None
+        # Worker-level RSS watermark (MAH-161): warn at memory_warn_mb, and at
+        # memory_limit_mb trip the supervisor to restart the worker. Per-session
+        # caps are impossible in coroutine mode (one process, no boundary).
+        self._on_memory_limit_exceeded = on_memory_limit_exceeded
+        self._memory_check_interval = memory_check_interval
+        self._memory_monitor_task: asyncio.Task[None] | None = None
+        self._memory_warned = False
 
     @property
     def processes(self) -> list[JobExecutor]:
@@ -438,12 +469,17 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         # here; close in aclose().
         with contextlib.suppress(Exception):
             http_context._new_session_ctx()
-        # Wire the inference executor to proc so _supports_multilingual_turn_detection
-        # finds it. Standard mode sets this inside each subprocess worker; coroutine
-        # mode has a single shared proc and must set it here.
+        # Mirror the inference executor onto the shared proc for parity with
+        # standard mode (each subprocess worker sets its own). The turn-detection
+        # gate reads it from the JobContext now (MAH-159), but livekit-internal
+        # consumers may still look on the proc, so keep them consistent.
         if self._inference_executor is not None:
             with contextlib.suppress(Exception):
                 self._shared_proc.inference_executor = self._inference_executor  # type: ignore[attr-defined]
+
+        # Start the worker-level RSS watermark monitor when either band is armed.
+        if self._memory_warn_mb > 0 or self._memory_limit_mb > 0:
+            self._memory_monitor_task = asyncio.create_task(self._monitor_memory())
 
     @property
     def shared_process(self) -> JobProcess | None:
@@ -454,6 +490,56 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
     def started(self) -> bool:
         """True after :meth:`start` has completed successfully."""
         return self._started
+
+    async def _monitor_memory(self) -> None:
+        """Sample worker RSS on an interval until a limit trips or the task is cancelled."""
+        while True:
+            await asyncio.sleep(self._memory_check_interval)
+            if self._check_memory_once():
+                return
+
+    def _check_memory_once(self) -> bool:
+        """Sample worker RSS once and act on the watermarks; return True if the limit tripped.
+
+        Warnings are emitted once per threshold crossing (re-armed when RSS drops
+        back below the warn band) so a sustained-high worker does not spam logs.
+        """
+        rss_bytes = process_resident_set_bytes()
+        if rss_bytes is None:
+            return False
+        rss_mb = rss_bytes / _BYTES_PER_MB
+        action = _memory_watermark_action(
+            rss_mb, self._memory_warn_mb, self._memory_limit_mb
+        )
+        if action == "limit":
+            logger.error(
+                "worker RSS %.0f MB exceeded memory_limit_mb=%.0f; draining and "
+                "closing the worker so it is restarted (coroutine mode caps are "
+                "worker-level, not per-session)",
+                rss_mb,
+                self._memory_limit_mb,
+            )
+            if self._on_memory_limit_exceeded is not None:
+                self._on_memory_limit_exceeded(rss_mb)
+            return True
+        if action == "warn":
+            if not self._memory_warned:
+                logger.warning(
+                    "worker RSS %.0f MB crossed memory_warn_mb=%.0f",
+                    rss_mb,
+                    self._memory_warn_mb,
+                )
+                self._memory_warned = True
+        else:
+            self._memory_warned = False
+        return False
+
+    def _cancel_memory_monitor(self) -> None:
+        """Cancel the RSS watermark monitor task if it is running."""
+        task = self._memory_monitor_task
+        if task is not None and not task.done():
+            task.cancel()
+        self._memory_monitor_task = None
 
     async def drain(self) -> None:
         """Stop accepting new jobs and await every in-flight executor; idempotent."""
@@ -480,6 +566,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         if not self._started:
             return
         self._started = False
+        self._cancel_memory_monitor()
 
         executors = list(self._executors)
         if executors:

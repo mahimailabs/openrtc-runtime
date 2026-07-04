@@ -20,6 +20,12 @@ class ServerParams:
     max_concurrent_sessions: int
     consecutive_failure_limit: int
     drain_timeout: int
+    # Worker memory watermarks (MB). Defaults mirror livekit's WorkerOptions:
+    # warn at 1000, limit 0 (disabled). In process mode livekit enforces these
+    # per-subprocess natively; in coroutine mode they drive the worker-level
+    # RSS watermark (one process, so caps cannot be per-session).
+    memory_warn_mb: float = 1000.0
+    memory_limit_mb: float = 0.0
 
 
 # isolation mode -> (module path, builder attribute). Lazy import keeps the

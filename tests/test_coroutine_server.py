@@ -214,6 +214,39 @@ def test_coroutine_server_supervisor_callback_no_running_loop_returns_quietly() 
     server._on_consecutive_failure_limit(3)
 
 
+def test_coroutine_server_memory_limit_callback_logs_and_schedules_aclose(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`_on_memory_limit_exceeded` logs at ERROR and schedules aclose (MAH-161)."""
+    import logging
+
+    server = _CoroutineAgentServer()
+    aclose_calls: list[None] = []
+
+    async def _fake_aclose() -> None:  # type: ignore[no-untyped-def]
+        aclose_calls.append(None)
+
+    server.aclose = _fake_aclose  # type: ignore[method-assign]
+
+    async def _scenario() -> None:
+        with caplog.at_level(logging.ERROR, logger="openrtc.runtime.coroutine_server"):
+            server._on_memory_limit_exceeded(4321.0)
+        await asyncio.sleep(0)
+
+    asyncio.run(_scenario())
+
+    assert "worker RSS 4321 MB exceeded memory_limit_mb" in caplog.text
+    assert aclose_calls == [None]
+
+
+def test_coroutine_server_memory_limit_callback_no_running_loop_returns_quietly() -> (
+    None
+):
+    """`_on_memory_limit_exceeded` is safe to call outside an event loop."""
+    server = _CoroutineAgentServer()
+    server._on_memory_limit_exceeded(9999.0)
+
+
 def test_coroutine_server_factory_constructs_coroutine_pool_with_kwargs() -> None:
     """The factory closure produces a CoroutinePool with the right kwargs."""
     import multiprocessing as mp
