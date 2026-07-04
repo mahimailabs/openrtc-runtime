@@ -11,7 +11,11 @@ import json
 import logging
 import sys
 
-from openrtc.observability.log_scoping import JsonLogFormatter, SessionIdFilter
+from openrtc.observability.log_scoping import (
+    JsonLogFormatter,
+    SessionIdFilter,
+    iter_session_log_records,
+)
 from openrtc.observability.session_context import session_scope
 
 
@@ -74,3 +78,30 @@ def test_filter_and_formatter_compose() -> None:
         log_filter.filter(rec)
         out = json.loads(fmt.format(rec))
     assert out["session_id"] == "compose-1"
+
+
+_LINES = [
+    '{"session_id": "a", "message": "one"}',
+    "",  # blank line skipped
+    "not json at all",  # non-JSON line skipped
+    '{"session_id": "b", "message": "two"}',
+    "[1, 2, 3]",  # JSON but not an object -> skipped
+    '{"session_id": "a", "message": "three"}',
+    '{"message": "no-session"}',
+]
+
+
+def test_iter_records_filters_by_session() -> None:
+    got = [r["message"] for r in iter_session_log_records(_LINES, "a")]
+    assert got == ["one", "three"]
+
+
+def test_iter_records_no_filter_returns_all_json_objects() -> None:
+    got = [r["message"] for r in iter_session_log_records(_LINES, None)]
+    assert got == ["one", "two", "three", "no-session"]
+
+
+def test_iter_records_session_filter_excludes_null_session() -> None:
+    # A record with no session_id never matches a filter.
+    got = list(iter_session_log_records(['{"message": "x"}'], "a"))
+    assert got == []

@@ -6,6 +6,7 @@ import json
 import logging
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -145,6 +146,32 @@ def list_command(
     print_list_rich_table(discovered, resources=resources)
     if resources:
         print_resource_summary_rich(discovered)
+
+
+@app.command("logs")
+def logs_command(
+    log_file: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to a JSONL log file (openrtc JsonLogFormatter output).",
+        ),
+    ],
+    session: Annotated[
+        str | None,
+        typer.Option(
+            "--session",
+            help="Filter to one session_id (omit to print every record).",
+        ),
+    ] = None,
+) -> None:
+    """Filter a structured JSONL log file by session_id (MAH-91)."""
+    from openrtc.observability.log_scoping import iter_session_log_records
+
+    if not log_file.exists():
+        raise typer.BadParameter(f"Log file does not exist: {log_file}")
+    with log_file.open(encoding="utf-8") as handle:
+        for record in iter_session_log_records(handle, session):
+            print(json.dumps(record))
 
 
 _WORKER_POSITIONAL_HELP = (
