@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import stat
 import tempfile
 import uuid
 from pathlib import Path
@@ -11,6 +13,7 @@ import pytest
 from openrtc.observability.introspection import SessionRow
 from openrtc.observability.introspection_ipc import (
     IntrospectionServer,
+    _private_runtime_dir,
     default_socket_path,
     fetch_snapshot,
     rows_from_json,
@@ -44,9 +47,23 @@ def test_rows_from_json_tolerates_garbage() -> None:
     assert rows_from_json('[1, 2, {"session_id": "s1"}]') == [{"session_id": "s1"}]
 
 
-def test_default_socket_path_is_local() -> None:
+def test_default_socket_path_is_private() -> None:
     path = default_socket_path()
-    assert path.name == "openrtc-top.sock"
+    assert path.name == "top.sock"
+    parent = path.parent
+    assert parent.name == f"openrtc-{os.getuid()}"
+    # The per-user socket directory is private (0700).
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o700
+
+
+def test_private_runtime_dir_rejects_symlink(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    # A hostile symlink pre-planted where the per-uid dir would be.
+    (tmp_path / f"openrtc-{os.getuid()}").symlink_to(tmp_path)
+    with pytest.raises(RuntimeError, match="symlinked"):
+        _private_runtime_dir()
 
 
 @pytest.mark.asyncio
@@ -55,6 +72,8 @@ async def test_server_client_round_trip() -> None:
     server = IntrospectionServer(snapshot_provider=_rows, socket_path=socket_path)
     await server.start()
     try:
+        # The socket is restricted to the owning uid (0600).
+        assert stat.S_IMODE(socket_path.stat().st_mode) == 0o600
         rows = await fetch_snapshot(socket_path)
         assert [r["session_id"] for r in rows] == ["s1", "s2"]
         assert rows[0]["agent_name"] == "sales"
