@@ -163,6 +163,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.12.0] - 2026-07-04
+
+## What's Changed
+* fix(coroutine): clear coroutine debt — turn detector, memory watermark, liveness test, bench framing (MAH-159/161/164/165) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/61
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.11.0...v0.12.0
+
+---
+
 ## [0.11.0] - 2026-07-04
 
 ## What's Changed
