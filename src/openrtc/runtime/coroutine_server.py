@@ -25,6 +25,8 @@ from openrtc.utils.validation import require_positive_int
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from openrtc.observability.introspection_runtime import IntrospectionRuntime
+
     ReloadCallback = Callable[[list[FileChange]], Awaitable[None]]
 
 logger = logging.getLogger("openrtc.runtime.coroutine_server")
@@ -51,11 +53,20 @@ class _CoroutineAgentServer(AgentServer):
         self._reload_on_change: ReloadCallback | None = None
         self._reload_watch_paths: list[Path] | None = None
         self._reload_watcher: FileWatcher | None = None
+        self._introspection: IntrospectionRuntime | None = None
 
     @property
     def coroutine_pool(self) -> CoroutinePool | None:
         """Return the constructed :class:`CoroutinePool` once :meth:`run` has built it."""
         return self._coroutine_pool
+
+    def attach_introspection(self, introspection: IntrospectionRuntime) -> None:
+        """Enable ``openrtc top``: run this introspection stack inside the pool.
+
+        The stack is handed to every :class:`CoroutinePool` this server builds so
+        its samplers and IPC socket share the pool's start/close lifecycle.
+        """
+        self._introspection = introspection
 
     def attach_reload(
         self,
@@ -127,6 +138,7 @@ class _CoroutineAgentServer(AgentServer):
                 consecutive_failure_limit=self._consecutive_failure_limit,
                 on_consecutive_failure_limit=self._on_consecutive_failure_limit,
                 on_memory_limit_exceeded=self._on_memory_limit_exceeded,
+                introspection=self._introspection,
             )
             self._coroutine_pool = pool
             return pool

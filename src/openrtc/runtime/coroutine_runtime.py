@@ -59,6 +59,8 @@ def _memory_watermark_action(
 if TYPE_CHECKING:
     from livekit.agents.ipc.job_executor import JobExecutor
 
+    from openrtc.observability.introspection_runtime import IntrospectionRuntime
+
 
 class _NoOpInferenceExecutor:
     """Stub ``InferenceExecutor`` for coroutine mode; raises on ``do_inference``.
@@ -379,6 +381,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         on_consecutive_failure_limit: Callable[[int], None] | None = None,
         on_memory_limit_exceeded: Callable[[float], None] | None = None,
         memory_check_interval: float = _MEMORY_CHECK_INTERVAL_SECONDS,
+        introspection: IntrospectionRuntime | None = None,
         **_extra: Any,
     ) -> None:
         super().__init__()
@@ -427,6 +430,10 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         self._memory_check_interval = memory_check_interval
         self._memory_monitor_task: asyncio.Task[None] | None = None
         self._memory_warned = False
+        # Optional htop-style introspection stack (MAH-92): registry + per-session
+        # memory/CPU samplers + slow-session detector + the local IPC socket
+        # ``openrtc top`` connects to. Started with the pool, torn down on close.
+        self._introspection = introspection
 
     @property
     def processes(self) -> list[JobExecutor]:
@@ -487,6 +494,12 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         # Start the worker-level RSS watermark monitor when either band is armed.
         if self._memory_warn_mb > 0 or self._memory_limit_mb > 0:
             self._memory_monitor_task = asyncio.create_task(self._monitor_memory())
+
+        # Bring up the introspection stack on the worker's running loop so
+        # ``openrtc top`` can connect (the task->session factory must tag tasks
+        # created by subsequent jobs, so install it before any job launches).
+        if self._introspection is not None:
+            await self._introspection.start(asyncio.get_running_loop())
 
     @property
     def shared_process(self) -> JobProcess | None:
@@ -574,6 +587,11 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
             return
         self._started = False
         self._cancel_memory_monitor()
+
+        # Stop the samplers and remove the top socket before draining sessions.
+        if self._introspection is not None:
+            with contextlib.suppress(Exception):
+                await self._introspection.aclose()
 
         executors = list(self._executors)
         if executors:

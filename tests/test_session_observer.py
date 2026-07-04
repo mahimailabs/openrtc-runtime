@@ -186,7 +186,9 @@ def test_notify_enforces_timeout(caplog: pytest.LogCaptureFixture) -> None:
 def test_pool_registers_observers_via_kwarg_and_method() -> None:
     a = _RecordingObserver()
     b = _RecordingObserver()
-    pool = AgentPool(observers=[a])
+    # Disable the default openrtc-top stack so this asserts only the explicit
+    # observer-registration contract (it would otherwise add its own registry).
+    pool = AgentPool(observers=[a], enable_introspection=False)
     pool.add_observer(b)
     assert pool._runtime_state.observers == [a, b]
     assert pool._runtime_state.observer_timeout == float(pool.drain_timeout)
@@ -415,7 +417,9 @@ def test_genuine_task_cancellation_propagates_through_invoke_observer() -> None:
 
 def test_runtime_state_with_observer_is_picklable() -> None:
     """process-isolation contract: _PoolRuntimeState pickles with an observer registered."""
-    pool = AgentPool(observers=[_RecordingObserver()])
+    # The openrtc-top stack is coroutine-only; disable it so this exercises just
+    # the spawn-safe pickling of a user observer (the process-isolation path).
+    pool = AgentPool(observers=[_RecordingObserver()], enable_introspection=False)
     restored = pickle.loads(pickle.dumps(pool._runtime_state))
     assert len(restored.observers) == 1
     assert isinstance(restored.observers[0], _RecordingObserver)
