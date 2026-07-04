@@ -163,6 +163,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.11.0] - 2026-07-04
+
+## What's Changed
+* feat(routing): job-request filter to scope which rooms a worker accepts by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/60
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.10.0...v0.11.0
+
+---
+
 ## [0.10.0] - 2026-07-04
 
 ## What's Changed
