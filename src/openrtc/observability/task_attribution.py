@@ -60,11 +60,13 @@ def install_session_task_factory(
 
 
 def live_task_session_ids() -> list[str]:
-    """Return the session_ids of every live (not-done) task that carries a tag."""
+    """Return the session_ids of every live task that carries a tag.
+
+    ``asyncio.all_tasks()`` returns only not-yet-finished tasks, so no extra
+    done-filtering is needed.
+    """
     ids: list[str] = []
     for task in asyncio.all_tasks():
-        if task.done():
-            continue
         session_id = task_session_id(task)
         if session_id is not None:
             ids.append(session_id)
