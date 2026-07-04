@@ -154,16 +154,15 @@ async def test_realmedia_sessions_stay_live_through_the_call_then_drain(
             f"failures={snapshot.total_session_failures}"
         )
 
-        # Held-open liveness is measured by the live executor count, not the
-        # metrics snapshot: run_session records the session finished when the
-        # entrypoint returns (after the greeting), while the executor stays alive
-        # holding the room until it disconnects. So mid-call, processes == N but
-        # snapshot.active_sessions has already dropped to 0 -- the snapshot
-        # under-reports live calls (an observability gap, follow-up to MAH-160).
+        # Held-open liveness: every session is live mid-call in BOTH the executor
+        # pool and the metrics snapshot. MAH-166 reports session end at the real
+        # disconnect (not the greeting boundary), so active_sessions stays == N
+        # for the whole call rather than dropping to 0 early.
         assert len(pool_obj.processes) == _SESSIONS, (
             "a session dropped before the call ended (marked done early): "
             f"{len(pool_obj.processes)}/{_SESSIONS} still live"
         )
+        assert snapshot.active_sessions == _SESSIONS
         assert snapshot.total_session_failures == 0
 
         # Disconnect callers and delete rooms: the agents see a clean disconnect.

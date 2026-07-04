@@ -253,6 +253,13 @@ class CoroutineJobExecutor:
         if callable(_room_on):
             _room_on("disconnected", lambda *_a: _request_shutdown("room disconnected"))
 
+        # Signal the entrypoint (core/wiring.run_session) that this executor holds
+        # a real session open past entrypoint return and will call its deferred
+        # end via session_end_fnc, so run_session reports the session's end at the
+        # real disconnect rather than the greeting boundary (MAH-166).
+        with contextlib.suppress(Exception):
+            ctx._openrtc_defer_session_end = True  # type: ignore[attr-defined]
+
         try:
             try:
                 await self._entrypoint_fnc(ctx)
