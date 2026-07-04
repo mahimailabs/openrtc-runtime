@@ -6,6 +6,7 @@ import json
 import logging
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -145,6 +146,114 @@ def list_command(
     print_list_rich_table(discovered, resources=resources)
     if resources:
         print_resource_summary_rich(discovered)
+
+
+@app.command("logs")
+def logs_command(
+    log_file: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to a JSONL log file (openrtc JsonLogFormatter output).",
+        ),
+    ],
+    session: Annotated[
+        str | None,
+        typer.Option(
+            "--session",
+            help="Filter to one session_id (omit to print every record).",
+        ),
+    ] = None,
+) -> None:
+    """Filter a structured JSONL log file by session_id (MAH-91)."""
+    from openrtc.observability.log_scoping import iter_session_log_records
+
+    if not log_file.exists():
+        raise typer.BadParameter(f"Log file does not exist: {log_file}")
+    with log_file.open(encoding="utf-8") as handle:
+        for record in iter_session_log_records(handle, session):
+            print(json.dumps(record))
+
+
+@app.command("top")
+def top_command(
+    socket: Annotated[
+        Path | None,
+        typer.Option(
+            "--socket",
+            help="Worker introspection socket (default: the per-user socket).",
+        ),
+    ] = None,
+    once: Annotated[
+        bool,
+        typer.Option(
+            "--once",
+            help="Print a single snapshot and exit (no live loop; scripts/CI).",
+        ),
+    ] = False,
+    refresh_rate: Annotated[
+        float,
+        typer.Option(
+            "--refresh-rate",
+            help="Live refresh rate in Hz (0.5-10). Ignored with --once.",
+        ),
+    ] = 1.0,
+    sort: Annotated[
+        str,
+        typer.Option("--sort", help="Initial sort column (cycle live with 's')."),
+    ] = "mem_mb",
+    status: Annotated[
+        str,
+        typer.Option(
+            "--status", help="Status filter (cycle live with 'f'): all/active/slow/…"
+        ),
+    ] = "all",
+) -> None:
+    """htop-style live inspector for the shared-worker session pool (MAH-92).
+
+    Connects to a running coroutine-mode worker over its local Unix socket. Keys:
+    [code]q[/code] quit, [code]r[/code] refresh, [code]s[/code] cycle sort,
+    [code]f[/code] cycle status filter.
+    """
+    import asyncio
+
+    from rich.console import Console
+
+    from openrtc.cli.top_cli import (
+        SORT_KEYS,
+        STATUS_FILTERS,
+        run_live,
+        run_once,
+        validate_refresh_hz,
+    )
+    from openrtc.observability.introspection_ipc import default_socket_path
+
+    if sort not in SORT_KEYS:
+        raise typer.BadParameter(f"--sort must be one of {', '.join(SORT_KEYS)}.")
+    if status not in STATUS_FILTERS:
+        raise typer.BadParameter(
+            f"--status must be one of {', '.join(STATUS_FILTERS)}."
+        )
+    try:
+        validate_refresh_hz(refresh_rate)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    socket_path = socket or default_socket_path()
+    console = Console()
+    if once:
+        code = asyncio.run(
+            run_once(socket_path, sort_key=sort, status_filter=status, console=console)
+        )
+        raise typer.Exit(code)
+    asyncio.run(  # pragma: no cover - interactive TTY loop
+        run_live(
+            socket_path,
+            sort_key=sort,
+            status_filter=status,
+            refresh_hz=refresh_rate,
+            console=console,
+        )
+    )
 
 
 _WORKER_POSITIONAL_HELP = (

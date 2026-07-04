@@ -12,7 +12,7 @@
   <a href="LICENSE"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/license.svg" height="30" alt="MIT License"/></a>
 </p>
 
-[**Docs**](https://openrtc.mintlify.app) · [**Quick start**](#quick-start) · [**Isolation**](#isolation-modes) · [**Routing**](#routing) · [**API**](#public-api-at-a-glance)
+[**Docs**](https://openrtc.mintlify.app) · [**Quick start**](#quick-start) · [**Isolation**](#isolation-modes) · [**Routing**](#routing) · [**Introspection**](#session-introspection) · [**API**](#public-api-at-a-glance)
 
 </div>
 
@@ -47,6 +47,7 @@ The default one-worker-per-agent model in `livekit-agents` reloads the same stac
 | **Coroutine or process isolation** | Default coroutine runs each session as an `asyncio.Task`; `process` keeps one subprocess per session with hard isolation. |
 | **Metadata routing** | Ordered resolution across job metadata, room metadata, room-name prefix, then first-registered fallback. |
 | **Hot reload** | Edit an agent file and `openrtc dev` swaps live sessions on their next turn, no dropped calls. A bad save rolls back. |
+| **Session introspection** | `openrtc top` shows per-session memory, CPU, and event-loop blocks live for the shared worker (htop-style). |
 | **Job scoping** | Per-job accept/reject filter so several workers can share one LiveKit project, each taking only its own rooms. |
 | **Session observers** | Structural-typed async start/end hooks for telemetry, isolated so a slow or raising observer never crashes the session. |
 | **JSONL metrics stream** | Append-only JSON Lines of pool snapshots and lifecycle events for `tail -f`, `jq`, or a log shipper. |
@@ -261,6 +262,22 @@ On save, the module is re-imported into a fresh namespace and validated (compile
   ```
 
 Hot reload is coroutine-mode only (process mode runs one subprocess per session). `openrtc start` never hot reloads. Enable it programmatically with `AgentPool(enable_hot_reload=True)`.
+
+## Session introspection
+
+Because coroutine mode runs many sessions in one process, OpenRTC attributes memory, CPU, and event-loop blocks back to individual sessions and surfaces them live. Run `openrtc top` next to a worker for an htop-style view:
+
+![openrtc top](docs/public/openrtc-top.svg)
+
+```bash
+openrtc dev ./agents      # coroutine mode, introspection on by default
+openrtc top               # live inspector (q quit · r refresh · s sort · f filter)
+openrtc top --once        # one snapshot for scripts / CI
+```
+
+`mem(MB)` is an equal share of process RSS (per-session numbers sum back to the real RSS); `cpu%` is a sampled share of on-CPU time; a session shows `slow` when it recently blocked the shared loop (a sync call starving the others). These are honest approximations of a shared process, documented with their caveats in [session introspection](https://openrtc.mintlify.app) and the [density debugging runbook](docs/runbooks/debugging-density.md). Introspection is coroutine-mode only and on by default; disable it with `AgentPool(enable_introspection=False)`.
+
+> This is a **runtime density** tool. For cost, pipeline latency (STT/LLM/TTS), and quality metrics, use voicegateway: it consumes the `agent_name` and `metadata["tenant"]` OpenRTC emits and owns that lane. OpenRTC does not duplicate it.
 
 ## CLI
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from livekit.agents import Agent, AgentServer, cli
 
@@ -42,6 +42,9 @@ __all__ = [
 
 logger = logging.getLogger("openrtc")
 
+if TYPE_CHECKING:
+    from openrtc.observability.introspection_runtime import IntrospectionRuntime
+
 IsolationMode = Literal["coroutine", "process"]
 
 
@@ -71,6 +74,9 @@ class AgentPool:
         watch_paths: list[Path] | None = None,
         request_fnc: RequestFilter | None = None,
         accept_only_registered_rooms: bool = False,
+        enable_introspection: bool = True,
+        slow_session_threshold_ms: float = 50.0,
+        introspection_socket_path: Path | None = None,
     ) -> None:
         """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
 
@@ -98,6 +104,14 @@ class AgentPool:
         In ``coroutine`` isolation every session shares one process, so caps are
         worker-level: the worker warns when its RSS crosses ``memory_warn_mb``
         and drains + restarts when it crosses ``memory_limit_mb``.
+
+        ``enable_introspection`` (default on) brings up the ``openrtc top`` stack:
+        per-session memory/CPU attribution, a slow-session (event-loop-block)
+        detector at ``slow_session_threshold_ms``, and a private local Unix socket
+        (at ``introspection_socket_path`` or the per-user default) the inspector
+        connects to. It is coroutine-mode only (process mode isolates every
+        session in its own subprocess, where a shared-process inspector sees
+        nothing), so it is silently skipped under ``process`` isolation.
         """
         if request_fnc is not None and accept_only_registered_rooms:
             raise ValueError(
@@ -140,6 +154,11 @@ class AgentPool:
             else request_fnc
         )
         wire_pool(self._server, self._runtime_state, self._request_fnc)
+        self._introspection: IntrospectionRuntime | None = None
+        if enable_introspection and isolation == "coroutine":
+            self._setup_introspection(
+                slow_session_threshold_ms, introspection_socket_path
+            )
         self._enable_hot_reload = enable_hot_reload
         if enable_hot_reload:
             self._setup_hot_reload(watch_paths)
@@ -154,6 +173,28 @@ class AgentPool:
             memory_limit_mb=self._memory_limit_mb,
         )
         return resolve_server_builder(self._isolation)(params)
+
+    def _setup_introspection(
+        self, slow_session_threshold_ms: float, socket_path: Path | None
+    ) -> None:
+        """Build the introspection stack and bind it to the coroutine server.
+
+        The registry is registered as a session observer so it tracks live
+        sessions; the stack itself (samplers, detector, IPC socket) is handed to
+        the server, which shares it with the ``CoroutinePool`` it builds so the
+        socket follows the pool's start/close lifecycle.
+        """
+        from openrtc.observability.introspection_runtime import IntrospectionRuntime
+        from openrtc.runtime.coroutine_server import _CoroutineAgentServer
+
+        runtime = IntrospectionRuntime(
+            socket_path=socket_path,
+            slow_session_threshold_ms=slow_session_threshold_ms,
+        )
+        self.add_observer(runtime.registry)
+        assert isinstance(self._server, _CoroutineAgentServer)
+        self._server.attach_introspection(runtime)
+        self._introspection = runtime
 
     def _setup_hot_reload(self, watch_paths: list[Path] | None) -> None:
         """Wire live-session tracking and the reload coordinator onto the worker.
@@ -180,6 +221,11 @@ class AgentPool:
     def enable_hot_reload(self) -> bool:
         """Whether hot reload is active for this pool (coroutine mode only)."""
         return self._enable_hot_reload
+
+    @property
+    def introspection(self) -> IntrospectionRuntime | None:
+        """The ``openrtc top`` introspection stack, or ``None`` if disabled/process mode."""
+        return self._introspection
 
     @property
     def isolation(self) -> IsolationMode:
