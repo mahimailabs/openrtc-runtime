@@ -23,8 +23,9 @@ from openrtc.observability.metrics import (
     MetricsStreamEvent,
 )
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
+from openrtc.routing.request_filter import _build_registered_rooms_filter
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
-from openrtc.utils.types import ProviderValue
+from openrtc.utils.types import ProviderValue, RequestFilter
 from openrtc.utils.validation import require_positive_int, validate_isolation
 
 __all__ = [
@@ -62,6 +63,8 @@ class AgentPool:
         drain_timeout: int = 30,
         enable_hot_reload: bool = False,
         watch_paths: list[Path] | None = None,
+        request_fnc: RequestFilter | None = None,
+        accept_only_registered_rooms: bool = False,
     ) -> None:
         """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
 
@@ -70,7 +73,23 @@ class AgentPool:
         (``"process"``, livekit-agents default).
         ``drain_timeout`` sets the maximum seconds the worker waits for in-flight
         sessions to finish after SIGTERM before cancelling them.
+
+        ``request_fnc`` is LiveKit's per-job accept/reject hook, invoked with a
+        ``JobRequest`` that it must resolve via ``await req.accept()`` or
+        ``await req.reject()``. It scopes which rooms this worker handles, which
+        matters when several workers share one LiveKit project (automatic
+        dispatch offers every room to every worker). ``None`` keeps LiveKit's
+        accept-all default.
+        ``accept_only_registered_rooms`` is a convenience for the common case:
+        install a filter that accepts a job only when an explicit routing signal
+        (job/room metadata naming a registered agent, or a ``<agent>-`` room-name
+        prefix) maps it to one of this pool's agents, and rejects everything
+        else. It is mutually exclusive with ``request_fnc``.
         """
+        if request_fnc is not None and accept_only_registered_rooms:
+            raise ValueError(
+                "Pass either request_fnc or accept_only_registered_rooms, not both."
+            )
         validate_isolation(isolation)
         self._isolation: IsolationMode = isolation
         self._max_concurrent_sessions = require_positive_int(
@@ -93,7 +112,15 @@ class AgentPool:
         self._default_llm = default_llm
         self._default_tts = default_tts
         self._default_greeting = default_greeting
-        wire_pool(self._server, self._runtime_state)
+        # Build the ownership filter over the live agents dict so agents
+        # registered after construction (via add()/discover()) are still
+        # recognized at job-acceptance time.
+        self._request_fnc: RequestFilter | None = (
+            _build_registered_rooms_filter(self._agents)
+            if accept_only_registered_rooms
+            else request_fnc
+        )
+        wire_pool(self._server, self._runtime_state, self._request_fnc)
         self._enable_hot_reload = enable_hot_reload
         if enable_hot_reload:
             self._setup_hot_reload(watch_paths)
@@ -157,6 +184,11 @@ class AgentPool:
     def server(self) -> AgentServer:
         """Return the underlying LiveKit ``AgentServer`` instance."""
         return self._server
+
+    @property
+    def request_fnc(self) -> RequestFilter | None:
+        """Return the per-job accept/reject filter, or ``None`` for accept-all."""
+        return self._request_fnc
 
     def runtime_snapshot(self) -> PoolRuntimeSnapshot:
         """Return a live snapshot of worker metrics for dashboards and automation."""

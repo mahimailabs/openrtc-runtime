@@ -15,6 +15,49 @@ def test_runtime_state_is_picklable() -> None:
     assert isinstance(pickle.dumps(state), bytes)
 
 
+class _RecordingServer:
+    """SessionRuntime stub that records what wire_pool passes to rtc_session."""
+
+    def __init__(self) -> None:
+        self.setup_fnc = None
+        self.rtc_session_kwargs: dict[str, object] = {}
+        self.handler = None
+
+    def rtc_session(self, **kwargs: object):
+        self.rtc_session_kwargs = kwargs
+
+        def decorator(function):
+            self.handler = function
+            return function
+
+        return decorator
+
+
+def test_wire_pool_threads_request_fnc_to_rtc_session() -> None:
+    from openrtc.core.wiring import wire_pool
+
+    async def _filter(_req: object) -> None:
+        return None
+
+    server = _RecordingServer()
+    state = _PoolRuntimeState(agents={})
+    wire_pool(server, state, request_fnc=_filter)
+
+    assert server.rtc_session_kwargs["on_request"] is _filter
+    assert server.handler is not None
+    assert server.setup_fnc is not None
+
+
+def test_wire_pool_defaults_request_fnc_to_none() -> None:
+    from openrtc.core.wiring import wire_pool
+
+    server = _RecordingServer()
+    state = _PoolRuntimeState(agents={})
+    wire_pool(server, state)
+
+    assert server.rtc_session_kwargs["on_request"] is None
+
+
 @pytest.mark.asyncio
 async def test_run_session_connects_before_starting(monkeypatch) -> None:
     """ctx.connect() must be awaited before session.start().

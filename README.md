@@ -47,6 +47,7 @@ The default one-worker-per-agent model in `livekit-agents` reloads the same stac
 | **Coroutine or process isolation** | Default coroutine runs each session as an `asyncio.Task`; `process` keeps one subprocess per session with hard isolation. |
 | **Metadata routing** | Ordered resolution across job metadata, room metadata, room-name prefix, then first-registered fallback. |
 | **Hot reload** | Edit an agent file and `openrtc dev` swaps live sessions on their next turn, no dropped calls. A bad save rolls back. |
+| **Job scoping** | Per-job accept/reject filter so several workers can share one LiveKit project, each taking only its own rooms. |
 | **Session observers** | Structural-typed async start/end hooks for telemetry, isolated so a slow or raising observer never crashes the session. |
 | **JSONL metrics stream** | Append-only JSON Lines of pool snapshots and lifecycle events for `tail -f`, `jq`, or a log shipper. |
 | **LiveKit-shaped CLI** | `start` / `dev` / `console` / `connect` / `download-files` plus an OpenRTC-only `list`, with an optional Rich dashboard. |
@@ -185,6 +186,34 @@ Within a source, `agent` outranks `demo`. Metadata may be a JSON object string o
 
 A value naming an **unregistered** agent raises eagerly instead of falling through: `ValueError("Unknown agent '<name>' requested via <job metadata|room metadata>.")`. An empty pool raises `RuntimeError("No agents are registered in the pool.")`. Routing never falls back silently. Full rules: [routing docs](https://openrtc.mintlify.app).
 
+### Scoping which rooms a worker accepts
+
+Routing decides *which* agent handles a job the worker has already accepted. When several workers (or an OpenRTC worker beside a non-OpenRTC agent) share one LiveKit project, automatic dispatch offers **every** room to **every** worker, and the fallback above means a pool would accept foreign rooms and route them onto its first agent. Filter jobs at acceptance time so a worker only takes rooms it owns:
+
+```python
+# Convenience: accept a job only when an explicit signal (job/room metadata
+# naming a registered agent, or a "<agent>-" room-name prefix) maps it to one
+# of this pool's agents. Everything else is rejected.
+pool = AgentPool(accept_only_registered_rooms=True)
+
+# Full control: your own per-job accept/reject hook (typed with RequestFilter).
+from openrtc import AgentPool, RequestFilter
+from livekit.agents import JobRequest
+
+
+async def only_support_rooms(req: JobRequest) -> None:
+    if req.room.name.startswith("support-"):
+        await req.accept()
+    else:
+        await req.reject()
+
+
+support_filter: RequestFilter = only_support_rooms
+pool = AgentPool(request_fnc=support_filter)
+```
+
+`request_fnc` is LiveKit's `on_request` hook, threaded straight through. The default is `None` (accept every job, unchanged). The two options are mutually exclusive.
+
 ## Session observers
 
 Attach external telemetry to every session without subclassing or touching internals. Any object with two async methods satisfies the `SessionObserver` protocol (structural typing, no base class):
@@ -277,6 +306,7 @@ The public surface is exactly `openrtc.__all__`, 14 names. Everything else is in
 | `AgentDiscoveryConfig` | Per-file discovery metadata attached by `@agent_config`. |
 | `agent_config` | Keyword-only decorator tagging an `Agent` subclass with name/stt/llm/tts/greeting. |
 | `ProviderValue` | Type alias `str \| object` for STT/LLM/TTS slots (provider ID string or plugin instance). |
+| `RequestFilter` | Type alias `Callable[[JobRequest], Awaitable[None]]` for a per-job accept/reject hook. |
 | `SessionObserver` | `@runtime_checkable` protocol: async `on_session_start` / `on_session_end`. |
 | `SessionInfo` | Frozen dataclass: `agent_name`, `room_name`, `job_id`, `metadata`, `started_at`. |
 | `SessionOutcome` | Frozen dataclass: `status`, `error`, `ended_at`, `duration_seconds`. |
@@ -297,8 +327,10 @@ The public surface is exactly `openrtc.__all__`, 14 names. Everything else is in
 | `drain_timeout` | `30` | Seconds to wait for in-flight sessions after SIGTERM (positive int). |
 | `enable_hot_reload` | `False` | Watch agent files and swap live sessions on the next turn (coroutine mode only). |
 | `watch_paths` | `None` | Extra paths to watch; `None` auto-discovers the worker's user modules. |
+| `request_fnc` | `None` | Per-job accept/reject hook (`RequestFilter`). `None` accepts every job. |
+| `accept_only_registered_rooms` | `False` | Convenience filter: accept only rooms mapping to a registered agent. Mutually exclusive with `request_fnc`. |
 
-**Methods:** `add`, `discover`, `list_agents`, `get`, `remove`, `add_observer`, `run`, `runtime_snapshot`, `drain_metrics_stream_events`. **Read-only properties:** `isolation`, `max_concurrent_sessions`, `consecutive_failure_limit`, `drain_timeout`, `enable_hot_reload`, `server`. `add()` raises on an empty or duplicate name and on an `agent_cls` that is not a `livekit.agents.Agent` subclass; direct `**session_options` override the same keys in `session_kwargs`.
+**Methods:** `add`, `discover`, `list_agents`, `get`, `remove`, `add_observer`, `run`, `runtime_snapshot`, `drain_metrics_stream_events`. **Read-only properties:** `isolation`, `max_concurrent_sessions`, `consecutive_failure_limit`, `drain_timeout`, `enable_hot_reload`, `server`, `request_fnc`. `add()` raises on an empty or duplicate name and on an `agent_cls` that is not a `livekit.agents.Agent` subclass; direct `**session_options` override the same keys in `session_kwargs`.
 
 <details>
 <summary><b>Project structure</b></summary>
@@ -319,6 +351,7 @@ src/openrtc/
 │   ├── metadata_routing.py
 │   ├── room_prefix_routing.py
 │   ├── default_routing.py
+│   ├── request_filter.py  # per-job accept/reject (scope which rooms a worker takes)
 │   └── resolver.py        # ordered strategy chain
 ├── runtime/               # base_runtime.py + variant siblings + registry
 │   ├── base_runtime.py    # RuntimeBackend protocol
