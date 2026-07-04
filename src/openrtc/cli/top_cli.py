@@ -124,8 +124,8 @@ def build_top_table(
     ordered = filter_and_sort(rows, sort_key=sort_key, status_filter=status_filter)
     table = Table(
         title=(
-            f"openrtc top — {len(ordered)} session(s) "
-            f"— sort:{sort_key} filter:{status_filter}"
+            f"openrtc top: {len(ordered)} session(s) "
+            f"(sort:{sort_key} filter:{status_filter})"
         ),
         title_style="bold cyan",
     )
