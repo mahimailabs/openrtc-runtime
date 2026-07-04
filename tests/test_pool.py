@@ -743,6 +743,7 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_build_fails
     def raise_build_error(
         configured_kwargs: dict[str, object],
         proc: object,
+        inference_executor: object = None,
     ) -> dict[str, object]:
         raise RuntimeError("session kwargs boom")
 

@@ -59,7 +59,14 @@ def build_session(
     if not runtime_state.agents:
         raise RuntimeError("No agents are registered in the pool.")
     config = _resolve_agent_config(runtime_state.agents, ctx)
-    session_kwargs = _build_session_kwargs(config.session_kwargs, ctx.proc)
+    # The inference executor rides on the JobContext, not the JobProcess; pass it
+    # so the turn-detection gate selects the prewarmed multilingual detector
+    # instead of always falling back to VAD (MAH-159).
+    session_kwargs = _build_session_kwargs(
+        config.session_kwargs,
+        ctx.proc,
+        getattr(ctx, "inference_executor", None),
+    )
     session: AgentSession[None] = AgentSession(
         stt=config.stt,  # type: ignore[arg-type]
         llm=config.llm,  # type: ignore[arg-type]

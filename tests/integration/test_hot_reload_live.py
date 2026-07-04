@@ -76,11 +76,15 @@ async def _await_until(predicate, *, timeout: float, message: str) -> None:  # t
 async def test_editing_an_agent_reloads_it_in_a_live_worker(
     livekit_dev_server: LiveKitDevServer,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     os.environ["LIVEKIT_URL"] = livekit_dev_server.url
     os.environ["LIVEKIT_API_KEY"] = livekit_dev_server.api_key
     os.environ["LIVEKIT_API_SECRET"] = livekit_dev_server.api_secret
-    os.environ.setdefault("LIVEKIT_REMOTE_EOT_URL", "http://eot-disabled.invalid/eot")
+    # Only set when absent (preserves a real URL) and via monkeypatch so it
+    # reverts on teardown instead of leaking into later unit tests.
+    if "LIVEKIT_REMOTE_EOT_URL" not in os.environ:
+        monkeypatch.setenv("LIVEKIT_REMOTE_EOT_URL", "http://eot-disabled.invalid/eot")
 
     agents_dir = tmp_path / "agents"
     agents_dir.mkdir()

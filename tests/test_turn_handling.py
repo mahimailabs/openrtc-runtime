@@ -17,16 +17,25 @@ import pytest
 
 from openrtc.core.turn_handling import (
     _build_session_kwargs,
+    _default_turn_detection,
     _deprecated_turn_options_to_turn_handling,
     _supports_multilingual_turn_detection,
 )
 
 
-def _proc(*, inference_executor: Any = None) -> Any:
+def _proc() -> Any:
+    # A real livekit ``JobProcess`` has no ``inference_executor`` attribute; the
+    # executor lives on the ``JobContext`` and is passed separately. This fake
+    # deliberately omits it so tests cannot accidentally read it from the proc.
     return SimpleNamespace(
         userdata={"vad": object(), "turn_detection_factory": lambda: "td"},
-        inference_executor=inference_executor,
     )
+
+
+class _NoopExecutor:
+    """Mirrors ``_NoOpInferenceExecutor``'s unusable marker without importing it."""
+
+    _openrtc_noop = True
 
 
 def test_min_endpointing_delay_maps_to_endpointing_min_delay() -> None:
@@ -118,17 +127,16 @@ def test_supports_multilingual_when_remote_eot_url_is_set(
 ) -> None:
     monkeypatch.setenv("LIVEKIT_REMOTE_EOT_URL", "https://eot.example/predict")
 
-    assert _supports_multilingual_turn_detection(_proc()) is True
+    # No local executor needed when a remote EOT endpoint is configured.
+    assert _supports_multilingual_turn_detection(None) is True
 
 
-def test_supports_multilingual_when_inference_executor_present(
+def test_supports_multilingual_when_usable_inference_executor_present(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("LIVEKIT_REMOTE_EOT_URL", raising=False)
 
-    assert (
-        _supports_multilingual_turn_detection(_proc(inference_executor="exec")) is True
-    )
+    assert _supports_multilingual_turn_detection("exec") is True
 
 
 def test_supports_multilingual_returns_false_with_no_signal(
@@ -136,7 +144,57 @@ def test_supports_multilingual_returns_false_with_no_signal(
 ) -> None:
     monkeypatch.delenv("LIVEKIT_REMOTE_EOT_URL", raising=False)
 
-    assert _supports_multilingual_turn_detection(_proc()) is False
+    assert _supports_multilingual_turn_detection(None) is False
+
+
+def test_supports_multilingual_rejects_noop_executor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The coroutine no-op stub is not a usable executor: gate must return False."""
+    monkeypatch.delenv("LIVEKIT_REMOTE_EOT_URL", raising=False)
+
+    assert _supports_multilingual_turn_detection(_NoopExecutor()) is False
+
+
+def test_default_turn_detection_uses_detector_for_usable_executor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression (MAH-159): a usable executor on the context selects the
+    prewarmed multilingual detector, not the VAD fallback. The proc has no
+    ``inference_executor`` attribute, proving the gate reads the passed executor.
+    """
+    monkeypatch.delenv("LIVEKIT_REMOTE_EOT_URL", raising=False)
+
+    result = _default_turn_detection(_proc(), inference_executor="real-exec")
+
+    assert result == "td"  # the prewarmed factory's product, not "vad"
+
+
+def test_default_turn_detection_falls_back_to_vad_for_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LIVEKIT_REMOTE_EOT_URL", raising=False)
+
+    assert _default_turn_detection(_proc(), inference_executor=_NoopExecutor()) == "vad"
+
+
+def test_default_turn_detection_falls_back_to_vad_without_executor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LIVEKIT_REMOTE_EOT_URL", raising=False)
+
+    assert _default_turn_detection(_proc(), inference_executor=None) == "vad"
+
+
+def test_build_session_kwargs_threads_inference_executor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End to end: a usable executor propagates into the turn_handling dict."""
+    monkeypatch.delenv("LIVEKIT_REMOTE_EOT_URL", raising=False)
+
+    result = _build_session_kwargs({}, _proc(), "real-exec")
+
+    assert result["turn_handling"]["turn_detection"] == "td"
 
 
 def test_explicit_turn_handling_non_mapping_is_passed_through() -> None:
@@ -155,10 +213,9 @@ def test_default_turn_handling_omits_turn_detection_key_when_factory_returns_non
 
     proc = SimpleNamespace(
         userdata={"vad": object(), "turn_detection_factory": lambda: None},
-        inference_executor="present",
     )
 
-    result = _default_turn_handling(proc)
+    result = _default_turn_handling(proc, inference_executor="present")
 
     assert "turn_detection" not in result
     assert result == {"interruption": {"mode": "vad"}}

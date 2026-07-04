@@ -39,7 +39,15 @@ if TYPE_CHECKING:
 
 
 class _NoOpInferenceExecutor:
-    """Stub ``InferenceExecutor`` for coroutine mode; raises on ``do_inference``."""
+    """Stub ``InferenceExecutor`` for coroutine mode; raises on ``do_inference``.
+
+    ``_openrtc_noop`` marks this as an unusable executor so the turn-detection
+    gate (``openrtc.core.turn_handling``) falls back to VAD instead of selecting
+    the multilingual detector, which would raise on first inference. The marker
+    is an internal contract between the two modules (no import coupling).
+    """
+
+    _openrtc_noop = True
 
     async def do_inference(self, method: str, data: bytes) -> bytes | None:
         raise RuntimeError(
