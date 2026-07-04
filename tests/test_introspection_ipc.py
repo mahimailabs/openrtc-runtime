@@ -1,0 +1,85 @@
+"""Local Unix-socket IPC for openrtc top (MAH-92)."""
+
+from __future__ import annotations
+
+import tempfile
+import uuid
+from pathlib import Path
+
+import pytest
+
+from openrtc.observability.introspection import SessionRow
+from openrtc.observability.introspection_ipc import (
+    IntrospectionServer,
+    default_socket_path,
+    fetch_snapshot,
+    rows_from_json,
+    rows_to_json,
+)
+
+
+def _rows() -> list[SessionRow]:
+    return [
+        SessionRow("s1", "sales", "acme", 5.0, 120.0, 150.0, 42.0, "active", True),
+        SessionRow("s2", "support", None, 3.0, 80.0, 90.0, 10.0, "slow", False),
+    ]
+
+
+def _short_socket() -> Path:
+    # Keep the path short (Unix sockets cap at ~104 chars).
+    return Path(tempfile.gettempdir()) / f"ortc-{uuid.uuid4().hex[:8]}.sock"
+
+
+def test_rows_json_round_trip() -> None:
+    parsed = rows_from_json(rows_to_json(_rows()))
+    assert parsed[0]["session_id"] == "s1"
+    assert parsed[0]["cpu_pct"] == 42.0
+    assert parsed[0]["pinned"] is True
+    assert parsed[1]["tenant"] is None
+
+
+def test_rows_from_json_tolerates_garbage() -> None:
+    assert rows_from_json("not json") == []
+    assert rows_from_json('{"not": "a list"}') == []
+    assert rows_from_json('[1, 2, {"session_id": "s1"}]') == [{"session_id": "s1"}]
+
+
+def test_default_socket_path_is_local() -> None:
+    path = default_socket_path()
+    assert path.name == "openrtc-top.sock"
+
+
+@pytest.mark.asyncio
+async def test_server_client_round_trip() -> None:
+    socket_path = _short_socket()
+    server = IntrospectionServer(snapshot_provider=_rows, socket_path=socket_path)
+    await server.start()
+    try:
+        rows = await fetch_snapshot(socket_path)
+        assert [r["session_id"] for r in rows] == ["s1", "s2"]
+        assert rows[0]["agent_name"] == "sales"
+        assert rows[1]["status"] == "slow"
+    finally:
+        await server.aclose()
+    assert not socket_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_server_start_replaces_stale_socket() -> None:
+    socket_path = _short_socket()
+    socket_path.write_text("stale")  # a stale file at the path
+    server = IntrospectionServer(snapshot_provider=list, socket_path=socket_path)
+    await server.start()
+    try:
+        assert await fetch_snapshot(socket_path) == []
+    finally:
+        await server.aclose()
+
+
+@pytest.mark.asyncio
+async def test_aclose_is_idempotent() -> None:
+    socket_path = _short_socket()
+    server = IntrospectionServer(snapshot_provider=_rows, socket_path=socket_path)
+    await server.start()
+    await server.aclose()
+    await server.aclose()  # no error the second time
