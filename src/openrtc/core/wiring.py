@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from livekit.agents import JobContext
 
     from openrtc.runtime.base_runtime import SessionRuntime
-    from openrtc.utils.types import RequestFilter
+    from openrtc.utils.types import AgentRouter, RequestFilter
 
 logger = logging.getLogger("openrtc")
 
@@ -50,6 +50,10 @@ class _PoolRuntimeState:
     metrics: RuntimeMetricsStore = field(default_factory=RuntimeMetricsStore)
     observers: list[SessionObserver] = field(default_factory=list)
     observer_timeout: float = 30.0
+    # Optional custom dispatch router (MAH-99). In process isolation it rides on
+    # the spawned worker's pickled state, so it must be picklable there (a
+    # module-level function, not a lambda); coroutine mode accepts any callable.
+    router: AgentRouter | None = None
 
 
 def build_session(
@@ -59,7 +63,9 @@ def build_session(
     """Resolve the agent and construct its AgentSession (no side effects)."""
     if not runtime_state.agents:
         raise RuntimeError("No agents are registered in the pool.")
-    config = _resolve_agent_config(runtime_state.agents, ctx)
+    config = _resolve_agent_config(
+        runtime_state.agents, ctx, router=runtime_state.router
+    )
     # The inference executor rides on the JobContext, not the JobProcess; pass it
     # so the turn-detection gate selects the prewarmed multilingual detector
     # instead of always falling back to VAD (MAH-159).

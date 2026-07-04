@@ -28,7 +28,7 @@ from openrtc.routing.request_filter import (
     _build_registered_rooms_filter,
 )
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
-from openrtc.utils.types import ProviderValue, RequestFilter
+from openrtc.utils.types import AgentRouter, ProviderValue, RequestFilter
 from openrtc.utils.validation import (
     require_agent_name,
     require_non_negative_number,
@@ -80,6 +80,7 @@ class AgentPool:
         watch_paths: list[Path] | None = None,
         request_fnc: RequestFilter | None = None,
         accept_only_registered_rooms: bool = False,
+        router: AgentRouter | None = None,
         max_sessions_per_agent: Mapping[str, int] | None = None,
         enable_introspection: bool = True,
         slow_session_threshold_ms: float = 50.0,
@@ -110,6 +111,13 @@ class AgentPool:
         (job/room metadata naming a registered agent, or a ``<agent>-`` room-name
         prefix) maps it to one of this pool's agents, and rejects everything
         else. It is mutually exclusive with ``request_fnc``.
+
+        ``router`` is a custom dispatch router: ``router(job_metadata) -> agent_name``
+        (``job_metadata`` is the parsed dispatch metadata mapping or ``None``). It
+        takes precedence over the default job/room-metadata + room-prefix chain;
+        returning ``None`` defers to that chain, an unknown name or a raised router
+        rejects the session. In ``process`` isolation it must be picklable (a
+        module-level function, not a lambda); coroutine mode accepts any callable.
 
         ``max_sessions_per_agent`` sets per-agent session caps (e.g.
         ``{"sales": 30, "support": 20}``): a job whose target agent is at its cap is
@@ -160,6 +168,7 @@ class AgentPool:
         self._runtime_state = _PoolRuntimeState(
             agents=self._agents,
             observer_timeout=float(self._drain_timeout),
+            router=router,
         )
         if observers is not None:
             for observer in observers:
@@ -319,6 +328,11 @@ class AgentPool:
     def max_sessions_per_agent(self) -> dict[str, int]:
         """Return the per-agent session caps (empty when no per-agent budgets)."""
         return dict(self._max_sessions_per_agent)
+
+    @property
+    def router(self) -> AgentRouter | None:
+        """Return the custom dispatch router, or ``None`` for the default chain."""
+        return self._runtime_state.router
 
     def runtime_snapshot(self) -> PoolRuntimeSnapshot:
         """Return a live snapshot of worker metrics for dashboards and automation."""

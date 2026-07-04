@@ -117,7 +117,9 @@ async def test_run_session_defers_end_for_held_open_session(monkeypatch) -> None
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )
-    monkeypatch.setattr(wiring, "_resolve_agent_config", lambda agents, ctx: config)
+    monkeypatch.setattr(
+        wiring, "_resolve_agent_config", lambda agents, ctx, *, router=None: config
+    )
     monkeypatch.setattr(wiring, "_build_session_kwargs", lambda kw, proc, ie=None: {})
 
     class _FakeSession:
@@ -194,7 +196,9 @@ async def test_run_session_connects_before_starting(monkeypatch) -> None:
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )
-    monkeypatch.setattr(wiring, "_resolve_agent_config", lambda agents, ctx: config)
+    monkeypatch.setattr(
+        wiring, "_resolve_agent_config", lambda agents, ctx, *, router=None: config
+    )
     monkeypatch.setattr(wiring, "_build_session_kwargs", lambda kw, proc, ie=None: {})
 
     class _FakeSession:
@@ -232,7 +236,9 @@ def test_build_session_uses_resolved_config_and_prewarm_vad(monkeypatch) -> None
     config = SimpleNamespace(
         name="a", stt="s", llm="l", tts="t", session_kwargs={}, greeting=None
     )
-    monkeypatch.setattr(wiring, "_resolve_agent_config", lambda agents, ctx: config)
+    monkeypatch.setattr(
+        wiring, "_resolve_agent_config", lambda agents, ctx, *, router=None: config
+    )
     monkeypatch.setattr(wiring, "_build_session_kwargs", lambda kw, proc, ie=None: {})
     captured = {}
 
