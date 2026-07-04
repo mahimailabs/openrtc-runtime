@@ -100,12 +100,20 @@ class SessionCpuSampler:
         self._sample_interval = sample_interval
         self._acc = SessionCpuAccumulator()
         self._latest: dict[str, SessionCpu] = {}
+        self._last_running: str | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
     def sample_once(self) -> None:
         """Record one sample of the currently-running session."""
-        self._acc.record(self._running_session_provider())
+        session_id = self._running_session_provider()
+        if session_id is not None:
+            self._last_running = session_id
+        self._acc.record(session_id)
+
+    def last_running_session(self) -> str | None:
+        """Return the last non-idle session sampled on-CPU (the block-attribution source)."""
+        return self._last_running
 
     def report(self) -> dict[str, SessionCpu]:
         """Recompute and return per-session CPU shares from accumulated samples."""

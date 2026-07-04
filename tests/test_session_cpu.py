@@ -101,6 +101,21 @@ def test_sampler_thread_runs_then_stops() -> None:
     sampler.stop()  # idempotent when already stopped
 
 
+def test_last_running_session_tracks_last_non_idle() -> None:
+    seq = iter(["A", None, "B", None])
+    sampler = SessionCpuSampler(
+        sessions_provider=dict,
+        running_session_provider=lambda: next(seq, None),
+    )
+    assert sampler.last_running_session() is None
+    sampler.sample_once()  # A
+    assert sampler.last_running_session() == "A"
+    sampler.sample_once()  # None -> keep last non-idle (A)
+    assert sampler.last_running_session() == "A"
+    sampler.sample_once()  # B
+    assert sampler.last_running_session() == "B"
+
+
 @pytest.mark.asyncio
 async def test_default_provider_reads_running_task_tag() -> None:
     loop = asyncio.get_running_loop()
