@@ -163,6 +163,21 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.10.0] - 2026-07-04
+
+## What's Changed
+* docs: migrate from VitePress to Mintlify by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/53
+* docs: restructure navigation with Pipecat-style tabs and grouped sidebar by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/54
+* docs: visual polish on architecture, examples, and getting-started by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/55
+* fix: flatten mint.json navigation to group/pages format by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/56
+* docs: rebrand and meticulously refresh the README by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/58
+* feat: hot reload — edit an agent, swap live sessions on the next turn (v0.2, MAH-81..87) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/59
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.9.0...v0.10.0
+
+---
+
 ## [0.9.0] - 2026-06-27
 
 ## What's Changed
