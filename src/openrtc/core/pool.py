@@ -27,6 +27,7 @@ from openrtc.routing.request_filter import _build_registered_rooms_filter
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
 from openrtc.utils.types import ProviderValue, RequestFilter
 from openrtc.utils.validation import (
+    require_agent_name,
     require_non_negative_number,
     require_positive_int,
     validate_isolation,
@@ -59,6 +60,8 @@ class AgentPool:
     def __init__(
         self,
         *,
+        agent: type[Agent] | None = None,
+        agents: Mapping[str, type[Agent]] | None = None,
         default_stt: ProviderValue | None = None,
         default_llm: ProviderValue | None = None,
         default_tts: ProviderValue | None = None,
@@ -79,6 +82,12 @@ class AgentPool:
         introspection_socket_path: Path | None = None,
     ) -> None:
         """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
+
+        ``agents`` registers a ``{name: AgentClass}`` mapping at construction; the
+        single-agent shorthand ``agent=MyAgent`` registers it under ``"default"``.
+        The two are mutually exclusive, and either composes with later ``add()`` /
+        ``discover()`` calls. Names are validated (1-64 ASCII letters/digits/dashes)
+        and duplicates rejected.
 
         ``isolation`` controls whether sessions run as ``asyncio.Task``s in one
         process (``"coroutine"``, high density) or as separate OS processes
@@ -117,6 +126,8 @@ class AgentPool:
             raise ValueError(
                 "Pass either request_fnc or accept_only_registered_rooms, not both."
             )
+        if agent is not None and agents is not None:
+            raise ValueError("Pass either agent or agents, not both.")
         validate_isolation(isolation)
         self._isolation: IsolationMode = isolation
         self._max_concurrent_sessions = require_positive_int(
@@ -145,6 +156,14 @@ class AgentPool:
         self._default_llm = default_llm
         self._default_tts = default_tts
         self._default_greeting = default_greeting
+        # Register any agents passed to the constructor (defaults must be set
+        # first: add() resolves provider/greeting defaults). The single-agent
+        # shorthand registers under the name "default"; add() validates each
+        # name and rejects duplicates, giving every agent its own pool slot.
+        if agent is not None:
+            self.add("default", agent)
+        for agent_name, agent_cls in (agents or {}).items():
+            self.add(agent_name, agent_cls)
         # Build the ownership filter over the live agents dict so agents
         # registered after construction (via add()/discover()) are still
         # recognized at job-acceptance time.
@@ -289,9 +308,7 @@ class AgentPool:
         **session_options: Any,
     ) -> AgentConfig:
         """Register an agent in the pool and return its configuration."""
-        normalized_name = name.strip()
-        if not normalized_name:
-            raise ValueError("Agent name must be a non-empty string.")
+        normalized_name = require_agent_name(name)
         if normalized_name in self._agents:
             raise ValueError(f"Agent '{normalized_name}' is already registered.")
         if not isinstance(agent_cls, type) or not issubclass(agent_cls, Agent):
