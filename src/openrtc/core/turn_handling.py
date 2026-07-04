@@ -37,6 +37,7 @@ _DEPRECATED_TURN_HANDLING_KEYS = (
 def _build_session_kwargs(
     configured_kwargs: Mapping[str, Any],
     proc: JobProcess,
+    inference_executor: Any = None,
 ) -> dict[str, Any]:
     session_kwargs = dict(configured_kwargs)
     explicit_turn_handling = session_kwargs.pop("turn_handling", None)
@@ -44,11 +45,11 @@ def _build_session_kwargs(
 
     if isinstance(explicit_turn_handling, Mapping):
         turn_handling = _merge_turn_handling(
-            _default_turn_handling(proc),
+            _default_turn_handling(proc, inference_executor),
             explicit_turn_handling,
         )
     else:
-        turn_handling = _default_turn_handling(proc)
+        turn_handling = _default_turn_handling(proc, inference_executor)
         if deprecated_turn_options:
             turn_handling = _merge_turn_handling(
                 turn_handling,
@@ -65,31 +66,50 @@ def _build_session_kwargs(
     return session_kwargs
 
 
-def _default_turn_handling(proc: JobProcess) -> dict[str, Any]:
-    turn_detection = _default_turn_detection(proc)
+def _default_turn_handling(
+    proc: JobProcess, inference_executor: Any = None
+) -> dict[str, Any]:
+    turn_detection = _default_turn_detection(proc, inference_executor)
     turn_handling: dict[str, Any] = {"interruption": {"mode": "vad"}}
     if turn_detection is not None:
         turn_handling["turn_detection"] = turn_detection
     return turn_handling
 
 
-def _default_turn_detection(proc: JobProcess) -> Any:
-    if _supports_multilingual_turn_detection(proc):
+def _default_turn_detection(proc: JobProcess, inference_executor: Any = None) -> Any:
+    if _supports_multilingual_turn_detection(inference_executor):
         return PrewarmResources.turn_detection_factory_from(proc)()
 
     logger.info(
-        "Falling back to VAD turn detection because no inference executor or "
-        "LIVEKIT_REMOTE_EOT_URL is available."
+        "Falling back to VAD turn detection because no usable inference executor "
+        "or LIVEKIT_REMOTE_EOT_URL is available."
     )
     return "vad"
 
 
-def _supports_multilingual_turn_detection(proc: JobProcess) -> bool:
+def _supports_multilingual_turn_detection(inference_executor: Any) -> bool:
+    """Whether the prewarmed multilingual turn detector can run for this job.
+
+    The inference executor lives on the ``JobContext`` (``ctx.inference_executor``),
+    not on the ``JobProcess``: a real ``JobProcess`` has no such attribute, so the
+    previous ``proc``-based check always failed and silently fell back to VAD.
+    A remote EOT endpoint removes the need for a local executor entirely.
+    """
     if os.getenv("LIVEKIT_REMOTE_EOT_URL"):
         return True
 
-    inference_executor = getattr(proc, "inference_executor", None)
-    return inference_executor is not None
+    return _is_usable_inference_executor(inference_executor)
+
+
+def _is_usable_inference_executor(inference_executor: Any) -> bool:
+    """An inference executor is usable unless absent or the coroutine no-op stub.
+
+    ``_openrtc_noop`` is set on ``runtime.coroutine_runtime._NoOpInferenceExecutor``;
+    selecting the detector against that stub would raise on the first inference.
+    """
+    if inference_executor is None:
+        return False
+    return not getattr(inference_executor, "_openrtc_noop", False)
 
 
 def _extract_deprecated_turn_options(session_kwargs: dict[str, Any]) -> dict[str, Any]:

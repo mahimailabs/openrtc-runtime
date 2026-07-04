@@ -3,6 +3,14 @@
 Phase 1 success gate from ``docs/design/v0.1.md`` §7: ``>= 50 concurrent
 sessions per worker process at <= 4 GB peak RSS, no errors``.
 
+Scope: this is a **memory-only** gate. Each entrypoint holds a sleep + a small
+buffer, so it proves the per-worker RSS ceiling but says nothing about
+throughput (event-loop headroom under real per-frame work). The throughput
+signal lives in ``throughput.py``, which drives the real Silero VAD and reports
+steady-state loop p99. Migrating the CI gate (``.github/workflows/bench.yml``)
+from this stub to a throughput p99 gate needs dedicated, low-noise hardware and
+is tracked as follow-up (MAH-165); until then this memory gate stays in place.
+
 Run as a script:
 
     uv run python tests/benchmarks/density.py

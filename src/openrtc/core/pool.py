@@ -26,7 +26,11 @@ from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.routing.request_filter import _build_registered_rooms_filter
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
 from openrtc.utils.types import ProviderValue, RequestFilter
-from openrtc.utils.validation import require_positive_int, validate_isolation
+from openrtc.utils.validation import (
+    require_non_negative_number,
+    require_positive_int,
+    validate_isolation,
+)
 
 __all__ = [
     "AgentConfig",
@@ -61,6 +65,8 @@ class AgentPool:
         max_concurrent_sessions: int = 50,
         consecutive_failure_limit: int = 5,
         drain_timeout: int = 30,
+        memory_warn_mb: float = 1000.0,
+        memory_limit_mb: float = 0.0,
         enable_hot_reload: bool = False,
         watch_paths: list[Path] | None = None,
         request_fnc: RequestFilter | None = None,
@@ -85,6 +91,13 @@ class AgentPool:
         (job/room metadata naming a registered agent, or a ``<agent>-`` room-name
         prefix) maps it to one of this pool's agents, and rejects everything
         else. It is mutually exclusive with ``request_fnc``.
+
+        ``memory_warn_mb`` / ``memory_limit_mb`` set worker memory watermarks in
+        MB (``0`` disables a band; defaults mirror livekit: warn 1000, limit 0).
+        In ``process`` isolation livekit enforces them per subprocess natively.
+        In ``coroutine`` isolation every session shares one process, so caps are
+        worker-level: the worker warns when its RSS crosses ``memory_warn_mb``
+        and drains + restarts when it crosses ``memory_limit_mb``.
         """
         if request_fnc is not None and accept_only_registered_rooms:
             raise ValueError(
@@ -99,6 +112,12 @@ class AgentPool:
             "consecutive_failure_limit", consecutive_failure_limit
         )
         self._drain_timeout = require_positive_int("drain_timeout", drain_timeout)
+        self._memory_warn_mb = require_non_negative_number(
+            "memory_warn_mb", memory_warn_mb
+        )
+        self._memory_limit_mb = require_non_negative_number(
+            "memory_limit_mb", memory_limit_mb
+        )
         self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(
@@ -131,6 +150,8 @@ class AgentPool:
             max_concurrent_sessions=self._max_concurrent_sessions,
             consecutive_failure_limit=self._consecutive_failure_limit,
             drain_timeout=self._drain_timeout,
+            memory_warn_mb=self._memory_warn_mb,
+            memory_limit_mb=self._memory_limit_mb,
         )
         return resolve_server_builder(self._isolation)(params)
 
@@ -179,6 +200,16 @@ class AgentPool:
     def drain_timeout(self) -> int:
         """Return the seconds the worker waits for in-flight sessions on SIGTERM."""
         return self._drain_timeout
+
+    @property
+    def memory_warn_mb(self) -> float:
+        """Return the worker RSS warn watermark in MB (``0`` disables it)."""
+        return self._memory_warn_mb
+
+    @property
+    def memory_limit_mb(self) -> float:
+        """Return the worker RSS limit watermark in MB (``0`` disables it)."""
+        return self._memory_limit_mb
 
     @property
     def server(self) -> AgentServer:

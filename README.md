@@ -128,6 +128,8 @@ pool = AgentPool(
     max_concurrent_sessions=50,    # advisory backpressure (coroutine only)
     consecutive_failure_limit=5,   # supervisor threshold (coroutine only)
     drain_timeout=30,              # seconds to wait for in-flight sessions on SIGTERM
+    memory_warn_mb=1000,           # warn when worker RSS crosses this (0 disables)
+    memory_limit_mb=0,             # 0 = disabled; >0 drains + restarts the worker
 )
 ```
 
@@ -136,27 +138,27 @@ pool = AgentPool(
 | Sessions per worker | Many. One `asyncio.Task` per session over a shared `JobProcess`. | One. Each session is its own subprocess via `livekit-agents` `ProcPool`. |
 | Prewarm (VAD, turn detector) | Loaded once per worker. | Loaded once per session subprocess. |
 | Crash isolation | Cooperative: an unhandled exception is logged and the session marked `FAILED`; siblings continue. `consecutive_failure_limit` consecutive failures (default 5) schedule `aclose()` so the platform restarts the worker; one `SUCCESS` resets the counter. | Hard: each subprocess crashes independently. |
-| Per-session memory cap | No cap knob (one process); livekit's `job_memory_limit_mb` has no effect here. | Configure livekit-agents' own `job_memory_limit_mb` worker option. |
+| Memory cap | Worker-level (one process): warns at `memory_warn_mb` and drains + restarts the worker at `memory_limit_mb`, measured against whole-worker RSS, not per session. | Per-session: livekit-agents enforces `memory_limit_mb` per subprocess. |
 | Backpressure | `current_load() = active / max_concurrent_sessions`, reported to LiveKit dispatch. Advisory only (unclamped, not a hard gate); sessions past the threshold still launch. | `livekit-agents` default CPU-based load. |
 | Dependency surface | Uses `livekit-agents` private job internals; pinned to `>=1.5,<1.7`. An unsupported version fails import with a message pointing to `isolation="process"`. | Public, version-stable API. |
 | When to pick | High density on one host; cost-sensitive deployments. | Regulatory hard isolation; per-session memory caps. |
 
-`max_concurrent_sessions` (50), `consecutive_failure_limit` (5), and `drain_timeout` (30) are validated as positive integers. On SIGTERM the worker drains: it stops accepting jobs and waits up to `drain_timeout` seconds for in-flight sessions before cancelling.
+`max_concurrent_sessions` (50), `consecutive_failure_limit` (5), and `drain_timeout` (30) are validated as positive integers; `memory_warn_mb` (1000) and `memory_limit_mb` (0 = disabled) as non-negative numbers. On SIGTERM the worker drains: it stops accepting jobs and waits up to `drain_timeout` seconds for in-flight sessions before cancelling.
 
-### Density
+### Throughput and density
 
-From the stub-workload benchmark (`tests/benchmarks/density.py`, results in [`docs/benchmarks/density-v0.1.md`](docs/benchmarks/density-v0.1.md); macOS arm64, Python 3.13, single worker). The gate: 50+ concurrent sessions per worker at 4 GB peak RSS with no errors. It passes with headroom.
+Two axes, two benchmarks. **Throughput** is the defensible "sessions per worker" number. N sessions share one event loop and one GIL, so the continuous cost is per-frame VAD inference (~50 fps per session). `tests/benchmarks/throughput.py` drives the real Silero VAD over synthetic 16 kHz PCM and measures steady-state event-loop p99. On one worker (macOS arm64, Python 3.13) it holds a flat ~1 to 2 ms p99 out to 100 concurrent sessions, far under a 100 ms SLO:
 
-| Concurrent sessions | Coroutine peak RSS | Delta over idle | Result |
-| ---: | ---: | ---: | :--- |
-| 50 | ~367 MB | ~251 MB | 50/50 ok |
-| 100 | 617 MB | 502 MB | ok |
-| 200 | 1073 MB | 957 MB | ok |
-| 500 | 1370 MB | 1256 MB | ok (8 GB cap) |
+| Concurrent sessions | Steady-state loop p99 | Peak RSS |
+| ---: | ---: | ---: |
+| 10 | 0.9 ms | 134 MB |
+| 25 | 1.2 ms | 154 MB |
+| 50 | 2.0 ms | 197 MB |
+| 100 | 1.1 ms | 264 MB |
 
-Process mode instead loads the runtime plus models per session (~3 GB each, see [docs/audit-2026-05-02.md](docs/audit-2026-05-02.md)), so the same 50 sessions would need ~150 GB; coroutine mode shares one process.
+**Memory** is the other axis. The stub-workload `tests/benchmarks/density.py` (memory only, and the current CI gate) holds 50+ sessions per worker under a 4 GB peak-RSS budget with headroom ([full table](docs/benchmarks/density-v0.1.md)). Process mode instead loads the runtime plus models per session (~3 GB each, see [docs/audit-2026-05-02.md](docs/audit-2026-05-02.md)), so the same 50 sessions would need ~150 GB; coroutine mode shares one process.
 
-**Throughput is the other half.** N sessions share one event loop and one GIL, so `tests/benchmarks/throughput.py` drives real Silero VAD over synthetic 16 kHz PCM and measures steady-state loop p99: it stays well under a 100 ms budget to 100 sessions with flat RSS. Read both as an on-loop-CPU ceiling, not a full-pipeline guarantee: the harness stubs the WebRTC/STT/LLM/TTS path and the ~250 to 400 MB model footprint. Measure on your own hardware before quoting a sessions-per-worker number.
+Read both as an on-loop-CPU plus memory ceiling, not a full-pipeline guarantee: the harness stubs the WebRTC/STT/LLM/TTS network path. Shared CI runners are too noisy for a p99 gate, so throughput ships report-only for now; measure on your own hardware before quoting a sessions-per-worker number.
 
 **Prove it on your machine** (no LiveKit server, no API keys, no model download):
 
@@ -325,12 +327,13 @@ The public surface is exactly `openrtc.__all__`, 14 names. Everything else is in
 | `max_concurrent_sessions` | `50` | Coroutine backpressure threshold (positive int). |
 | `consecutive_failure_limit` | `5` | Coroutine supervisor threshold (positive int). |
 | `drain_timeout` | `30` | Seconds to wait for in-flight sessions after SIGTERM (positive int). |
+| `memory_warn_mb` / `memory_limit_mb` | `1000` / `0` | Worker memory watermarks in MB (non-negative; `0` disables). Worker-level RSS in coroutine mode; per-subprocess in process mode. |
 | `enable_hot_reload` | `False` | Watch agent files and swap live sessions on the next turn (coroutine mode only). |
 | `watch_paths` | `None` | Extra paths to watch; `None` auto-discovers the worker's user modules. |
 | `request_fnc` | `None` | Per-job accept/reject hook (`RequestFilter`). `None` accepts every job. |
 | `accept_only_registered_rooms` | `False` | Convenience filter: accept only rooms mapping to a registered agent. Mutually exclusive with `request_fnc`. |
 
-**Methods:** `add`, `discover`, `list_agents`, `get`, `remove`, `add_observer`, `run`, `runtime_snapshot`, `drain_metrics_stream_events`. **Read-only properties:** `isolation`, `max_concurrent_sessions`, `consecutive_failure_limit`, `drain_timeout`, `enable_hot_reload`, `server`, `request_fnc`. `add()` raises on an empty or duplicate name and on an `agent_cls` that is not a `livekit.agents.Agent` subclass; direct `**session_options` override the same keys in `session_kwargs`.
+**Methods:** `add`, `discover`, `list_agents`, `get`, `remove`, `add_observer`, `run`, `runtime_snapshot`, `drain_metrics_stream_events`. **Read-only properties:** `isolation`, `max_concurrent_sessions`, `consecutive_failure_limit`, `drain_timeout`, `memory_warn_mb`, `memory_limit_mb`, `enable_hot_reload`, `server`, `request_fnc`. `add()` raises on an empty or duplicate name and on an `agent_cls` that is not a `livekit.agents.Agent` subclass; direct `**session_options` override the same keys in `session_kwargs`.
 
 <details>
 <summary><b>Project structure</b></summary>

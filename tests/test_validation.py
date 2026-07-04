@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from openrtc.utils.validation import require_positive_int, validate_isolation
+from openrtc.utils.validation import (
+    require_non_negative_number,
+    require_positive_int,
+    validate_isolation,
+)
 
 
 def test_require_positive_int_returns_value() -> None:
@@ -20,6 +24,27 @@ def test_require_positive_int_rejects_non_int(bad: object) -> None:
 def test_require_positive_int_rejects_below_one() -> None:
     with pytest.raises(ValueError, match=r"widget must be >= 1, got 0\."):
         require_positive_int("widget", 0)
+
+
+def test_require_non_negative_number_returns_float() -> None:
+    result = require_non_negative_number("memory_limit_mb", 1500)
+    assert result == 1500.0
+    assert isinstance(result, float)
+
+
+def test_require_non_negative_number_allows_zero() -> None:
+    assert require_non_negative_number("memory_limit_mb", 0) == 0.0
+
+
+@pytest.mark.parametrize("bad", [True, False, "1000", None])
+def test_require_non_negative_number_rejects_non_number(bad: object) -> None:
+    with pytest.raises(TypeError, match=r"widget must be a number, got "):
+        require_non_negative_number("widget", bad)
+
+
+def test_require_non_negative_number_rejects_negative() -> None:
+    with pytest.raises(ValueError, match=r"widget must be >= 0, got -1\."):
+        require_non_negative_number("widget", -1)
 
 
 def test_validate_isolation_accepts_known_modes() -> None:

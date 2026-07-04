@@ -83,6 +83,7 @@ class BetaAgent(_RealRoomAgent):
 @pytest.mark.asyncio
 async def test_two_agents_realroom_on_enter_runs_post_connect(
     livekit_dev_server: LiveKitDevServer,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Two routed agents connect, run on_enter post-connect, and finish clean."""
     os.environ["LIVEKIT_URL"] = livekit_dev_server.url
@@ -112,8 +113,11 @@ async def test_two_agents_realroom_on_enter_runs_post_connect(
     # import makes multilingual.py skip runner registration (it only registers
     # when LIVEKIT_REMOTE_EOT_URL is unset). _supports_multilingual_turn_detection
     # still returns True via the env-var branch, so session wiring is unchanged.
-    # setdefault preserves a real URL when the developer has one configured.
-    os.environ.setdefault("LIVEKIT_REMOTE_EOT_URL", "http://eot-disabled.invalid/eot")
+    # Only set when absent (preserves a real URL a developer configured), and via
+    # monkeypatch so it reverts on teardown instead of leaking into later unit
+    # tests that assert the VAD fallback path.
+    if "LIVEKIT_REMOTE_EOT_URL" not in os.environ:
+        monkeypatch.setenv("LIVEKIT_REMOTE_EOT_URL", "http://eot-disabled.invalid/eot")
 
     rooms = ["alpha-room-1", "beta-room-1"]
     runner = asyncio.create_task(server.run(devmode=True, unregistered=True))

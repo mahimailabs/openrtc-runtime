@@ -386,7 +386,9 @@ def test_handle_session_uses_multilingual_turn_detection_when_inference_executor
     pool = AgentPool()
     pool.add("dental", DentalAgent)
     ctx = FakeJobContext(job_metadata={"agent": "dental"})
-    ctx.proc.inference_executor = object()
+    # The inference executor lives on the JobContext, not the JobProcess
+    # (MAH-159): setting it here must enable the multilingual detector.
+    ctx.inference_executor = object()
 
     asyncio.run(run_session(pool._runtime_state, ctx))
 
