@@ -163,6 +163,16 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.13.0] - 2026-07-04
+
+## What's Changed
+* fix(coroutine): report session end at real disconnect; prove live hot-reload re-bind (MAH-166/82/83) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/62
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.12.0...v0.13.0
+
+---
+
 ## [0.12.0] - 2026-07-04
 
 ## What's Changed
