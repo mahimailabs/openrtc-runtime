@@ -174,6 +174,88 @@ def logs_command(
             print(json.dumps(record))
 
 
+@app.command("top")
+def top_command(
+    socket: Annotated[
+        Path | None,
+        typer.Option(
+            "--socket",
+            help="Worker introspection socket (default: the per-user socket).",
+        ),
+    ] = None,
+    once: Annotated[
+        bool,
+        typer.Option(
+            "--once",
+            help="Print a single snapshot and exit (no live loop; scripts/CI).",
+        ),
+    ] = False,
+    refresh_rate: Annotated[
+        float,
+        typer.Option(
+            "--refresh-rate",
+            help="Live refresh rate in Hz (0.5-10). Ignored with --once.",
+        ),
+    ] = 1.0,
+    sort: Annotated[
+        str,
+        typer.Option("--sort", help="Initial sort column (cycle live with 's')."),
+    ] = "mem_mb",
+    status: Annotated[
+        str,
+        typer.Option(
+            "--status", help="Status filter (cycle live with 'f'): all/active/slow/…"
+        ),
+    ] = "all",
+) -> None:
+    """htop-style live inspector for the shared-worker session pool (MAH-92).
+
+    Connects to a running coroutine-mode worker over its local Unix socket. Keys:
+    [code]q[/code] quit, [code]r[/code] refresh, [code]s[/code] cycle sort,
+    [code]f[/code] cycle status filter.
+    """
+    import asyncio
+
+    from rich.console import Console
+
+    from openrtc.cli.top_cli import (
+        SORT_KEYS,
+        STATUS_FILTERS,
+        run_live,
+        run_once,
+        validate_refresh_hz,
+    )
+    from openrtc.observability.introspection_ipc import default_socket_path
+
+    if sort not in SORT_KEYS:
+        raise typer.BadParameter(f"--sort must be one of {', '.join(SORT_KEYS)}.")
+    if status not in STATUS_FILTERS:
+        raise typer.BadParameter(
+            f"--status must be one of {', '.join(STATUS_FILTERS)}."
+        )
+    try:
+        validate_refresh_hz(refresh_rate)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    socket_path = socket or default_socket_path()
+    console = Console()
+    if once:
+        code = asyncio.run(
+            run_once(socket_path, sort_key=sort, status_filter=status, console=console)
+        )
+        raise typer.Exit(code)
+    asyncio.run(  # pragma: no cover - interactive TTY loop
+        run_live(
+            socket_path,
+            sort_key=sort,
+            status_filter=status,
+            refresh_hz=refresh_rate,
+            console=console,
+        )
+    )
+
+
 _WORKER_POSITIONAL_HELP = (
     " Use [code]openrtc {name} ./agents[/code] or [code]--agents-dir ./agents[/code]; "
     "add a second path only when you want JSONL metrics "
