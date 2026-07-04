@@ -163,6 +163,33 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.14.0] - 2026-07-04
+
+## v0.3 — Pool observability
+
+See inside a shared coroutine worker for the first time. This release adds per-session introspection: how each multiplexed session uses memory and CPU, and which one is blocking the loop.
+
+### Highlights
+
+- **`openrtc top`** — an htop-style live inspector for your session pool. Columns for memory, CPU, duration, tenant, and status; sort (`s`), filter (`f`), refresh, and `--once` for scripts/CI. Connects to a running coroutine worker over a private local Unix socket (mode 0600, per-user).
+- **Per-session memory** — equal-share RSS attribution with a per-session peak (sums back to process RSS). An honest approximation of a shared process; use `isolation="process"` for hard accounting.
+- **Per-session CPU** — statistical sampling of which session is on-CPU, via asyncio task->session tagging.
+- **Slow-session detector** — attributes an event-loop block over `slow_session_threshold_ms` (default 50ms) to the running session and logs it. The tool for "one session is starving the others".
+- **Per-session log scoping** — `session_id` on every log record inside a session, plus `openrtc logs --session` to filter a JSONL log.
+
+### Lane boundary
+
+OpenRTC introspection sees coroutines, not the voice pipeline. Cost, provider latency (STT/LLM/TTS), and quality metrics stay with voicegateway, which consumes the `agent_name` and `metadata["tenant"]` OpenRTC emits.
+
+### Notes
+
+- Introspection is on by default in coroutine mode and skipped in process mode; disable with `AgentPool(enable_introspection=False)`.
+- New docs: session introspection concept, `openrtc top` reference (with screenshot), and a density-debugging runbook.
+
+Milestone: v0.3 — Pool observability (MAH-88, MAH-89, MAH-90, MAH-91, MAH-92, MAH-94).
+
+---
+
 ## [0.13.0] - 2026-07-04
 
 ## What's Changed
