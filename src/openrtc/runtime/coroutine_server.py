@@ -11,15 +11,21 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import Callable, Iterator
-from typing import Any
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from typing import TYPE_CHECKING, Any
 
 import livekit.agents.ipc.proc_pool as _proc_pool_mod
 from livekit.agents import AgentServer
 
 from openrtc.runtime.coroutine_runtime import CoroutinePool
+from openrtc.runtime.file_watcher import FileChange, FileWatcher
 from openrtc.runtime.registry import ServerParams
 from openrtc.utils.validation import require_positive_int
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    ReloadCallback = Callable[[list[FileChange]], Awaitable[None]]
 
 logger = logging.getLogger("openrtc.runtime.coroutine_server")
 
@@ -42,11 +48,48 @@ class _CoroutineAgentServer(AgentServer):
             "consecutive_failure_limit", consecutive_failure_limit
         )
         self._coroutine_pool: CoroutinePool | None = None
+        self._reload_on_change: ReloadCallback | None = None
+        self._reload_watch_paths: list[Path] | None = None
+        self._reload_watcher: FileWatcher | None = None
 
     @property
     def coroutine_pool(self) -> CoroutinePool | None:
         """Return the constructed :class:`CoroutinePool` once :meth:`run` has built it."""
         return self._coroutine_pool
+
+    def attach_reload(
+        self,
+        on_change: ReloadCallback,
+        watch_paths: list[Path] | None = None,
+    ) -> None:
+        """Enable hot reload: run a FileWatcher feeding *on_change* during run().
+
+        Passing the callback rather than the coordinator keeps ``runtime`` free of
+        any dependency on the ``reload`` package. ``watch_paths=None`` auto-discovers
+        the worker's user-edited modules.
+        """
+        self._reload_on_change = on_change
+        self._reload_watch_paths = watch_paths
+
+    @property
+    def reload_watcher(self) -> FileWatcher | None:
+        """The live FileWatcher while run() is active, else ``None``."""
+        return self._reload_watcher
+
+    @contextlib.asynccontextmanager
+    async def _reload_watching(self) -> AsyncIterator[None]:
+        """Start the FileWatcher for the run() lifetime; a no-op if reload is off."""
+        if self._reload_on_change is None:
+            yield
+            return
+        watcher = FileWatcher(self._reload_on_change, paths=self._reload_watch_paths)
+        self._reload_watcher = watcher
+        await watcher.start()
+        try:
+            yield
+        finally:
+            await watcher.stop()
+            self._reload_watcher = None
 
     def _on_consecutive_failure_limit(self, failures: int) -> None:
         """Log the failure cluster and schedule ``aclose()`` to restart the worker."""
@@ -113,8 +156,14 @@ class _CoroutineAgentServer(AgentServer):
             from livekit.plugins.turn_detector.multilingual import (  # noqa: F401
                 MultilingualModel as _M,
             )
-        with self._patched_proc_pool():
+        async with self._reload_watching(), self._patched_proc_pool_async():
             await super().run(devmode=devmode, unregistered=unregistered)
+
+    @contextlib.asynccontextmanager
+    async def _patched_proc_pool_async(self) -> AsyncIterator[None]:
+        """Async wrapper over the sync proc-pool patch so run() nests one ``async with``."""
+        with self._patched_proc_pool():
+            yield
 
 
 def build_server(params: ServerParams) -> _CoroutineAgentServer:

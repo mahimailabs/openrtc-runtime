@@ -30,9 +30,10 @@ _OPENRTC_ONLY_FLAGS_WITH_VALUE: frozenset[str] = frozenset(
         "--metrics-json-file",
         "--metrics-jsonl",
         "--metrics-jsonl-interval",
+        "--watch-path",
     }
 )
-_OPENRTC_ONLY_BOOL_FLAGS: frozenset[str] = frozenset({"--dashboard"})
+_OPENRTC_ONLY_BOOL_FLAGS: frozenset[str] = frozenset({"--dashboard", "--no-watch"})
 
 
 def _strip_openrtc_only_flags_for_livekit(argv_tail: list[str]) -> list[str]:

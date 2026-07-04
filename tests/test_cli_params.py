@@ -52,6 +52,8 @@ def test_shared_livekit_worker_options_from_cli_and_for_download_files() -> None
     assert opts.agent_pool_kwargs() == {
         **agent_provider_kwargs("a", None, None, "hi"),
         **agent_pool_runtime_kwargs(),
+        "enable_hot_reload": False,
+        "watch_paths": None,
     }
 
     dl = SharedLiveKitWorkerOptions.for_download_files(
