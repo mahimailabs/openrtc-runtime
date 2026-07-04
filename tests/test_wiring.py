@@ -58,6 +58,118 @@ def test_wire_pool_defaults_request_fnc_to_none() -> None:
     assert server.rtc_session_kwargs["on_request"] is None
 
 
+def test_wire_pool_registers_session_end_hook() -> None:
+    from openrtc.core.wiring import run_session_end, wire_pool
+
+    server = _RecordingServer()
+    wire_pool(server, _PoolRuntimeState(agents={}))
+
+    assert server.rtc_session_kwargs["on_session_end"] is run_session_end
+
+
+def test_is_held_open_session_predicate() -> None:
+    from openrtc.core.wiring import _is_held_open_session
+
+    # Real (non-fake) job with a primary session: held open.
+    assert (
+        _is_held_open_session(SimpleNamespace(_primary_agent_session=object())) is True
+    )
+    # No primary session (setup-only entrypoint): not held.
+    assert _is_held_open_session(SimpleNamespace(_primary_agent_session=None)) is False
+    # Fake job (simulate_job): completes on return, not held.
+    assert (
+        _is_held_open_session(
+            SimpleNamespace(_primary_agent_session=object(), is_fake_job=lambda: True)
+        )
+        is False
+    )
+
+
+class _RecordObserver:
+    """SessionObserver that records the order of start/end notifications."""
+
+    def __init__(self) -> None:
+        self.events: list[str] = []
+
+    async def on_session_start(self, info: object, session: object) -> None:
+        self.events.append("start")
+
+    async def on_session_end(self, info: object, outcome: object) -> None:
+        self.events.append("end")
+
+
+@pytest.mark.asyncio
+async def test_run_session_defers_end_for_held_open_session(monkeypatch) -> None:
+    """A held-open coroutine session reports its end via run_session_end (MAH-166).
+
+    While the call is live the session stays counted (active_sessions == 1) and
+    on_session_end has not fired; the executor's end hook fires it at real
+    disconnect.
+    """
+    from openrtc.core import wiring
+
+    config = SimpleNamespace(
+        name="a",
+        stt="s",
+        llm="l",
+        tts="t",
+        session_kwargs={},
+        greeting=None,
+        agent_cls=lambda: SimpleNamespace(),
+    )
+    monkeypatch.setattr(wiring, "_resolve_agent_config", lambda agents, ctx: config)
+    monkeypatch.setattr(wiring, "_build_session_kwargs", lambda kw, proc, ie=None: {})
+
+    class _FakeSession:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        async def start(self, **kwargs: object) -> None:
+            pass
+
+    monkeypatch.setattr(wiring, "AgentSession", _FakeSession)
+
+    async def _connect() -> None:
+        pass
+
+    obs = _RecordObserver()
+    ctx = SimpleNamespace(
+        proc=SimpleNamespace(
+            userdata={"vad": "VAD", "turn_detection_factory": object()}
+        ),
+        room=SimpleNamespace(name="a-1", metadata=None),
+        job=SimpleNamespace(id="j", metadata=None),
+        connect=_connect,
+        inference_executor=None,
+        _openrtc_defer_session_end=True,
+        _primary_agent_session=object(),  # livekit set it during start()
+    )
+    state = _PoolRuntimeState(agents={"a": config}, observers=[obs])
+
+    await wiring.run_session(state, ctx)
+
+    # End deferred: start fired, end did NOT, and the session is still counted.
+    assert obs.events == ["start"]
+    assert callable(ctx._openrtc_session_finish)
+    assert state.metrics.snapshot(registered_agents=1).active_sessions == 1
+
+    # The executor's end hook fires the deferred end at the real disconnect.
+    await wiring.run_session_end(ctx)
+
+    assert obs.events == ["start", "end"]
+    assert ctx._openrtc_session_finish is None
+    assert state.metrics.snapshot(registered_agents=1).active_sessions == 0
+
+
+@pytest.mark.asyncio
+async def test_run_session_end_is_noop_without_deferred_finish() -> None:
+    from openrtc.core.wiring import run_session_end
+
+    # No _openrtc_session_finish stashed (fake job, process mode, direct call):
+    # the hook is a no-op and never double-fires.
+    await run_session_end(SimpleNamespace())
+
+
 @pytest.mark.asyncio
 async def test_run_session_connects_before_starting(monkeypatch) -> None:
     """ctx.connect() must be awaited before session.start().

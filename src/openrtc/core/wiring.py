@@ -38,7 +38,7 @@ logger = logging.getLogger("openrtc")
 # budget that bounds the on_session_end notification at teardown.
 _OBSERVER_START_TIMEOUT_SECONDS = 5.0
 
-__all__ = ["build_session", "run_session", "wire_pool"]
+__all__ = ["build_session", "run_session", "run_session_end", "wire_pool"]
 
 
 @dataclass(slots=True)
@@ -78,6 +78,37 @@ def build_session(
     return session, config, info
 
 
+async def _finish_session(
+    runtime_state: _PoolRuntimeState,
+    info: SessionInfo,
+    agent_name: str,
+    error: BaseException | None,
+) -> None:
+    """Record the session finished and notify observers of its end."""
+    runtime_state.metrics.record_session_finished(agent_name)
+    outcome = _build_session_outcome(info, error)
+    await _notify_session_end(
+        runtime_state.observers,
+        info,
+        outcome,
+        timeout=runtime_state.observer_timeout,
+    )
+
+
+def _is_held_open_session(ctx: JobContext) -> bool:
+    """Whether the coroutine executor holds this session open past entrypoint return.
+
+    A real (non-fake) job with a primary ``AgentSession`` is held open until the
+    room disconnects, so its end must be reported then, not when the entrypoint
+    returns. Fake jobs (``simulate_job``) and setup-only entrypoints complete on
+    return and so report their end inline.
+    """
+    if getattr(ctx, "_primary_agent_session", None) is None:
+        return False
+    is_fake = getattr(ctx, "is_fake_job", None)
+    return not (bool(is_fake()) if callable(is_fake) else False)
+
+
 async def run_session(
     runtime_state: _PoolRuntimeState,
     ctx: JobContext,
@@ -112,14 +143,36 @@ async def run_session(
         runtime_state.metrics.record_session_failure(config.name, exc)
         raise
     finally:
-        runtime_state.metrics.record_session_finished(config.name)
-        outcome = _build_session_outcome(info, sys.exc_info()[1])
-        await _notify_session_end(
-            runtime_state.observers,
-            info,
-            outcome,
-            timeout=runtime_state.observer_timeout,
-        )
+        error = sys.exc_info()[1]
+        # For a real coroutine session held open past entrypoint return, defer the
+        # finished / on_session_end signal to the executor's real session end (room
+        # disconnect) via run_session_end, so metrics (active_sessions) and the
+        # live-session registry reflect the true call lifetime, not the greeting
+        # boundary (MAH-166). Fake jobs, setup-only entrypoints, process mode, and
+        # direct unit-test calls report their end here, unchanged.
+        if getattr(ctx, "_openrtc_defer_session_end", False) and _is_held_open_session(
+            ctx
+        ):
+            ctx._openrtc_session_finish = partial(  # type: ignore[attr-defined]
+                _finish_session, runtime_state, info, config.name, error
+            )
+        else:
+            await _finish_session(runtime_state, info, config.name, error)
+
+
+async def run_session_end(ctx: JobContext) -> None:
+    """Fire a held-open session's deferred end notification at its real end.
+
+    Wired as the coroutine executor's ``on_session_end`` hook: it runs after the
+    executor has held the session open until the room disconnected. A no-op when
+    the session already reported its end inline (fake jobs, process mode, direct
+    unit-test calls), so it never double-fires.
+    """
+    finish = getattr(ctx, "_openrtc_session_finish", None)
+    if finish is None:
+        return
+    ctx._openrtc_session_finish = None  # type: ignore[attr-defined]
+    await finish()
 
 
 def wire_pool(
@@ -132,6 +185,11 @@ def wire_pool(
     ``request_fnc`` is LiveKit's per-job accept/reject hook. When ``None`` the
     hook is left at LiveKit's default (accept every job), preserving existing
     behavior; a filter lets the worker scope which rooms it handles.
+    ``run_session_end`` is registered as the per-job end hook so a held-open
+    coroutine session reports its end at real disconnect (MAH-166).
     """
     server.setup_fnc = partial(_prewarm_worker, runtime_state)
-    server.rtc_session(on_request=request_fnc)(partial(run_session, runtime_state))
+    server.rtc_session(
+        on_request=request_fnc,
+        on_session_end=run_session_end,
+    )(partial(run_session, runtime_state))

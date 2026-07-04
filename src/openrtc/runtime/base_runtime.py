@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from livekit.agents import JobRequest
+    from livekit.agents import JobContext, JobRequest
 
 __all__ = ["SessionRuntime"]
 
@@ -18,7 +18,10 @@ class SessionRuntime(Protocol):
     setup_fnc: Callable[..., Any] | None
 
     def rtc_session(
-        self, *, on_request: Callable[[JobRequest], Any] | None = None
+        self,
+        *,
+        on_request: Callable[[JobRequest], Any] | None = None,
+        on_session_end: Callable[[JobContext], Any] | None = None,
     ) -> Callable[[Callable[..., Any]], Any]: ...
 
     async def run(self, *, devmode: bool = ..., unregistered: bool = ...) -> None: ...
