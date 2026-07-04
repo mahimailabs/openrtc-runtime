@@ -14,7 +14,7 @@ default fallback, turning "which agent" into a yes/no "is this room mine".
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from openrtc.routing.base_routing import _agent_name_from_metadata, logger
@@ -75,5 +75,79 @@ def _build_registered_rooms_filter(agents: Mapping[str, Any]) -> RequestFilter:
                 room_name,
             )
             await req.reject()
+
+    return request_fnc
+
+
+def _resolve_request_agent_name(
+    agents: Mapping[str, Any],
+    *,
+    room_name: object,
+    job_metadata: object,
+    room_metadata: object,
+) -> str | None:
+    """Resolve which registered agent will handle a job, mirroring routing precedence.
+
+    Follows job metadata, room metadata, room-name prefix, then the first-registered
+    fallback (the same order as :func:`openrtc.routing.resolver._resolve_agent_config`).
+    Returns ``None`` only when no agents are registered. This attributes an incoming
+    job to an agent for per-agent backpressure; it does not validate (a metadata name
+    for an unregistered agent falls through to the prefix / fallback rather than
+    raising, which routing and the ownership filter handle at their own layers).
+    """
+    if not agents:
+        return None
+    for metadata in (job_metadata, room_metadata):
+        name = _agent_name_from_metadata(metadata)
+        if name is not None and name in agents:
+            return name
+    if isinstance(room_name, str):
+        for agent_name in agents:
+            if room_name.startswith(f"{agent_name}-"):
+                return agent_name
+    return next(iter(agents))  # first-registered fallback
+
+
+def _build_per_agent_backpressure_filter(
+    *,
+    agents: Mapping[str, Any],
+    caps: Mapping[str, int],
+    active_counts: Callable[[], Mapping[str, int]],
+    base_filter: RequestFilter | None,
+) -> RequestFilter:
+    """Reject a job when its target agent is at its per-agent session cap.
+
+    Layers *before* the base ownership decision: a job whose target agent is at cap
+    is rejected (a backpressure signal LiveKit understands) regardless of the base;
+    otherwise the base filter decides, or the job is accepted when there is no base.
+    Sibling agents under their own caps are unaffected. The global
+    ``max_concurrent_sessions`` cap still applies on top via the load function; a
+    per-agent cap only adds a reject condition, it never widens the global limit.
+
+    The cap is a **soft, best-effort** limit: it reads the live per-agent active
+    count, which is incremented at session start (after acceptance), so a burst of
+    simultaneous accepts can briefly overshoot before the counts catch up.
+    """
+
+    async def request_fnc(req: JobRequest) -> None:
+        room = req.room
+        name = _resolve_request_agent_name(
+            agents,
+            room_name=getattr(room, "name", None),
+            job_metadata=getattr(req.job, "metadata", None),
+            room_metadata=getattr(room, "metadata", None),
+        )
+        if name is not None:
+            cap = caps.get(name)
+            if cap is not None and active_counts().get(name, 0) >= cap:
+                logger.info(
+                    "Rejecting job for agent '%s': at per-agent cap (%d).", name, cap
+                )
+                await req.reject()
+                return
+        if base_filter is not None:
+            await base_filter(req)
+        else:
+            await req.accept()
 
     return request_fnc

@@ -23,7 +23,10 @@ from openrtc.observability.metrics import (
     MetricsStreamEvent,
 )
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
-from openrtc.routing.request_filter import _build_registered_rooms_filter
+from openrtc.routing.request_filter import (
+    _build_per_agent_backpressure_filter,
+    _build_registered_rooms_filter,
+)
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
 from openrtc.utils.types import ProviderValue, RequestFilter
 from openrtc.utils.validation import (
@@ -77,6 +80,7 @@ class AgentPool:
         watch_paths: list[Path] | None = None,
         request_fnc: RequestFilter | None = None,
         accept_only_registered_rooms: bool = False,
+        max_sessions_per_agent: Mapping[str, int] | None = None,
         enable_introspection: bool = True,
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
@@ -106,6 +110,14 @@ class AgentPool:
         (job/room metadata naming a registered agent, or a ``<agent>-`` room-name
         prefix) maps it to one of this pool's agents, and rejects everything
         else. It is mutually exclusive with ``request_fnc``.
+
+        ``max_sessions_per_agent`` sets per-agent session caps (e.g.
+        ``{"sales": 30, "support": 20}``): a job whose target agent is at its cap is
+        rejected (backpressure) while sibling agents keep accepting. Caps may sum
+        past ``max_concurrent_sessions``; the global cap still applies on top. The
+        cap is soft/best-effort (it reads live active counts, incremented at session
+        start), so a burst of simultaneous accepts can briefly overshoot. It layers
+        over ``request_fnc`` / ``accept_only_registered_rooms`` when combined.
 
         ``memory_warn_mb`` / ``memory_limit_mb`` set worker memory watermarks in
         MB (``0`` disables a band; defaults mirror livekit: warn 1000, limit 0).
@@ -172,6 +184,23 @@ class AgentPool:
             if accept_only_registered_rooms
             else request_fnc
         )
+        # Per-agent budgets (MAH-96): layer a backpressure filter over the base
+        # decision so a job for an agent at its cap is rejected while siblings
+        # keep accepting. The global max_concurrent_sessions cap still applies.
+        self._max_sessions_per_agent: dict[str, int] = {}
+        if max_sessions_per_agent is not None:
+            self._max_sessions_per_agent = {
+                require_agent_name(name): require_positive_int(
+                    f"max_sessions_per_agent[{name!r}]", cap
+                )
+                for name, cap in max_sessions_per_agent.items()
+            }
+            self._request_fnc = _build_per_agent_backpressure_filter(
+                agents=self._agents,
+                caps=self._max_sessions_per_agent,
+                active_counts=self._runtime_state.metrics.active_by_agent,
+                base_filter=self._request_fnc,
+            )
         wire_pool(self._server, self._runtime_state, self._request_fnc)
         self._introspection: IntrospectionRuntime | None = None
         if enable_introspection and isolation == "coroutine":
@@ -285,6 +314,11 @@ class AgentPool:
     def request_fnc(self) -> RequestFilter | None:
         """Return the per-job accept/reject filter, or ``None`` for accept-all."""
         return self._request_fnc
+
+    @property
+    def max_sessions_per_agent(self) -> dict[str, int]:
+        """Return the per-agent session caps (empty when no per-agent budgets)."""
+        return dict(self._max_sessions_per_agent)
 
     def runtime_snapshot(self) -> PoolRuntimeSnapshot:
         """Return a live snapshot of worker metrics for dashboards and automation."""
