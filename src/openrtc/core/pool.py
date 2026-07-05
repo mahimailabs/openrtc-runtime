@@ -433,11 +433,34 @@ class AgentPool:
         """Return the blue-green deployment version tag, or ``None`` if untagged."""
         return self._deployment_version
 
+    @property
+    def draining(self) -> bool:
+        """``True`` once the worker has begun draining (rejecting new jobs, MAH-109)."""
+        pool = getattr(self._server, "coroutine_pool", None)
+        return bool(getattr(pool, "draining", False))
+
+    def begin_drain(self) -> None:
+        """Start a blue-green drain: reject new jobs; in-flight calls run to hangup.
+
+        Non-blocking. Production deploys trigger drain via SIGTERM (the deployment
+        platform handles the switchover); this is the programmatic trigger for a
+        coordinator. A no-op if the worker's coroutine pool is not running yet or in
+        process isolation (where the platform drains each subprocess directly).
+        """
+        pool = getattr(self._server, "coroutine_pool", None)
+        begin = getattr(pool, "begin_drain", None)
+        if callable(begin):
+            begin()
+            logger.info(
+                "Pool draining: rejecting new jobs; in-flight calls run to hangup."
+            )
+
     def runtime_snapshot(self) -> PoolRuntimeSnapshot:
         """Return a live snapshot of worker metrics for dashboards and automation."""
         return self._runtime_state.metrics.snapshot(
             registered_agents=len(self._agents),
             deployment_version=self._deployment_version,
+            draining=self.draining,
         )
 
     def drain_metrics_stream_events(self) -> list[MetricsStreamEvent]:

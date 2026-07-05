@@ -214,7 +214,11 @@ class RuntimeMetricsStore:
         return out
 
     def snapshot(
-        self, *, registered_agents: int, deployment_version: str | None = None
+        self,
+        *,
+        registered_agents: int,
+        deployment_version: str | None = None,
+        draining: bool = False,
     ) -> PoolRuntimeSnapshot:
         """Return a typed snapshot for dashboards and automation."""
         with self._lock:
@@ -243,4 +247,5 @@ class RuntimeMetricsStore:
                 shared_worker_bytes=rss_info.bytes_value,
             ),
             deployment_version=deployment_version,
+            draining=draining,
         )

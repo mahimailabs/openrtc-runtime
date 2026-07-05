@@ -53,6 +53,9 @@ class PoolRuntimeSnapshot:
     # The worker's deployment version tag (MAH-110), for observing which version a
     # worker runs during a blue-green drain. ``None`` when untagged.
     deployment_version: str | None = None
+    # ``True`` once the worker is draining (MAH-109): rejecting new jobs while its
+    # in-flight calls run to hangup. Lets an operator watch the blue-green switchover.
+    draining: bool = False
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-serializable snapshot payload."""
@@ -68,6 +71,7 @@ class PoolRuntimeSnapshot:
             "sessions_by_agent": dict(self.sessions_by_agent),
             "sessions_by_tenant": dict(self.sessions_by_tenant),
             "deployment_version": self.deployment_version,
+            "draining": self.draining,
             "resident_set": {
                 "bytes": self.resident_set.bytes_value,
                 "metric": self.resident_set.metric,
