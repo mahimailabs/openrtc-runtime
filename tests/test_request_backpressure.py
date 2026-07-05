@@ -26,6 +26,11 @@ class _Support(Agent):
         super().__init__(instructions="support")
 
 
+class _Scheduling(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions="scheduling")
+
+
 class _Req:
     """Minimal JobRequest stand-in that records accept/reject."""
 
@@ -200,3 +205,44 @@ def test_pool_rejects_non_positive_cap() -> None:
             max_sessions_per_agent={"sales": 0},
             enable_introspection=False,
         )
+
+
+@pytest.mark.asyncio
+async def test_pool_installed_filter_rejects_over_cap_agent_against_live_store() -> (
+    None
+):
+    """MAH-100 budget gate: the pool's own request_fnc, reading its live metrics
+    store, rejects the 6th session of a capped agent while siblings still accept.
+
+    This drives the *installed* filter end to end (pool caps -> filter -> the same
+    metrics store the running sessions increment), not a reconstructed one, which
+    is the integration the v0.4 success gate asks for. The exhaustive filter-logic
+    cases live in the unit tests above.
+    """
+    pool = AgentPool(
+        agents={
+            "sales": _Sales,
+            "support": _Support,
+            "scheduling": _Scheduling,
+        },
+        max_sessions_per_agent={"sales": 5},
+        enable_introspection=False,
+    )
+    fnc = pool.request_fnc
+    assert fnc is not None
+
+    # Sales is at its cap of 5 in the pool's live store (as if 5 calls are active).
+    for _ in range(5):
+        pool._runtime_state.metrics.record_session_started("sales")
+
+    over_cap = _Req(job_metadata={"agent": "sales"})
+    await fnc(over_cap)
+    assert over_cap.rejected
+    assert not over_cap.accepted
+
+    # Siblings are unaffected: their own (empty) budgets still accept.
+    for sibling in ("support", "scheduling"):
+        req = _Req(job_metadata={"agent": sibling})
+        await fnc(req)
+        assert req.accepted, f"{sibling} should accept while sales is at cap"
+        assert not req.rejected
