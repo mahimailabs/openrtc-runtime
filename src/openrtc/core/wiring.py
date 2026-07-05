@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from livekit.agents import AgentSession
 
 from openrtc.core.config import AgentConfig
+from openrtc.core.tenant_config import resolve_tenant_providers
 from openrtc.core.turn_handling import _build_session_kwargs
 from openrtc.observability.base_observer import (
     SessionInfo,
@@ -37,6 +38,7 @@ from openrtc.runtime.resources import PrewarmResources
 if TYPE_CHECKING:
     from livekit.agents import JobContext
 
+    from openrtc.core.tenant_config import TenantConfigResolver
     from openrtc.runtime.base_runtime import SessionRuntime
     from openrtc.utils.types import AgentRouter, RequestFilter
 
@@ -62,6 +64,10 @@ class _PoolRuntimeState:
     # the spawned worker's pickled state, so it must be picklable there (a
     # module-level function, not a lambda); coroutine mode accepts any callable.
     router: AgentRouter | None = None
+    # Optional per-tenant provider config resolver (MAH-102). Same spawn-safety
+    # caveat as ``router`` (its source + cached provider objects must be picklable
+    # under process isolation).
+    tenant_resolver: TenantConfigResolver | None = None
 
 
 def build_session(
@@ -74,6 +80,16 @@ def build_session(
     config = _resolve_agent_config(
         runtime_state.agents, ctx, router=runtime_state.router
     )
+    # Build the info first so the resolved tenant is available for the per-tenant
+    # provider override (MAH-102): a tenant's stt/llm/tts (with its own key) replace
+    # the agent's; omitted keys fall back to the agent's provider.
+    info = _build_session_info(config.name, ctx)
+    tenant_config = (
+        runtime_state.tenant_resolver.resolve(info.tenant)
+        if runtime_state.tenant_resolver is not None
+        else None
+    )
+    stt, llm, tts = resolve_tenant_providers(config, tenant_config)
     # The inference executor rides on the JobContext, not the JobProcess; pass it
     # so the turn-detection gate selects the prewarmed multilingual detector
     # instead of always falling back to VAD (MAH-159).
@@ -83,13 +99,12 @@ def build_session(
         getattr(ctx, "inference_executor", None),
     )
     session: AgentSession[None] = AgentSession(
-        stt=config.stt,  # type: ignore[arg-type]
-        llm=config.llm,  # type: ignore[arg-type]
-        tts=config.tts,  # type: ignore[arg-type]
+        stt=stt,  # type: ignore[arg-type]
+        llm=llm,  # type: ignore[arg-type]
+        tts=tts,  # type: ignore[arg-type]
         vad=PrewarmResources.vad_from(ctx.proc),
         **session_kwargs,
     )
-    info = _build_session_info(config.name, ctx)
     return session, config, info
 
 

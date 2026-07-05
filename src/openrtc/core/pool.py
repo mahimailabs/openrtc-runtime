@@ -17,6 +17,7 @@ from openrtc.core.discovery import (
     _find_local_agent_subclass,
     _load_agent_module,
 )
+from openrtc.core.tenant_config import TenantConfigResolver, TenantConfigSource
 from openrtc.core.wiring import _PoolRuntimeState, wire_pool
 from openrtc.observability.base_observer import SessionObserver
 from openrtc.observability.metrics import (
@@ -83,6 +84,7 @@ class AgentPool:
         request_fnc: RequestFilter | None = None,
         accept_only_registered_rooms: bool = False,
         router: AgentRouter | None = None,
+        tenant_config: TenantConfigSource | None = None,
         max_sessions_per_agent: Mapping[str, int] | None = None,
         max_sessions_per_tenant: Mapping[str, int] | None = None,
         enable_introspection: bool = True,
@@ -114,6 +116,15 @@ class AgentPool:
         (job/room metadata naming a registered agent, or a ``<agent>-`` room-name
         prefix) maps it to one of this pool's agents, and rejects everything
         else. It is mutually exclusive with ``request_fnc``.
+
+        ``tenant_config`` supplies per-tenant provider overrides (MAH-102): a
+        ``{tenant: {"stt"/"llm"/"tts": ProviderValue}}`` mapping, or a callable
+        ``tenant -> config`` (e.g. a DB load). At session start the tenant's providers
+        replace the agent's (omitted keys fall back to the agent's), so each tenant
+        runs on its own keys/models. Configs are cached per tenant; a missing tenant
+        falls back to the agent/pool defaults with a one-time warning. Per-tenant
+        prompts are out of scope: route a tenant to its own agent via ``router`` for a
+        distinct prompt. Same spawn-safety caveat as ``router`` under process isolation.
 
         ``router`` is a custom dispatch router: ``router(job_metadata) -> agent_name``
         (``job_metadata`` is the parsed dispatch metadata mapping or ``None``). It
@@ -178,6 +189,11 @@ class AgentPool:
             agents=self._agents,
             observer_timeout=float(self._drain_timeout),
             router=router,
+            tenant_resolver=(
+                TenantConfigResolver(tenant_config)
+                if tenant_config is not None
+                else None
+            ),
         )
         if observers is not None:
             for observer in observers:
