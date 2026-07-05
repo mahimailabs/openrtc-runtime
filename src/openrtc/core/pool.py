@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from livekit.agents import Agent, AgentServer, cli
 
+from openrtc.core.audit import DEPLOYMENT_DRAIN_STARTED, AuditLog, AuditSink
 from openrtc.core.circuit_breaker import TenantCircuitBreaker
 from openrtc.core.config import (
     AgentConfig,
@@ -95,6 +96,7 @@ class AgentPool:
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
         deployment_version: str | None = None,
+        audit_sink: AuditSink | None = None,
     ) -> None:
         """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
 
@@ -212,6 +214,9 @@ class AgentPool:
                 )
             self._deployment_version = stripped
             logger.info("Pool deployment_version=%s", stripped)
+        # Deployment audit log (MAH-112): structured, monotonic-sequence events,
+        # logged by default or handed to a custom sink (S3 / SIEM).
+        self._audit = AuditLog(sink=audit_sink)
         self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(
@@ -223,6 +228,7 @@ class AgentPool:
                 if tenant_config is not None
                 else None
             ),
+            deployment_version=self._deployment_version,
         )
         if observers is not None:
             for observer in observers:
@@ -454,6 +460,16 @@ class AgentPool:
             logger.info(
                 "Pool draining: rejecting new jobs; in-flight calls run to hangup."
             )
+            self._audit.emit(
+                DEPLOYMENT_DRAIN_STARTED,
+                target="worker",
+                version=self._deployment_version,
+            )
+
+    @property
+    def audit_log(self) -> AuditLog:
+        """Return the pool's deployment audit log (MAH-112)."""
+        return self._audit
 
     def runtime_snapshot(self) -> PoolRuntimeSnapshot:
         """Return a live snapshot of worker metrics for dashboards and automation."""

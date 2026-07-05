@@ -51,6 +51,10 @@ class SessionInfo:
     # metadata key "tenant" (matches voicegateway's VoiceGatewayObserver), or
     # "default" when unset. Defaulted so existing construction sites are unaffected.
     tenant: str = DEFAULT_TENANT
+    # The worker's deployment version that handled this call (MAH-112), for the
+    # per-call audit trail. voicegateway records it; ``None`` when the worker is
+    # untagged.
+    deployment_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,12 +136,15 @@ def _resolve_tenant(metadata: Mapping[str, str]) -> str:
     return require_tenant_id(raw)
 
 
-def _build_session_info(agent_name: str, ctx: JobContext) -> SessionInfo:
+def _build_session_info(
+    agent_name: str, ctx: JobContext, deployment_version: str | None = None
+) -> SessionInfo:
     """Build a ``SessionInfo`` from the resolved agent and the job context.
 
     Uses defensive attribute access so a missing room name or job id can never
     turn a healthy session into a failed one. The tenant is the one validated
     field (a malformed ``tenant`` in dispatch metadata rejects the session).
+    ``deployment_version`` tags which worker version handled the call (MAH-112).
     """
     room = getattr(ctx, "room", None)
     job = getattr(ctx, "job", None)
@@ -154,6 +161,7 @@ def _build_session_info(agent_name: str, ctx: JobContext) -> SessionInfo:
         metadata=metadata,
         started_at=time.time(),
         tenant=tenant,
+        deployment_version=deployment_version,
     )
 
 
