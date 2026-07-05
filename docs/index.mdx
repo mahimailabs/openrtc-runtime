@@ -1,52 +1,66 @@
 ---
 title: OpenRTC
-description: Run multiple LiveKit voice agents in a single shared worker process.
+description: Run many LiveKit voice agents in one shared worker process, with hot reload, live introspection, per-tenant isolation, and zero-downtime deploys.
 ---
 
-Register multiple LiveKit agents in one process, route by metadata, and prewarm models once.
+A thin multi-agent layer for [LiveKit Agents](https://docs.livekit.io/agents).
+Register many standard `livekit.agents.Agent` subclasses on one `AgentPool` and
+host them in a single worker: shared prewarm loads once, every call still gets
+its own `AgentSession`, and you never inherit an OpenRTC base class.
 
-<CardGroup cols={2}>
-  <Card title="Getting Started" icon="rocket" href="/getting-started">
-    Install and run your first multi-agent worker in minutes.
-  </Card>
-  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
-    Learn how coroutine mode, routing, and shared prewarm work.
-  </Card>
-  <Card title="AgentPool API" icon="code" href="/api/pool">
-    Full reference for registration, routing, and session configuration.
-  </Card>
-  <Card title="CLI" icon="terminal" href="/cli">
-    `openrtc dev`, `start`, `console`, `connect`, and JSONL metrics.
-  </Card>
-</CardGroup>
+<Card title="Start here: install and run your first pool" icon="rocket" href="/getting-started">
+  Install OpenRTC and route two agents through one worker in a few minutes.
+</Card>
 
-## Why OpenRTC?
+## Why OpenRTC
 
-| Problem | OpenRTC |
+| The default model | With OpenRTC |
 |---|---|
 | One worker process per agent class | One worker hosts all your agents |
 | VAD and turn detector load per subprocess | Loaded once, shared across every session |
-| Hard-coded single-agent entrypoints | Route by room metadata, job metadata, or room-name prefix |
-| 3 GB per idle worker | 50+ concurrent sessions in a single process |
+| ~3 GB per idle worker | 50+ concurrent sessions in a single process |
+| Hard-coded single-agent entrypoints | Route by job metadata, room metadata, or room-name prefix |
 
-## Features
+## What you get
 
-**Coroutine-mode worker (v0.1):** Host 50+ concurrent sessions per process as
-`asyncio` tasks instead of paying one subprocess per session. Cooperative
-backpressure is routed back to LiveKit dispatch via `current_load`.
+<CardGroup cols={2}>
+  <Card title="One worker, many agents" icon="layer-group" href="/concepts/architecture">
+    Register any number of standard `Agent` subclasses on one pool. No base class,
+    no rewrite: your agents, tools, and node hooks stay exactly as written.
+  </Card>
+  <Card title="Coroutine density" icon="bolt" href="/benchmarks/density-v0.1">
+    Sessions run as `asyncio` tasks in one loop, 50+ concurrent, sharing one
+    Silero VAD and turn detector. Process isolation is one flag away.
+  </Card>
+  <Card title="Smart routing" icon="route" href="/concepts/routing">
+    Every call resolves to one agent by job metadata, room metadata, or room-name
+    prefix. Precedence is explicit and a typo never falls through silently.
+  </Card>
+  <Card title="Hot reload" icon="arrows-rotate" href="/concepts/hot-reload">
+    Edit an agent file and live calls swap to the new code on their next turn,
+    with zero dropped audio. A bad save rolls back on its own.
+  </Card>
+  <Card title="Live introspection" icon="gauge-high" href="/concepts/session-introspection">
+    `openrtc top` gives an htop-style view of per-session memory, CPU, and
+    event-loop blocks inside the shared worker.
+  </Card>
+  <Card title="Multi-tenancy" icon="building" href="/concepts/multi-tenancy">
+    Give every client its own provider keys, session caps, and blast-radius
+    circuit breaker, all in one pool. One noisy tenant never touches the others.
+  </Card>
+  <Card title="Zero-downtime deploys" icon="tower-broadcast" href="/operations/deployments">
+    Blue-green drain: the new version takes new calls while the old drains its
+    in-flight calls to hangup, then exits. No live call is ever dropped.
+  </Card>
+  <Card title="AgentPool API" icon="code" href="/api/pool">
+    The full reference for registration, routing, providers, and session config,
+    plus the `openrtc` CLI (`dev`, `start`, `console`, `connect`).
+  </Card>
+</CardGroup>
 
-**Multi-agent routing:** Dispatch the right `Agent` implementation from a single
-worker using room or job metadata. Priority order:
-
-1. `ctx.job.metadata["agent"]`
-2. `ctx.job.metadata["demo"]`
-3. `ctx.job.room.metadata["agent"]` / `["demo"]`
-4. Room name prefix (`support-call-123` routes to the `support` agent)
-5. First registered agent (fallback)
-
-**Shared prewarm:** Load VAD, turn detection, and other heavy dependencies once
-for every session in the pool.
-
-**LiveKit-native:** Built on `livekit-agents` with the same `dev`, `start`,
-`console`, and `connect` workflows. Drop into `isolation="process"` for
-per-subprocess isolation when you need it.
+<Note>
+OpenRTC owns the **runtime** lane: density, routing, hot reload, introspection,
+per-tenant isolation, and deploys. For cost, pipeline latency, and quality
+metrics, it emits `agent_name` and `metadata["tenant"]` on every session for
+voicegateway to consume, and does not duplicate that lane.
+</Note>

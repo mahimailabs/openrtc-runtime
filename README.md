@@ -12,7 +12,7 @@
   <a href="LICENSE"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/license.svg" height="30" alt="MIT License"/></a>
 </p>
 
-[**Docs**](https://openrtc.mintlify.app) · [**Quick start**](#quick-start) · [**Isolation**](#isolation-modes) · [**Routing**](#routing) · [**Introspection**](#session-introspection) · [**Multi-tenancy**](#multi-tenancy) · [**API**](#public-api-at-a-glance)
+[**Docs**](https://openrtc.mintlify.app) · [**Quick start**](#quick-start) · [**Isolation**](#isolation-modes) · [**Routing**](#routing) · [**Introspection**](#session-introspection) · [**Multi-tenancy**](#multi-tenancy) · [**Deploys**](#zero-downtime-deploys) · [**API**](#public-api-at-a-glance)
 
 </div>
 
@@ -49,6 +49,7 @@ The default one-worker-per-agent model in `livekit-agents` reloads the same stac
 | **Hot reload** | Edit an agent file and `openrtc dev` swaps live sessions on their next turn, no dropped calls. A bad save rolls back. |
 | **Session introspection** | `openrtc top` shows per-session memory, CPU, and event-loop blocks live for the shared worker (htop-style). |
 | **Multi-tenancy** | Per-tenant provider keys, session caps, and a blast-radius circuit breaker, so an agency runs every client in one pool safely. |
+| **Zero-downtime deploys** | Blue-green drain: the new worker version takes new calls while the old drains its in-flight calls to hangup, then exits. No dropped calls. |
 | **Job scoping** | Per-job accept/reject filter so several workers can share one LiveKit project, each taking only its own rooms. |
 | **Session observers** | Structural-typed async start/end hooks for telemetry, isolated so a slow or raising observer never crashes the session. |
 | **JSONL metrics stream** | Append-only JSON Lines of pool snapshots and lifecycle events for `tail -f`, `jq`, or a log shipper. |
