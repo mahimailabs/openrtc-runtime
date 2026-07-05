@@ -1,32 +1,43 @@
 ---
 title: OpenRTC
-description: Run many LiveKit voice agents in one shared worker process, with hot reload, live introspection, per-tenant isolation, and zero-downtime deploys.
+description: livekit-agents on steroids. Host all your agents in one worker, with hot reload, live introspection, per-tenant isolation, and zero-downtime deploys. Your Agent code does not change.
 ---
 
-A thin multi-agent layer for [LiveKit Agents](https://docs.livekit.io/agents).
-Register many standard `livekit.agents.Agent` subclasses on one `AgentPool` and
-host them in a single worker: shared prewarm loads once, every call still gets
-its own `AgentSession`, and you never inherit an OpenRTC base class.
+**OpenRTC is livekit-agents with the operational parts filled in.** Keep writing
+standard `livekit.agents.Agent` subclasses. Register them on one `AgentPool`
+instead of one worker per agent, and host them all in a single process: shared
+prewarm loads once, every call still gets its own `AgentSession`, and you never
+inherit an OpenRTC base class.
 
-<Card title="Start here: install and run your first pool" icon="rocket" href="/getting-started">
-  Install OpenRTC and route two agents through one worker in a few minutes.
-</Card>
-
-## Why OpenRTC
-
-| The default model | With OpenRTC |
-|---|---|
-| One worker process per agent class | One worker hosts all your agents |
-| VAD and turn detector load per subprocess | Loaded once, shared across every session |
-| ~3 GB per idle worker | 50+ concurrent sessions in a single process |
-| Hard-coded single-agent entrypoints | Route by job metadata, room metadata, or room-name prefix |
-
-## What you get
+The payoff is the stuff livekit-agents leaves to you: **50+ sessions per worker,
+hot reload, live introspection, per-tenant isolation, and zero-downtime deploys.**
 
 <CardGroup cols={2}>
-  <Card title="One worker, many agents" icon="layer-group" href="/concepts/architecture">
+  <Card title="Coming from livekit-agents?" icon="arrow-right-arrow-left" href="/coming-from-livekit-agents">
+    See the before/after: what you delete, what you keep, and what you gain.
+    Start here if you already run livekit-agents.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/getting-started">
+    Install OpenRTC and run two agents through one worker in a few minutes.
+  </Card>
+</CardGroup>
+
+## What changes (and what doesn't)
+
+| | livekit-agents | OpenRTC |
+|---|---|---|
+| **Your `Agent` code** | standard subclasses | **unchanged** |
+| **Workers** | one process per agent | one worker hosts every agent |
+| **Prewarm** | reloads per process | loaded once, shared |
+| **Scaling** | ~3 GB per idle worker | 50+ concurrent sessions in one process |
+| **Shipping a change** | restart, drop in-flight calls | hot reload, no dropped calls |
+
+## What you get on top
+
+<CardGroup cols={2}>
+  <Card title="One worker, many agents" icon="layer-group" href="/coming-from-livekit-agents">
     Register any number of standard `Agent` subclasses on one pool. No base class,
-    no rewrite: your agents, tools, and node hooks stay exactly as written.
+    no rewrite: your tools and node hooks stay exactly as written.
   </Card>
   <Card title="Coroutine density" icon="bolt" href="/benchmarks/density-v0.1">
     Sessions run as `asyncio` tasks in one loop, 50+ concurrent, sharing one
@@ -52,9 +63,9 @@ its own `AgentSession`, and you never inherit an OpenRTC base class.
     Blue-green drain: the new version takes new calls while the old drains its
     in-flight calls to hangup, then exits. No live call is ever dropped.
   </Card>
-  <Card title="AgentPool API" icon="code" href="/api/pool">
-    The full reference for registration, routing, providers, and session config,
-    plus the `openrtc` CLI (`dev`, `start`, `console`, `connect`).
+  <Card title="How it works" icon="sitemap" href="/concepts/architecture">
+    The universal entrypoint, coroutine density, and shared prewarm under the
+    hood, when you want the details.
   </Card>
 </CardGroup>
 

@@ -26,6 +26,7 @@
       "group": "Get started",
       "pages": [
         "index",
+        "coming-from-livekit-agents",
         "getting-started",
         "examples"
       ]
