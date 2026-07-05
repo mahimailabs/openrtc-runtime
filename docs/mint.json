@@ -36,7 +36,8 @@
         "concepts/architecture",
         "concepts/routing",
         "concepts/hot-reload",
-        "concepts/session-introspection"
+        "concepts/session-introspection",
+        "concepts/multi-tenancy"
       ]
     },
     {
@@ -61,7 +62,9 @@
     {
       "group": "Runbooks",
       "pages": [
-        "runbooks/debugging-density"
+        "runbooks/debugging-density",
+        "runbooks/onboarding-a-tenant",
+        "runbooks/tenant-incident"
       ]
     },
     {
