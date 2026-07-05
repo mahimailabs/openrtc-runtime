@@ -25,6 +25,7 @@ from openrtc.observability.metrics import (
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.routing.request_filter import (
     _build_per_agent_backpressure_filter,
+    _build_per_tenant_backpressure_filter,
     _build_registered_rooms_filter,
 )
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
@@ -33,6 +34,7 @@ from openrtc.utils.validation import (
     require_agent_name,
     require_non_negative_number,
     require_positive_int,
+    require_tenant_id,
     validate_isolation,
 )
 
@@ -82,6 +84,7 @@ class AgentPool:
         accept_only_registered_rooms: bool = False,
         router: AgentRouter | None = None,
         max_sessions_per_agent: Mapping[str, int] | None = None,
+        max_sessions_per_tenant: Mapping[str, int] | None = None,
         enable_introspection: bool = True,
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
@@ -126,6 +129,12 @@ class AgentPool:
         cap is soft/best-effort (it reads live active counts, incremented at session
         start), so a burst of simultaneous accepts can briefly overshoot. It layers
         over ``request_fnc`` / ``accept_only_registered_rooms`` when combined.
+
+        ``max_sessions_per_tenant`` sets per-tenant caps (e.g. ``{"acme": 50}``),
+        keyed by the dispatch metadata ``tenant``: a job for a tenant at its cap is
+        rejected while sibling tenants keep accepting. It composes with
+        ``max_sessions_per_agent`` (a job needs headroom under both) and the global
+        cap; it is soft/best-effort in the same way.
 
         ``memory_warn_mb`` / ``memory_limit_mb`` set worker memory watermarks in
         MB (``0`` disables a band; defaults mirror livekit: warn 1000, limit 0).
@@ -208,6 +217,22 @@ class AgentPool:
                 agents=self._agents,
                 caps=self._max_sessions_per_agent,
                 active_counts=self._runtime_state.metrics.active_by_agent,
+                base_filter=self._request_fnc,
+            )
+        # Per-tenant budgets (MAH-103): layer over the per-agent filter, so tenant
+        # and agent caps compose (a job needs headroom under both). Same global cap
+        # still applies on top.
+        self._max_sessions_per_tenant: dict[str, int] = {}
+        if max_sessions_per_tenant is not None:
+            self._max_sessions_per_tenant = {
+                require_tenant_id(name): require_positive_int(
+                    f"max_sessions_per_tenant[{name!r}]", cap
+                )
+                for name, cap in max_sessions_per_tenant.items()
+            }
+            self._request_fnc = _build_per_tenant_backpressure_filter(
+                caps=self._max_sessions_per_tenant,
+                active_counts=self._runtime_state.metrics.active_by_tenant,
                 base_filter=self._request_fnc,
             )
         wire_pool(self._server, self._runtime_state, self._request_fnc)
@@ -328,6 +353,11 @@ class AgentPool:
     def max_sessions_per_agent(self) -> dict[str, int]:
         """Return the per-agent session caps (empty when no per-agent budgets)."""
         return dict(self._max_sessions_per_agent)
+
+    @property
+    def max_sessions_per_tenant(self) -> dict[str, int]:
+        """Return the per-tenant session caps (empty when no per-tenant budgets)."""
+        return dict(self._max_sessions_per_tenant)
 
     @property
     def router(self) -> AgentRouter | None:
