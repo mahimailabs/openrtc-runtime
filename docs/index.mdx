@@ -62,6 +62,5 @@ its own `AgentSession`, and you never inherit an OpenRTC base class.
 OpenRTC owns the **runtime** lane: density, routing, hot reload, introspection,
 per-tenant isolation, and deploys. For cost, pipeline latency, and quality
 metrics, it emits `agent_name` and `metadata["tenant"]` on every session for
-[voicegateway](https://docs.livekit.io/agents) to consume, and does not
-duplicate that lane.
+voicegateway to consume, and does not duplicate that lane.
 </Note>
