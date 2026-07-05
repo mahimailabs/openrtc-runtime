@@ -21,7 +21,12 @@ from openrtc.observability.base_observer import (
     _notify_session_start,
 )
 from openrtc.observability.metrics import RuntimeMetricsStore
-from openrtc.observability.session_context import reset_session_id, set_session_id
+from openrtc.observability.session_context import (
+    reset_agent_name,
+    reset_session_id,
+    set_agent_name,
+    set_session_id,
+)
 from openrtc.routing.resolver import _resolve_agent_config
 from openrtc.runtime.prewarm import _prewarm_worker
 from openrtc.runtime.resources import PrewarmResources
@@ -122,9 +127,11 @@ async def run_session(
 ) -> None:
     """Run one session through its lifecycle: metrics, observers, greeting."""
     session, config, info = build_session(runtime_state, ctx)
-    # Bind the session_id for this task tree so every log record and the
-    # per-session attribution (v0.3) can be scoped to this session (MAH-91).
+    # Bind session_id + agent_name for this task tree so every log record and the
+    # per-session attribution (v0.3) can be scoped to this session (MAH-91) and
+    # namespaced by agent (MAH-98).
     sid_token = set_session_id(info.job_id)
+    agent_token = set_agent_name(info.agent_name)
     try:
         runtime_state.metrics.record_session_started(config.name)
         # Connect before starting the session. start() fires the agent's
@@ -169,6 +176,7 @@ async def run_session(
         else:
             await _finish_session(runtime_state, info, config.name, error)
         reset_session_id(sid_token)
+        reset_agent_name(agent_token)
 
 
 async def run_session_end(ctx: JobContext) -> None:

@@ -106,6 +106,28 @@ async def test_run_once_renders_live_server_rows() -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_once_agent_filter_narrows_rows() -> None:
+    socket_path = _short_socket()
+    server = IntrospectionServer(snapshot_provider=_rows, socket_path=socket_path)
+    await server.start()
+    console = Console(file=io.StringIO(), width=200)
+    try:
+        code = await run_once(
+            socket_path,
+            sort_key="mem_mb",
+            status_filter="all",
+            agent_filter="sales",
+            console=console,
+        )
+    finally:
+        await server.aclose()
+    assert code == 0
+    text = console.file.getvalue()  # type: ignore[attr-defined]
+    assert "sales" in text
+    assert "support" not in text
+
+
+@pytest.mark.asyncio
 async def test_run_once_reports_missing_pool() -> None:
     console = Console(file=io.StringIO(), width=200)
     code = await run_once(
@@ -125,6 +147,14 @@ def test_top_command_once_missing_pool_exits_nonzero() -> None:
     )
     assert result.exit_code == 1, result.output
     assert "No running openrtc pool" in result.output
+
+
+def test_top_command_once_with_agent_flag() -> None:
+    # Exercises the --agent plumbing through top_command (no pool -> exit 1).
+    result = CliRunner().invoke(
+        app, ["top", "--once", "--agent", "sales", "--socket", str(_short_socket())]
+    )
+    assert result.exit_code == 1, result.output
 
 
 def test_top_command_rejects_bad_sort() -> None:

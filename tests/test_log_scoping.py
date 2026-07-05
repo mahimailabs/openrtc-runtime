@@ -16,7 +16,11 @@ from openrtc.observability.log_scoping import (
     SessionIdFilter,
     iter_session_log_records,
 )
-from openrtc.observability.session_context import session_scope
+from openrtc.observability.session_context import (
+    reset_agent_name,
+    session_scope,
+    set_agent_name,
+)
 
 
 def _record(msg: str = "hi") -> logging.LogRecord:
@@ -37,6 +41,38 @@ def test_filter_session_id_is_none_outside_scope() -> None:
     log_filter.filter(rec)
     # None, not "" or a missing attribute.
     assert rec.session_id is None
+
+
+def test_filter_adds_agent_name_in_scope() -> None:
+    log_filter = SessionIdFilter()
+    token = set_agent_name("sales")
+    try:
+        rec = _record()
+        log_filter.filter(rec)
+        assert rec.agent_name == "sales"
+    finally:
+        reset_agent_name(token)
+
+
+def test_filter_agent_name_is_none_outside_scope() -> None:
+    log_filter = SessionIdFilter()
+    rec = _record()
+    log_filter.filter(rec)
+    assert rec.agent_name is None
+
+
+def test_json_formatter_includes_agent_name() -> None:
+    fmt = JsonLogFormatter()
+    rec = _record("hi")
+    rec.agent_name = "support"  # type: ignore[attr-defined]
+    out = json.loads(fmt.format(rec))
+    assert out["agent_name"] == "support"
+
+
+def test_json_formatter_agent_name_null_when_absent() -> None:
+    fmt = JsonLogFormatter()
+    out = json.loads(fmt.format(_record()))
+    assert out["agent_name"] is None
 
 
 def test_json_formatter_shape() -> None:
