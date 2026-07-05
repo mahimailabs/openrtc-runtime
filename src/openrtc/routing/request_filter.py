@@ -201,3 +201,33 @@ def _build_per_tenant_backpressure_filter(
             await req.accept()
 
     return request_fnc
+
+
+def _build_tenant_circuit_filter(
+    *,
+    should_reject: Callable[[str], bool],
+    base_filter: RequestFilter | None,
+) -> RequestFilter:
+    """Reject a tenant's new jobs while its circuit breaker is open (MAH-104).
+
+    The outermost safety layer: a tenant whose recent sessions failed past the
+    breaker's threshold is rejected for the cooldown, so its bad code path cannot
+    keep eating pool slots or tripping the worker supervisor. Healthy tenants pass
+    straight through to the base filter (caps / ownership).
+    """
+
+    async def request_fnc(req: JobRequest) -> None:
+        tenant = _resolve_request_tenant(
+            job_metadata=getattr(req.job, "metadata", None),
+            room_metadata=getattr(req.room, "metadata", None),
+        )
+        if should_reject(tenant):
+            logger.info("Rejecting job for tenant '%s': circuit breaker open.", tenant)
+            await req.reject()
+            return
+        if base_filter is not None:
+            await base_filter(req)
+        else:
+            await req.accept()
+
+    return request_fnc

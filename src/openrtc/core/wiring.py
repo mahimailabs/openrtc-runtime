@@ -38,6 +38,7 @@ from openrtc.runtime.resources import PrewarmResources
 if TYPE_CHECKING:
     from livekit.agents import JobContext
 
+    from openrtc.core.circuit_breaker import TenantCircuitBreaker
     from openrtc.core.tenant_config import TenantConfigResolver
     from openrtc.runtime.base_runtime import SessionRuntime
     from openrtc.utils.types import AgentRouter, RequestFilter
@@ -68,6 +69,9 @@ class _PoolRuntimeState:
     # caveat as ``router`` (its source + cached provider objects must be picklable
     # under process isolation).
     tenant_resolver: TenantConfigResolver | None = None
+    # Optional per-tenant circuit breaker (MAH-104): records each session's outcome
+    # and opens a tenant's breaker when its recent failure ratio trips.
+    circuit_breaker: TenantCircuitBreaker | None = None
 
 
 def build_session(
@@ -116,6 +120,10 @@ async def _finish_session(
 ) -> None:
     """Record the session finished and notify observers of its end."""
     runtime_state.metrics.record_session_finished(agent_name, info.tenant)
+    # Feed the tenant's outcome to the circuit breaker (MAH-104): a run of failures
+    # from one tenant opens its breaker and rejects its new sessions for a cooldown.
+    if runtime_state.circuit_breaker is not None:
+        runtime_state.circuit_breaker.record_outcome(info.tenant, success=error is None)
     outcome = _build_session_outcome(info, error)
     await _notify_session_end(
         runtime_state.observers,

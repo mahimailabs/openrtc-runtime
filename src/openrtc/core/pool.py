@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from livekit.agents import Agent, AgentServer, cli
 
+from openrtc.core.circuit_breaker import TenantCircuitBreaker
 from openrtc.core.config import (
     AgentConfig,
     AgentDiscoveryConfig,
@@ -28,6 +29,7 @@ from openrtc.routing.request_filter import (
     _build_per_agent_backpressure_filter,
     _build_per_tenant_backpressure_filter,
     _build_registered_rooms_filter,
+    _build_tenant_circuit_filter,
 )
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
 from openrtc.utils.types import AgentRouter, ProviderValue, RequestFilter
@@ -87,6 +89,8 @@ class AgentPool:
         tenant_config: TenantConfigSource | None = None,
         max_sessions_per_agent: Mapping[str, int] | None = None,
         max_sessions_per_tenant: Mapping[str, int] | None = None,
+        enable_tenant_circuit_breaker: bool = False,
+        tenant_circuit_cooldown_s: float = 30.0,
         enable_introspection: bool = True,
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
@@ -146,6 +150,12 @@ class AgentPool:
         rejected while sibling tenants keep accepting. It composes with
         ``max_sessions_per_agent`` (a job needs headroom under both) and the global
         cap; it is soft/best-effort in the same way.
+
+        ``enable_tenant_circuit_breaker`` (default off) opens a per-tenant breaker
+        when a tenant's recent session failure ratio trips, rejecting that tenant's
+        new sessions for ``tenant_circuit_cooldown_s`` (default 30s) before auto-
+        recovering. This confines one tenant's bad code path so it cannot keep
+        consuming slots or trip the worker supervisor for the healthy tenants.
 
         ``memory_warn_mb`` / ``memory_limit_mb`` set worker memory watermarks in
         MB (``0`` disables a band; defaults mirror livekit: warn 1000, limit 0).
@@ -249,6 +259,20 @@ class AgentPool:
             self._request_fnc = _build_per_tenant_backpressure_filter(
                 caps=self._max_sessions_per_tenant,
                 active_counts=self._runtime_state.metrics.active_by_tenant,
+                base_filter=self._request_fnc,
+            )
+        # Per-tenant circuit breaker (MAH-104): the outermost safety layer. A tenant
+        # whose recent sessions fail past the breaker's threshold has its new
+        # sessions rejected for a cooldown, so its bad code cannot keep consuming
+        # slots or trip the worker supervisor for the healthy tenants.
+        self._circuit_breaker: TenantCircuitBreaker | None = None
+        if enable_tenant_circuit_breaker:
+            self._circuit_breaker = TenantCircuitBreaker(
+                cooldown_seconds=tenant_circuit_cooldown_s
+            )
+            self._runtime_state.circuit_breaker = self._circuit_breaker
+            self._request_fnc = _build_tenant_circuit_filter(
+                should_reject=self._circuit_breaker.should_reject,
                 base_filter=self._request_fnc,
             )
         wire_pool(self._server, self._runtime_state, self._request_fnc)
@@ -374,6 +398,11 @@ class AgentPool:
     def max_sessions_per_tenant(self) -> dict[str, int]:
         """Return the per-tenant session caps (empty when no per-tenant budgets)."""
         return dict(self._max_sessions_per_tenant)
+
+    @property
+    def tenant_circuit_breaker(self) -> TenantCircuitBreaker | None:
+        """Return the per-tenant circuit breaker, or ``None`` when disabled."""
+        return self._circuit_breaker
 
     @property
     def router(self) -> AgentRouter | None:
