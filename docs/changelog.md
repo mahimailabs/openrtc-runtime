@@ -163,6 +163,35 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.16.0] - 2026-07-05
+
+## v0.5 — Per-tenant pool isolation
+
+Run every client (tenant) in one pool, isolated. The agency rung: per-tenant provider keys, resource fairness, and blast-radius isolation.
+
+### Highlights
+
+- **Per-tenant provider keys** — `tenant_config={tenant: {stt/llm/tts: ...}}` (or a callable) runs each client on its own STT/LLM/TTS keys and models, resolved at session start and cached per tenant. Keys are never shared across tenants, so an agency can attribute API cost per client.
+- **Per-tenant budgets** — `max_sessions_per_tenant={"acme": 50}`: a tenant at its cap is rejected while sibling tenants keep accepting. Composes with per-agent caps and the global cap.
+- **Blast-radius isolation** — `enable_tenant_circuit_breaker=True`: a tenant whose calls start failing has its new sessions rejected for a cooldown (default 30s) before auto-recovering. Failures are counted per tenant, so one noisy client never tears down the worker for the others.
+- **Tenant tagging** — the tenant is on every worker-internal signal (`openrtc top --tenant`, scoped logs, `runtime_snapshot().sessions_by_tenant`) and on the `SessionObserver` payload, so voicegateway attributes per-tenant cost with no extra config.
+- **Tenant context** — resolved from the dispatch metadata key `tenant` (default `"default"`), readable in agent code via `from openrtc.context import current_tenant_id` or `session.tenant_id`.
+
+### Lane boundary
+
+Per-tenant cost and quality attribution stay with voicegateway, keyed off the `metadata["tenant"]` OpenRTC emits. This release owns the runtime side only: config, caps, blast radius, and tenant-tagged introspection.
+
+### Notes
+
+- Single-tenant deployments are unchanged: no `tenant` means the `"default"` tenant, and nothing about your setup changes.
+- Per-tenant config keeps OpenRTC's provider passthrough contract: you supply a shorthand string or a pre-built plugin object (with its key); OpenRTC does not parse a `{provider, model, api_key}` spec.
+- Per-tenant prompts are done via per-tenant agents (route with `router`), not `tenant_config` (which governs providers only).
+- Coroutine mode is shared-process isolation, not an OS sandbox. For a hard wall, run `isolation="process"` or a worker per tenant. See the multi-tenancy guide.
+
+Milestone: v0.5 — Per-tenant pool isolation (MAH-101, MAH-102, MAH-103, MAH-104, MAH-105, MAH-106, MAH-107).
+
+---
+
 ## [0.15.0] - 2026-07-05
 
 ## v0.4 — Multi-agent ergonomics
