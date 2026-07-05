@@ -163,6 +163,34 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.15.0] - 2026-07-05
+
+## v0.4 — Multi-agent ergonomics
+
+Run several agent types in one pool, with per-agent registration, budgets, routing, reload isolation, and introspection. The bridge from solo dev to small team.
+
+### Highlights
+
+- **Multi-agent registration** — `AgentPool(agents={"sales": SalesAgent, "support": SupportAgent})`, plus the single-agent shorthand `AgentPool(agent=MyAgent)`. Names are validated and duplicates rejected; both compose with `add()` / `discover()`.
+- **Per-agent budgets** — `max_sessions_per_agent={"sales": 30, "support": 20}`: a job for an agent at its cap is rejected (backpressure) while sibling agents keep accepting. The global `max_concurrent_sessions` cap still applies on top.
+- **Custom router** — `AgentPool(router=fn)` maps dispatch metadata to an agent name, taking precedence over the default metadata/prefix chain. Return `None` to defer to it; an unknown name or a raised router rejects the session.
+- **Per-agent hot reload** — editing one agent's file re-binds only that agent's live sessions; sibling agents' calls are untouched (proven with a two-agent real-media integration test).
+- **Per-agent metrics namespace** — `agent_name` on scoped log records, and `openrtc top --agent` to filter to one agent (group with `--sort agent_name`).
+
+### Lane boundary
+
+Per-agent cost and latency stay with voicegateway, attributed from the `info.agent_name` OpenRTC emits on the SessionObserver payload. This release only wires the worker's own introspection views by agent.
+
+### Notes
+
+- Agent names accept letters, digits, dashes, and underscores (1-64 chars); underscores are allowed so filename-derived discovery names keep working.
+- Per-agent caps are soft/best-effort (they read live active counts, incremented at session start), matching LiveKit's load-based backpressure.
+- A custom `router` must be picklable under `process` isolation (a module-level function); the default `coroutine` mode accepts any callable.
+
+Milestone: v0.4 — Multi-agent ergonomics (MAH-95, MAH-96, MAH-97, MAH-98, MAH-99).
+
+---
+
 ## [0.14.0] - 2026-07-04
 
 ## v0.3 — Pool observability
