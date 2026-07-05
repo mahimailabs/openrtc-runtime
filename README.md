@@ -301,6 +301,19 @@ Provider keys are never shared across tenants; a tenant at its cap is rejected w
 
 Coroutine mode is shared-process isolation, not an OS sandbox: for a hard compliance wall run `isolation="process"` or a worker per tenant. Full model, guarantees, and limits: [multi-tenancy guide](docs/concepts/multi-tenancy.md), plus [onboarding](docs/runbooks/onboarding-a-tenant.md) and [incident](docs/runbooks/tenant-incident.md) runbooks.
 
+## Zero-downtime deploys
+
+Upgrade a worker fleet without dropping calls, using **blue-green drain**. The new version takes new calls; the old version stops accepting and lets its in-flight calls finish naturally, then exits. No live call is ever moved, so none is dropped (a live WebRTC session with in-flight STT/LLM/TTS streams is not migratable: see the [state inventory](docs/design/worker-state-inventory.md)).
+
+```python
+pool = AgentPool(agent=MyAgent, deployment_version="v2.0.0", audit_sink=to_siem)
+
+snap = pool.runtime_snapshot()          # snap.deployment_version, snap.draining
+pool.begin_drain()                      # stop taking new calls; in-flight run to hangup, then exit
+```
+
+OpenRTC runs one worker and supplies the primitives; the fleet orchestration (start the new version, shift traffic, retire the old) is your platform's job (a Kubernetes rolling update, a LiveKit worker rotation). The primitives: a `deployment_version` tag, graceful drain (`pool.begin_drain()` or SIGTERM), HMAC [signed membership](docs/compliance/audit-events.md#signed-membership) to keep a leftover old-version worker off new traffic, and deployment [audit events](docs/compliance/audit-events.md) for compliance. Mid-call migration is out of scope by design (drain sidesteps it). Full walkthrough: [deployments](docs/operations/deployments.md), [monitoring](docs/operations/monitoring-deploys.md), [rollback](docs/operations/rollback.md), and the [migration-vs-drain rationale](docs/concepts/migration.md).
+
 ## CLI
 
 Install `openrtc[cli]` to put `openrtc` on your PATH. Five subcommands mirror the LiveKit Agents shape (`start`, `dev`, `console`, `connect`, `download-files`), plus an OpenRTC-only `list`. Pass the agents directory as the first positional path instead of `--agents-dir`.
