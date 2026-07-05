@@ -13,6 +13,7 @@ from typing import TypedDict, cast
 from openrtc.observability.resident_set import get_process_resident_set_info
 from openrtc.observability.savings import estimate_shared_worker_savings
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
+from openrtc.utils.validation import DEFAULT_TENANT
 
 __all__ = ["MetricsStreamEvent", "RuntimeMetricsStore"]
 
@@ -24,13 +25,14 @@ _STREAM_EVENTS_MAXLEN = 256
 class MetricsStreamEvent(TypedDict, total=False):
     """One drained session lifecycle row for JSONL export.
 
-    Rows always include ``event`` and ``agent`` from the store; ``session_failed``
-    rows may include ``error``. A synthetic ``metrics_stream_overflow`` row may
-    include ``overflow_dropped``.
+    Rows always include ``event``, ``agent``, and ``tenant`` from the store;
+    ``session_failed`` rows may include ``error``. A synthetic
+    ``metrics_stream_overflow`` row may include ``overflow_dropped``.
     """
 
     event: str
     agent: str
+    tenant: str
     error: str
     overflow_dropped: int
 
@@ -45,6 +47,7 @@ class RuntimeMetricsStore:
     last_routed_agent: str | None = None
     last_error: str | None = None
     sessions_by_agent: dict[str, int] = field(default_factory=dict)
+    sessions_by_tenant: dict[str, int] = field(default_factory=dict)
     _lock: Lock = field(default_factory=Lock, init=False, repr=False, compare=False)
     _stream_events: deque[MetricsStreamEvent] = field(
         default_factory=deque,
@@ -69,6 +72,7 @@ class RuntimeMetricsStore:
             "last_routed_agent": self.last_routed_agent,
             "last_error": self.last_error,
             "sessions_by_agent": dict(self.sessions_by_agent),
+            "sessions_by_tenant": dict(self.sessions_by_tenant),
             "_stream_events": stream_events,
             "_metrics_stream_overflow_since_drain": self._metrics_stream_overflow_since_drain,
         }
@@ -94,6 +98,12 @@ class RuntimeMetricsStore:
         self.sessions_by_agent = {
             str(key): int(value) for key, value in dict(raw_sba).items()
         }
+        raw_sbt = state.get("sessions_by_tenant", {})
+        if not isinstance(raw_sbt, Mapping):
+            raise TypeError("pickle state 'sessions_by_tenant' must be a mapping")
+        self.sessions_by_tenant = {
+            str(key): int(value) for key, value in dict(raw_sbt).items()
+        }
         raw_events = state.get("_stream_events", [])
         if not isinstance(raw_events, list):
             raise TypeError("pickle state '_stream_events' must be a list")
@@ -117,32 +127,44 @@ class RuntimeMetricsStore:
             return
         self._stream_events.append(event)
 
-    def record_session_started(self, agent_name: str) -> None:
-        """Increment active counters for one routed session."""
+    def record_session_started(
+        self, agent_name: str, tenant: str = DEFAULT_TENANT
+    ) -> None:
+        """Increment active counters for one routed session (per agent + per tenant)."""
         with self._lock:
             self.total_sessions_started += 1
             self.last_routed_agent = agent_name
             self.sessions_by_agent[agent_name] = (
                 self.sessions_by_agent.get(agent_name, 0) + 1
             )
+            self.sessions_by_tenant[tenant] = self.sessions_by_tenant.get(tenant, 0) + 1
             self._append_stream_event_locked(
-                {"event": "session_started", "agent": agent_name},
+                {"event": "session_started", "agent": agent_name, "tenant": tenant},
             )
 
-    def record_session_finished(self, agent_name: str) -> None:
-        """Decrement active counters once a session exits."""
+    def record_session_finished(
+        self, agent_name: str, tenant: str = DEFAULT_TENANT
+    ) -> None:
+        """Decrement active counters once a session exits (per agent + per tenant)."""
         with self._lock:
-            current = self.sessions_by_agent.get(agent_name, 0)
-            next_value = current - 1
-            if next_value > 0:
-                self.sessions_by_agent[agent_name] = next_value
-            else:
-                self.sessions_by_agent.pop(agent_name, None)
+            self._decrement_locked(self.sessions_by_agent, agent_name)
+            self._decrement_locked(self.sessions_by_tenant, tenant)
             self._append_stream_event_locked(
-                {"event": "session_finished", "agent": agent_name},
+                {"event": "session_finished", "agent": agent_name, "tenant": tenant},
             )
 
-    def record_session_failure(self, agent_name: str, exc: BaseException) -> None:
+    @staticmethod
+    def _decrement_locked(counts: dict[str, int], key: str) -> None:
+        """Drop one from ``counts[key]``, removing the key at zero. Caller holds the lock."""
+        next_value = counts.get(key, 0) - 1
+        if next_value > 0:
+            counts[key] = next_value
+        else:
+            counts.pop(key, None)
+
+    def record_session_failure(
+        self, agent_name: str, exc: BaseException, tenant: str = DEFAULT_TENANT
+    ) -> None:
         """Track a failed session attempt with the most recent error."""
         with self._lock:
             self.last_routed_agent = agent_name
@@ -152,6 +174,7 @@ class RuntimeMetricsStore:
                 {
                     "event": "session_failed",
                     "agent": agent_name,
+                    "tenant": tenant,
                     "error": f"{exc.__class__.__name__}: {exc}"[:500],
                 },
             )
@@ -164,6 +187,14 @@ class RuntimeMetricsStore:
         """
         with self._lock:
             return dict(self.sessions_by_agent)
+
+    def active_by_tenant(self) -> dict[str, int]:
+        """Return a thread-safe copy of the live active-session count per tenant.
+
+        The per-tenant load gauge the tenant backpressure filter (MAH-103) reads.
+        """
+        with self._lock:
+            return dict(self.sessions_by_tenant)
 
     def drain_stream_events(self) -> list[MetricsStreamEvent]:
         """Remove and return pending stream events for JSONL export (order preserved)."""
@@ -186,6 +217,7 @@ class RuntimeMetricsStore:
         """Return a typed snapshot for dashboards and automation."""
         with self._lock:
             sessions_by_agent = dict(self.sessions_by_agent)
+            sessions_by_tenant = dict(self.sessions_by_tenant)
             total_sessions_started = self.total_sessions_started
             total_session_failures = self.total_session_failures
             last_routed_agent = self.last_routed_agent
@@ -202,6 +234,7 @@ class RuntimeMetricsStore:
             last_routed_agent=last_routed_agent,
             last_error=last_error,
             sessions_by_agent=sessions_by_agent,
+            sessions_by_tenant=sessions_by_tenant,
             resident_set=rss_info,
             savings_estimate=estimate_shared_worker_savings(
                 agent_count=registered_agents,

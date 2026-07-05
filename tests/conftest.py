@@ -133,6 +133,7 @@ def minimal_pool_runtime_snapshot() -> PoolRuntimeSnapshot:
         last_routed_agent=None,
         last_error=None,
         sessions_by_agent={},
+        sessions_by_tenant={},
         resident_set=ProcessResidentSetInfo(
             bytes_value=1024,
             metric="test",

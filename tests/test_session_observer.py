@@ -113,7 +113,9 @@ def test_build_session_info_defends_missing_attrs() -> None:
     info = _build_session_info("agent", ctx)
     assert info.room_name == ""
     assert info.job_id == ""
-    assert info.metadata == {}
+    # The resolved tenant is always injected (default when unset).
+    assert info.metadata == {"tenant": "default"}
+    assert info.tenant == "default"
 
 
 def test_coerce_metadata_edge_cases() -> None:

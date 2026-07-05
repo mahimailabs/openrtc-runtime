@@ -47,6 +47,7 @@ class PoolRuntimeSnapshot:
     last_routed_agent: str | None
     last_error: str | None
     sessions_by_agent: dict[str, int]
+    sessions_by_tenant: dict[str, int]
     resident_set: ProcessResidentSetInfo
     savings_estimate: SavingsEstimate
 
@@ -62,6 +63,7 @@ class PoolRuntimeSnapshot:
             "last_routed_agent": self.last_routed_agent,
             "last_error": self.last_error,
             "sessions_by_agent": dict(self.sessions_by_agent),
+            "sessions_by_tenant": dict(self.sessions_by_tenant),
             "resident_set": {
                 "bytes": self.resident_set.bytes_value,
                 "metric": self.resident_set.metric,

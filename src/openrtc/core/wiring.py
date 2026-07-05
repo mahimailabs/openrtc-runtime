@@ -100,7 +100,7 @@ async def _finish_session(
     error: BaseException | None,
 ) -> None:
     """Record the session finished and notify observers of its end."""
-    runtime_state.metrics.record_session_finished(agent_name)
+    runtime_state.metrics.record_session_finished(agent_name, info.tenant)
     outcome = _build_session_outcome(info, error)
     await _notify_session_end(
         runtime_state.observers,
@@ -141,7 +141,7 @@ async def run_session(
     with contextlib.suppress(Exception):
         session.tenant_id = info.tenant  # type: ignore[attr-defined]
     try:
-        runtime_state.metrics.record_session_started(config.name)
+        runtime_state.metrics.record_session_started(config.name, info.tenant)
         # Connect before starting the session. start() fires the agent's
         # on_enter as a detached task (livekit schedules it with
         # wait_on_enter=False); if the room is not connected yet, any on_enter
@@ -165,7 +165,7 @@ async def run_session(
             logger.debug("Generating greeting for agent '%s'.", config.name)
             await session.generate_reply(instructions=config.greeting)
     except Exception as exc:
-        runtime_state.metrics.record_session_failure(config.name, exc)
+        runtime_state.metrics.record_session_failure(config.name, exc, info.tenant)
         raise
     finally:
         error = sys.exc_info()[1]

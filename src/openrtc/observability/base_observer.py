@@ -142,13 +142,18 @@ def _build_session_info(agent_name: str, ctx: JobContext) -> SessionInfo:
     room = getattr(ctx, "room", None)
     job = getattr(ctx, "job", None)
     metadata = _merge_metadata(ctx)
+    tenant = _resolve_tenant(metadata)
+    # Ensure metadata["tenant"] always carries the resolved tenant (including the
+    # "default" fallback), so voicegateway's VoiceGatewayObserver attributes
+    # per-tenant cost from info.metadata["tenant"] with no change on its side (MAH-105).
+    metadata["tenant"] = tenant
     return SessionInfo(
         agent_name=agent_name,
         room_name=getattr(room, "name", "") or "",
         job_id=getattr(job, "id", "") or "",
         metadata=metadata,
         started_at=time.time(),
-        tenant=_resolve_tenant(metadata),
+        tenant=tenant,
     )
 
 
