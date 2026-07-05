@@ -16,11 +16,14 @@ from contextlib import contextmanager
 __all__ = [
     "current_agent_name",
     "current_session_id",
+    "current_tenant_id",
     "reset_agent_name",
     "reset_session_id",
+    "reset_tenant_id",
     "session_scope",
     "set_agent_name",
     "set_session_id",
+    "set_tenant_id",
 ]
 
 _session_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -31,6 +34,12 @@ _session_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 # the SessionObserver payload's info.agent_name.
 _agent_name: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "openrtc_agent_name", default=None
+)
+# The tenant every session task runs under (MAH-101). Read from dispatch metadata
+# key "tenant" (default "default"); the foundation per-tenant config / caps / tags
+# all consume. Exposed publicly via ``openrtc.context.current_tenant_id``.
+_tenant_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "openrtc_tenant_id", default=None
 )
 
 
@@ -62,6 +71,21 @@ def set_agent_name(agent_name: str) -> contextvars.Token[str | None]:
 def reset_agent_name(token: contextvars.Token[str | None]) -> None:
     """Restore the ``agent_name`` bound before ``set_agent_name`` returned ``token``."""
     _agent_name.reset(token)
+
+
+def current_tenant_id() -> str | None:
+    """Return the ``tenant_id`` bound to the current async context, or ``None``."""
+    return _tenant_id.get()
+
+
+def set_tenant_id(tenant_id: str) -> contextvars.Token[str | None]:
+    """Bind ``tenant_id`` to the current context; return a token for ``reset``."""
+    return _tenant_id.set(tenant_id)
+
+
+def reset_tenant_id(token: contextvars.Token[str | None]) -> None:
+    """Restore the ``tenant_id`` bound before ``set_tenant_id`` returned ``token``."""
+    _tenant_id.reset(token)
 
 
 @contextmanager

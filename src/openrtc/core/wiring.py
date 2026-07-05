@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -24,8 +25,10 @@ from openrtc.observability.metrics import RuntimeMetricsStore
 from openrtc.observability.session_context import (
     reset_agent_name,
     reset_session_id,
+    reset_tenant_id,
     set_agent_name,
     set_session_id,
+    set_tenant_id,
 )
 from openrtc.routing.resolver import _resolve_agent_config
 from openrtc.runtime.prewarm import _prewarm_worker
@@ -127,11 +130,16 @@ async def run_session(
 ) -> None:
     """Run one session through its lifecycle: metrics, observers, greeting."""
     session, config, info = build_session(runtime_state, ctx)
-    # Bind session_id + agent_name for this task tree so every log record and the
-    # per-session attribution (v0.3) can be scoped to this session (MAH-91) and
-    # namespaced by agent (MAH-98).
+    # Bind session_id + agent_name + tenant for this task tree so every log record
+    # and the per-session attribution (v0.3) can be scoped to this session
+    # (MAH-91), namespaced by agent (MAH-98), and isolated per tenant (MAH-101).
     sid_token = set_session_id(info.job_id)
     agent_token = set_agent_name(info.agent_name)
+    tenant_token = set_tenant_id(info.tenant)
+    # Expose the tenant on the session instance for agent code that reaches it via
+    # ``self.session.tenant_id`` (the contextvar is the primary, task-scoped path).
+    with contextlib.suppress(Exception):
+        session.tenant_id = info.tenant  # type: ignore[attr-defined]
     try:
         runtime_state.metrics.record_session_started(config.name)
         # Connect before starting the session. start() fires the agent's
@@ -177,6 +185,7 @@ async def run_session(
             await _finish_session(runtime_state, info, config.name, error)
         reset_session_id(sid_token)
         reset_agent_name(agent_token)
+        reset_tenant_id(tenant_token)
 
 
 async def run_session_end(ctx: JobContext) -> None:

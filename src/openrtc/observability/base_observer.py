@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from openrtc.utils.validation import DEFAULT_TENANT, require_tenant_id
+
 if TYPE_CHECKING:
     from livekit.agents import AgentSession, JobContext
 
@@ -45,6 +47,10 @@ class SessionInfo:
     job_id: str
     metadata: Mapping[str, str]
     started_at: float
+    # The tenant this session belongs to (MAH-101), resolved from dispatch
+    # metadata key "tenant" (matches voicegateway's VoiceGatewayObserver), or
+    # "default" when unset. Defaulted so existing construction sites are unaffected.
+    tenant: str = DEFAULT_TENANT
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,20 +119,36 @@ def _merge_metadata(ctx: JobContext) -> dict[str, str]:
     return merged
 
 
+def _resolve_tenant(metadata: Mapping[str, str]) -> str:
+    """Resolve the tenant from dispatch metadata key ``tenant``.
+
+    Absent / empty -> ``"default"`` (single-tenant deployments unchanged). A
+    present-but-malformed value is validated and rejected (raises), since a bad
+    tenant would otherwise misroute the session's config, caps, and tags.
+    """
+    raw = metadata.get("tenant")
+    if not raw:
+        return DEFAULT_TENANT
+    return require_tenant_id(raw)
+
+
 def _build_session_info(agent_name: str, ctx: JobContext) -> SessionInfo:
     """Build a ``SessionInfo`` from the resolved agent and the job context.
 
     Uses defensive attribute access so a missing room name or job id can never
-    turn a healthy session into a failed one.
+    turn a healthy session into a failed one. The tenant is the one validated
+    field (a malformed ``tenant`` in dispatch metadata rejects the session).
     """
     room = getattr(ctx, "room", None)
     job = getattr(ctx, "job", None)
+    metadata = _merge_metadata(ctx)
     return SessionInfo(
         agent_name=agent_name,
         room_name=getattr(room, "name", "") or "",
         job_id=getattr(job, "id", "") or "",
-        metadata=_merge_metadata(ctx),
+        metadata=metadata,
         started_at=time.time(),
+        tenant=_resolve_tenant(metadata),
     )
 
 
