@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import TypeAlias
+from collections.abc import Awaitable, Callable, Mapping
+from typing import Any, TypeAlias
 
 from livekit.agents import JobRequest
 
@@ -20,3 +20,11 @@ ProviderValue: TypeAlias = str | object
 # should handle by awaiting ``req.accept()`` or ``req.reject()``. Passed to
 # ``AgentPool(request_fnc=...)``; ``None`` keeps LiveKit's accept-all default.
 RequestFilter: TypeAlias = Callable[[JobRequest], Awaitable[None]]
+
+# A custom dispatch router: maps a job's parsed dispatch metadata to a registered
+# agent name (or ``None`` to defer to the default routing chain). Passed to
+# ``AgentPool(router=...)``; an unknown name or a raised exception rejects the
+# session. In ``process`` isolation it must be picklable (a module-level function,
+# not a lambda), since it rides on the spawned worker's runtime state; in the
+# default ``coroutine`` mode any callable works.
+AgentRouter: TypeAlias = Callable[[Mapping[str, Any] | None], "str | None"]

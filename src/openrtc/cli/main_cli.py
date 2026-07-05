@@ -207,12 +207,19 @@ def top_command(
             "--status", help="Status filter (cycle live with 'f'): all/active/slow/…"
         ),
     ] = "all",
+    agent: Annotated[
+        str | None,
+        typer.Option(
+            "--agent",
+            help="Show only one agent's sessions (omit for all). Group with --sort agent_name.",
+        ),
+    ] = None,
 ) -> None:
     """htop-style live inspector for the shared-worker session pool (MAH-92).
 
     Connects to a running coroutine-mode worker over its local Unix socket. Keys:
     [code]q[/code] quit, [code]r[/code] refresh, [code]s[/code] cycle sort,
-    [code]f[/code] cycle status filter.
+    [code]f[/code] cycle status filter. Filter to one agent with [code]--agent[/code].
     """
     import asyncio
 
@@ -242,7 +249,13 @@ def top_command(
     console = Console()
     if once:
         code = asyncio.run(
-            run_once(socket_path, sort_key=sort, status_filter=status, console=console)
+            run_once(
+                socket_path,
+                sort_key=sort,
+                status_filter=status,
+                agent_filter=agent,
+                console=console,
+            )
         )
         raise typer.Exit(code)
     asyncio.run(  # pragma: no cover - interactive TTY loop
@@ -250,6 +263,7 @@ def top_command(
             socket_path,
             sort_key=sort,
             status_filter=status,
+            agent_filter=agent,
             refresh_hz=refresh_rate,
             console=console,
         )

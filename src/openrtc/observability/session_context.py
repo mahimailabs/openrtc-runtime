@@ -14,14 +14,23 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 __all__ = [
+    "current_agent_name",
     "current_session_id",
+    "reset_agent_name",
     "reset_session_id",
     "session_scope",
+    "set_agent_name",
     "set_session_id",
 ]
 
 _session_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "openrtc_session_id", default=None
+)
+# Bound alongside the session_id (the routed agent for the session), so scoped
+# log records carry which agent produced them (MAH-98), keyed the same way as
+# the SessionObserver payload's info.agent_name.
+_agent_name: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "openrtc_agent_name", default=None
 )
 
 
@@ -38,6 +47,21 @@ def set_session_id(session_id: str) -> contextvars.Token[str | None]:
 def reset_session_id(token: contextvars.Token[str | None]) -> None:
     """Restore the ``session_id`` bound before ``set_session_id`` returned ``token``."""
     _session_id.reset(token)
+
+
+def current_agent_name() -> str | None:
+    """Return the ``agent_name`` bound to the current async context, or ``None``."""
+    return _agent_name.get()
+
+
+def set_agent_name(agent_name: str) -> contextvars.Token[str | None]:
+    """Bind ``agent_name`` to the current context; return a token for ``reset``."""
+    return _agent_name.set(agent_name)
+
+
+def reset_agent_name(token: contextvars.Token[str | None]) -> None:
+    """Restore the ``agent_name`` bound before ``set_agent_name`` returned ``token``."""
+    _agent_name.reset(token)
 
 
 @contextmanager

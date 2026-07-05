@@ -13,27 +13,32 @@ import logging
 from collections.abc import Iterable, Iterator
 from typing import Any
 
-from openrtc.observability.session_context import current_session_id
+from openrtc.observability.session_context import (
+    current_agent_name,
+    current_session_id,
+)
 
 __all__ = ["JsonLogFormatter", "SessionIdFilter", "iter_session_log_records"]
 
 
 class SessionIdFilter(logging.Filter):
-    """Attach ``session_id`` (or ``None``) from the current context to each record."""
+    """Attach ``session_id`` + ``agent_name`` (or ``None``) from the context to a record."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.session_id = current_session_id()
+        record.agent_name = current_agent_name()
         return True
 
 
 class JsonLogFormatter(logging.Formatter):
-    """Render a record as one JSON line: timestamp, level, session_id, message."""
+    """Render a record as one JSON line: timestamp, level, session_id, agent, message."""
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
             "timestamp": self.formatTime(record, self.datefmt),
             "level": record.levelname,
             "session_id": getattr(record, "session_id", None),
+            "agent_name": getattr(record, "agent_name", None),
             "logger": record.name,
             "message": record.getMessage(),
         }

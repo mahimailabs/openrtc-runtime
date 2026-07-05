@@ -21,7 +21,12 @@ from openrtc.observability.base_observer import (
     _notify_session_start,
 )
 from openrtc.observability.metrics import RuntimeMetricsStore
-from openrtc.observability.session_context import reset_session_id, set_session_id
+from openrtc.observability.session_context import (
+    reset_agent_name,
+    reset_session_id,
+    set_agent_name,
+    set_session_id,
+)
 from openrtc.routing.resolver import _resolve_agent_config
 from openrtc.runtime.prewarm import _prewarm_worker
 from openrtc.runtime.resources import PrewarmResources
@@ -30,7 +35,7 @@ if TYPE_CHECKING:
     from livekit.agents import JobContext
 
     from openrtc.runtime.base_runtime import SessionRuntime
-    from openrtc.utils.types import RequestFilter
+    from openrtc.utils.types import AgentRouter, RequestFilter
 
 logger = logging.getLogger("openrtc")
 
@@ -50,6 +55,10 @@ class _PoolRuntimeState:
     metrics: RuntimeMetricsStore = field(default_factory=RuntimeMetricsStore)
     observers: list[SessionObserver] = field(default_factory=list)
     observer_timeout: float = 30.0
+    # Optional custom dispatch router (MAH-99). In process isolation it rides on
+    # the spawned worker's pickled state, so it must be picklable there (a
+    # module-level function, not a lambda); coroutine mode accepts any callable.
+    router: AgentRouter | None = None
 
 
 def build_session(
@@ -59,7 +68,9 @@ def build_session(
     """Resolve the agent and construct its AgentSession (no side effects)."""
     if not runtime_state.agents:
         raise RuntimeError("No agents are registered in the pool.")
-    config = _resolve_agent_config(runtime_state.agents, ctx)
+    config = _resolve_agent_config(
+        runtime_state.agents, ctx, router=runtime_state.router
+    )
     # The inference executor rides on the JobContext, not the JobProcess; pass it
     # so the turn-detection gate selects the prewarmed multilingual detector
     # instead of always falling back to VAD (MAH-159).
@@ -116,9 +127,11 @@ async def run_session(
 ) -> None:
     """Run one session through its lifecycle: metrics, observers, greeting."""
     session, config, info = build_session(runtime_state, ctx)
-    # Bind the session_id for this task tree so every log record and the
-    # per-session attribution (v0.3) can be scoped to this session (MAH-91).
+    # Bind session_id + agent_name for this task tree so every log record and the
+    # per-session attribution (v0.3) can be scoped to this session (MAH-91) and
+    # namespaced by agent (MAH-98).
     sid_token = set_session_id(info.job_id)
+    agent_token = set_agent_name(info.agent_name)
     try:
         runtime_state.metrics.record_session_started(config.name)
         # Connect before starting the session. start() fires the agent's
@@ -163,6 +176,7 @@ async def run_session(
         else:
             await _finish_session(runtime_state, info, config.name, error)
         reset_session_id(sid_token)
+        reset_agent_name(agent_token)
 
 
 async def run_session_end(ctx: JobContext) -> None:

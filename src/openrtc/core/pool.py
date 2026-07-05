@@ -23,10 +23,14 @@ from openrtc.observability.metrics import (
     MetricsStreamEvent,
 )
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
-from openrtc.routing.request_filter import _build_registered_rooms_filter
+from openrtc.routing.request_filter import (
+    _build_per_agent_backpressure_filter,
+    _build_registered_rooms_filter,
+)
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
-from openrtc.utils.types import ProviderValue, RequestFilter
+from openrtc.utils.types import AgentRouter, ProviderValue, RequestFilter
 from openrtc.utils.validation import (
+    require_agent_name,
     require_non_negative_number,
     require_positive_int,
     validate_isolation,
@@ -59,6 +63,8 @@ class AgentPool:
     def __init__(
         self,
         *,
+        agent: type[Agent] | None = None,
+        agents: Mapping[str, type[Agent]] | None = None,
         default_stt: ProviderValue | None = None,
         default_llm: ProviderValue | None = None,
         default_tts: ProviderValue | None = None,
@@ -74,11 +80,19 @@ class AgentPool:
         watch_paths: list[Path] | None = None,
         request_fnc: RequestFilter | None = None,
         accept_only_registered_rooms: bool = False,
+        router: AgentRouter | None = None,
+        max_sessions_per_agent: Mapping[str, int] | None = None,
         enable_introspection: bool = True,
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
     ) -> None:
         """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
+
+        ``agents`` registers a ``{name: AgentClass}`` mapping at construction; the
+        single-agent shorthand ``agent=MyAgent`` registers it under ``"default"``.
+        The two are mutually exclusive, and either composes with later ``add()`` /
+        ``discover()`` calls. Names are validated (1-64 ASCII letters/digits/dashes)
+        and duplicates rejected.
 
         ``isolation`` controls whether sessions run as ``asyncio.Task``s in one
         process (``"coroutine"``, high density) or as separate OS processes
@@ -97,6 +111,21 @@ class AgentPool:
         (job/room metadata naming a registered agent, or a ``<agent>-`` room-name
         prefix) maps it to one of this pool's agents, and rejects everything
         else. It is mutually exclusive with ``request_fnc``.
+
+        ``router`` is a custom dispatch router: ``router(job_metadata) -> agent_name``
+        (``job_metadata`` is the parsed dispatch metadata mapping or ``None``). It
+        takes precedence over the default job/room-metadata + room-prefix chain;
+        returning ``None`` defers to that chain, an unknown name or a raised router
+        rejects the session. In ``process`` isolation it must be picklable (a
+        module-level function, not a lambda); coroutine mode accepts any callable.
+
+        ``max_sessions_per_agent`` sets per-agent session caps (e.g.
+        ``{"sales": 30, "support": 20}``): a job whose target agent is at its cap is
+        rejected (backpressure) while sibling agents keep accepting. Caps may sum
+        past ``max_concurrent_sessions``; the global cap still applies on top. The
+        cap is soft/best-effort (it reads live active counts, incremented at session
+        start), so a burst of simultaneous accepts can briefly overshoot. It layers
+        over ``request_fnc`` / ``accept_only_registered_rooms`` when combined.
 
         ``memory_warn_mb`` / ``memory_limit_mb`` set worker memory watermarks in
         MB (``0`` disables a band; defaults mirror livekit: warn 1000, limit 0).
@@ -117,6 +146,8 @@ class AgentPool:
             raise ValueError(
                 "Pass either request_fnc or accept_only_registered_rooms, not both."
             )
+        if agent is not None and agents is not None:
+            raise ValueError("Pass either agent or agents, not both.")
         validate_isolation(isolation)
         self._isolation: IsolationMode = isolation
         self._max_concurrent_sessions = require_positive_int(
@@ -137,6 +168,7 @@ class AgentPool:
         self._runtime_state = _PoolRuntimeState(
             agents=self._agents,
             observer_timeout=float(self._drain_timeout),
+            router=router,
         )
         if observers is not None:
             for observer in observers:
@@ -145,6 +177,14 @@ class AgentPool:
         self._default_llm = default_llm
         self._default_tts = default_tts
         self._default_greeting = default_greeting
+        # Register any agents passed to the constructor (defaults must be set
+        # first: add() resolves provider/greeting defaults). The single-agent
+        # shorthand registers under the name "default"; add() validates each
+        # name and rejects duplicates, giving every agent its own pool slot.
+        if agent is not None:
+            self.add("default", agent)
+        for agent_name, agent_cls in (agents or {}).items():
+            self.add(agent_name, agent_cls)
         # Build the ownership filter over the live agents dict so agents
         # registered after construction (via add()/discover()) are still
         # recognized at job-acceptance time.
@@ -153,6 +193,23 @@ class AgentPool:
             if accept_only_registered_rooms
             else request_fnc
         )
+        # Per-agent budgets (MAH-96): layer a backpressure filter over the base
+        # decision so a job for an agent at its cap is rejected while siblings
+        # keep accepting. The global max_concurrent_sessions cap still applies.
+        self._max_sessions_per_agent: dict[str, int] = {}
+        if max_sessions_per_agent is not None:
+            self._max_sessions_per_agent = {
+                require_agent_name(name): require_positive_int(
+                    f"max_sessions_per_agent[{name!r}]", cap
+                )
+                for name, cap in max_sessions_per_agent.items()
+            }
+            self._request_fnc = _build_per_agent_backpressure_filter(
+                agents=self._agents,
+                caps=self._max_sessions_per_agent,
+                active_counts=self._runtime_state.metrics.active_by_agent,
+                base_filter=self._request_fnc,
+            )
         wire_pool(self._server, self._runtime_state, self._request_fnc)
         self._introspection: IntrospectionRuntime | None = None
         if enable_introspection and isolation == "coroutine":
@@ -267,6 +324,16 @@ class AgentPool:
         """Return the per-job accept/reject filter, or ``None`` for accept-all."""
         return self._request_fnc
 
+    @property
+    def max_sessions_per_agent(self) -> dict[str, int]:
+        """Return the per-agent session caps (empty when no per-agent budgets)."""
+        return dict(self._max_sessions_per_agent)
+
+    @property
+    def router(self) -> AgentRouter | None:
+        """Return the custom dispatch router, or ``None`` for the default chain."""
+        return self._runtime_state.router
+
     def runtime_snapshot(self) -> PoolRuntimeSnapshot:
         """Return a live snapshot of worker metrics for dashboards and automation."""
         return self._runtime_state.metrics.snapshot(registered_agents=len(self._agents))
@@ -289,9 +356,7 @@ class AgentPool:
         **session_options: Any,
     ) -> AgentConfig:
         """Register an agent in the pool and return its configuration."""
-        normalized_name = name.strip()
-        if not normalized_name:
-            raise ValueError("Agent name must be a non-empty string.")
+        normalized_name = require_agent_name(name)
         if normalized_name in self._agents:
             raise ValueError(f"Agent '{normalized_name}' is already registered.")
         if not isinstance(agent_cls, type) or not issubclass(agent_cls, Agent):

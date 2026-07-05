@@ -103,3 +103,18 @@ def test_build_table_row_count_and_content() -> None:
 def test_build_table_respects_filter() -> None:
     table = build_top_table(_rows(), status_filter="slow")
     assert table.row_count == 1
+
+
+def test_filter_by_agent() -> None:
+    support = filter_and_sort(
+        _rows(), sort_key="mem_mb", status_filter="all", agent_filter="support"
+    )
+    assert {r["session_id"] for r in support} == {"s2"}
+
+
+def test_build_table_respects_agent_filter() -> None:
+    table = build_top_table(_rows(), agent_filter="billing")
+    assert table.row_count == 1
+    console = Console(file=io.StringIO(), width=200)
+    console.print(table)
+    assert "agent:billing" in console.file.getvalue()  # type: ignore[attr-defined]

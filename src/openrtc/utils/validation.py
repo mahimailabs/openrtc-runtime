@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
+import re
+
 __all__ = [
+    "require_agent_name",
     "require_non_negative_number",
     "require_positive_int",
     "validate_isolation",
 ]
 
 _ISOLATION_MODES = ("coroutine", "process")
+
+# Agent names double as routing signals (the ``<agent>-`` room-name prefix) and
+# as metadata / log / socket tokens, so they are restricted to a safe charset.
+# Underscores are allowed alongside letters/digits/dashes because discovery
+# derives names from Python module filenames, which conventionally use them
+# (``fallback_agent.py``); rejecting them would break existing pools.
+_AGENT_NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
+_AGENT_NAME_MAX = 64
 
 
 def require_positive_int(name: str, value: object) -> int:
@@ -38,3 +49,22 @@ def validate_isolation(value: str) -> str:
     if value not in _ISOLATION_MODES:
         raise ValueError(f"isolation must be 'coroutine' or 'process', got {value!r}.")
     return value
+
+
+def require_agent_name(value: str) -> str:
+    """Return the stripped agent name if valid, else raise ValueError.
+
+    Valid names are 1-64 characters of ASCII letters, digits, dashes, and
+    underscores. This is the single registration chokepoint (``AgentPool.add``
+    and the multi-agent constructor both route through it), so every registered
+    name is a safe routing / metadata / log token.
+    """
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("Agent name must be a non-empty string.")
+    if len(normalized) > _AGENT_NAME_MAX or not _AGENT_NAME_RE.fullmatch(normalized):
+        raise ValueError(
+            "Agent name must be 1-64 characters of ASCII letters, digits, "
+            f"dashes, or underscores, got {value!r}."
+        )
+    return normalized

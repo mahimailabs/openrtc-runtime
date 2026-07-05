@@ -156,6 +156,15 @@ class RuntimeMetricsStore:
                 },
             )
 
+    def active_by_agent(self) -> dict[str, int]:
+        """Return a thread-safe copy of the live active-session count per agent.
+
+        This is the per-agent load gauge the backpressure filter (MAH-96) reads to
+        decide whether an agent is at its cap.
+        """
+        with self._lock:
+            return dict(self.sessions_by_agent)
+
     def drain_stream_events(self) -> list[MetricsStreamEvent]:
         """Remove and return pending stream events for JSONL export (order preserved)."""
         with self._lock:

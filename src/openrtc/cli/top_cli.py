@@ -97,13 +97,18 @@ def apply_key(key: str, *, sort_key: str, status_filter: str) -> tuple[str, str,
 
 
 def filter_and_sort(
-    rows: Iterable[dict[str, Any]], *, sort_key: str, status_filter: str
+    rows: Iterable[dict[str, Any]],
+    *,
+    sort_key: str,
+    status_filter: str,
+    agent_filter: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Filter rows by status (``all`` = no filter) and sort by ``sort_key``."""
+    """Filter rows by status and agent (``all`` / ``None`` = no filter), sort by key."""
     filtered = [
         row
         for row in rows
-        if status_filter in ("all", "") or row.get("status") == status_filter
+        if (status_filter in ("all", "") or row.get("status") == status_filter)
+        and (agent_filter is None or row.get("agent_name") == agent_filter)
     ]
     descending = sort_key in _NUMERIC
     default: Any = 0 if descending else ""
@@ -119,13 +124,20 @@ def build_top_table(
     *,
     sort_key: str = "mem_mb",
     status_filter: str = "all",
+    agent_filter: str | None = None,
 ) -> Table:
     """Build the ``openrtc top`` table (filtered + sorted)."""
-    ordered = filter_and_sort(rows, sort_key=sort_key, status_filter=status_filter)
+    ordered = filter_and_sort(
+        rows,
+        sort_key=sort_key,
+        status_filter=status_filter,
+        agent_filter=agent_filter,
+    )
+    agent_label = agent_filter if agent_filter is not None else "all"
     table = Table(
         title=(
             f"openrtc top: {len(ordered)} session(s) "
-            f"(sort:{sort_key} filter:{status_filter})"
+            f"(sort:{sort_key} status:{status_filter} agent:{agent_label})"
         ),
         title_style="bold cyan",
     )
@@ -172,6 +184,7 @@ async def run_once(
     *,
     sort_key: str,
     status_filter: str,
+    agent_filter: str | None = None,
     console: Console,
     timeout: float = 2.0,
 ) -> int:
@@ -183,7 +196,14 @@ async def run_once(
             "Start a worker in coroutine mode, then run [bold]openrtc top[/bold]."
         )
         return 1
-    console.print(build_top_table(rows, sort_key=sort_key, status_filter=status_filter))
+    console.print(
+        build_top_table(
+            rows,
+            sort_key=sort_key,
+            status_filter=status_filter,
+            agent_filter=agent_filter,
+        )
+    )
     return 0
 
 
@@ -192,6 +212,7 @@ async def run_live(  # pragma: no cover - interactive TTY loop
     *,
     sort_key: str,
     status_filter: str,
+    agent_filter: str | None = None,
     refresh_hz: float,
     console: Console,
 ) -> None:
@@ -231,6 +252,7 @@ async def run_live(  # pragma: no cover - interactive TTY loop
                         rows,
                         sort_key=state["sort"],
                         status_filter=state["status"],
+                        agent_filter=agent_filter,
                     )
                 )
                 live.refresh()

@@ -10,9 +10,12 @@ from __future__ import annotations
 import asyncio
 
 from openrtc.observability.session_context import (
+    current_agent_name,
     current_session_id,
+    reset_agent_name,
     reset_session_id,
     session_scope,
+    set_agent_name,
     set_session_id,
 )
 
@@ -51,6 +54,14 @@ def test_scope_resets_on_exception() -> None:
     except ValueError:
         pass
     assert current_session_id() is None
+
+
+def test_agent_name_set_and_reset() -> None:
+    assert current_agent_name() is None
+    token = set_agent_name("sales")
+    assert current_agent_name() == "sales"
+    reset_agent_name(token)
+    assert current_agent_name() is None
 
 
 def test_propagates_to_child_tasks() -> None:
