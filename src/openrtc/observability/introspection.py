@@ -69,7 +69,7 @@ class SessionIntrospectionRegistry:
             LiveSession(
                 session_id=info.job_id,
                 agent_name=info.agent_name,
-                tenant=info.metadata.get("tenant"),
+                tenant=info.tenant,
                 started_at=info.started_at,
             ),
             session,

@@ -214,6 +214,13 @@ def top_command(
             help="Show only one agent's sessions (omit for all). Group with --sort agent_name.",
         ),
     ] = None,
+    tenant: Annotated[
+        str | None,
+        typer.Option(
+            "--tenant",
+            help="Show only one tenant's sessions (omit for all).",
+        ),
+    ] = None,
 ) -> None:
     """htop-style live inspector for the shared-worker session pool (MAH-92).
 
@@ -254,6 +261,7 @@ def top_command(
                 sort_key=sort,
                 status_filter=status,
                 agent_filter=agent,
+                tenant_filter=tenant,
                 console=console,
             )
         )
@@ -264,6 +272,7 @@ def top_command(
             sort_key=sort,
             status_filter=status,
             agent_filter=agent,
+            tenant_filter=tenant,
             refresh_hz=refresh_rate,
             console=console,
         )

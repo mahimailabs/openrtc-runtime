@@ -5,9 +5,11 @@ from __future__ import annotations
 import re
 
 __all__ = [
+    "DEFAULT_TENANT",
     "require_agent_name",
     "require_non_negative_number",
     "require_positive_int",
+    "require_tenant_id",
     "validate_isolation",
 ]
 
@@ -20,6 +22,15 @@ _ISOLATION_MODES = ("coroutine", "process")
 # (``fallback_agent.py``); rejecting them would break existing pools.
 _AGENT_NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 _AGENT_NAME_MAX = 64
+
+# Tenant ids come from dispatch metadata and key per-tenant config / caps / tags,
+# so they use the same safe charset as agent names but allow a longer id.
+_TENANT_ID_RE = re.compile(r"[A-Za-z0-9_-]+")
+_TENANT_ID_MAX = 128
+
+# The tenant every session belongs to when dispatch metadata names none, so
+# single-tenant deployments work unchanged.
+DEFAULT_TENANT = "default"
 
 
 def require_positive_int(name: str, value: object) -> int:
@@ -65,6 +76,25 @@ def require_agent_name(value: str) -> str:
     if len(normalized) > _AGENT_NAME_MAX or not _AGENT_NAME_RE.fullmatch(normalized):
         raise ValueError(
             "Agent name must be 1-64 characters of ASCII letters, digits, "
+            f"dashes, or underscores, got {value!r}."
+        )
+    return normalized
+
+
+def require_tenant_id(value: str) -> str:
+    """Return the stripped tenant id if valid, else raise ValueError.
+
+    Valid ids are 1-128 characters of ASCII letters, digits, dashes, and
+    underscores. Tenant ids come from dispatch metadata and key per-tenant
+    config, caps, and tags, so a malformed id is rejected rather than silently
+    coerced (which could route a session to the wrong tenant's resources).
+    """
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("Tenant id must be a non-empty string.")
+    if len(normalized) > _TENANT_ID_MAX or not _TENANT_ID_RE.fullmatch(normalized):
+        raise ValueError(
+            "Tenant id must be 1-128 characters of ASCII letters, digits, "
             f"dashes, or underscores, got {value!r}."
         )
     return normalized

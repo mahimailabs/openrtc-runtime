@@ -12,7 +12,7 @@
   <a href="LICENSE"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/license.svg" height="30" alt="MIT License"/></a>
 </p>
 
-[**Docs**](https://openrtc.mintlify.app) · [**Quick start**](#quick-start) · [**Isolation**](#isolation-modes) · [**Routing**](#routing) · [**Introspection**](#session-introspection) · [**API**](#public-api-at-a-glance)
+[**Docs**](https://openrtc.mintlify.app) · [**Quick start**](#quick-start) · [**Isolation**](#isolation-modes) · [**Routing**](#routing) · [**Introspection**](#session-introspection) · [**Multi-tenancy**](#multi-tenancy) · [**API**](#public-api-at-a-glance)
 
 </div>
 
@@ -48,6 +48,7 @@ The default one-worker-per-agent model in `livekit-agents` reloads the same stac
 | **Metadata routing** | Ordered resolution across job metadata, room metadata, room-name prefix, then first-registered fallback. |
 | **Hot reload** | Edit an agent file and `openrtc dev` swaps live sessions on their next turn, no dropped calls. A bad save rolls back. |
 | **Session introspection** | `openrtc top` shows per-session memory, CPU, and event-loop blocks live for the shared worker (htop-style). |
+| **Multi-tenancy** | Per-tenant provider keys, session caps, and a blast-radius circuit breaker, so an agency runs every client in one pool safely. |
 | **Job scoping** | Per-job accept/reject filter so several workers can share one LiveKit project, each taking only its own rooms. |
 | **Session observers** | Structural-typed async start/end hooks for telemetry, isolated so a slow or raising observer never crashes the session. |
 | **JSONL metrics stream** | Append-only JSON Lines of pool snapshots and lifecycle events for `tail -f`, `jq`, or a log shipper. |
@@ -278,6 +279,27 @@ openrtc top --once        # one snapshot for scripts / CI
 `mem(MB)` is an equal share of process RSS (per-session numbers sum back to the real RSS); `cpu%` is a sampled share of on-CPU time; a session shows `slow` when it recently blocked the shared loop (a sync call starving the others). These are honest approximations of a shared process, documented with their caveats in [session introspection](https://openrtc.mintlify.app) and the [density debugging runbook](docs/runbooks/debugging-density.md). Introspection is coroutine-mode only and on by default; disable it with `AgentPool(enable_introspection=False)`.
 
 > This is a **runtime density** tool. For cost, pipeline latency (STT/LLM/TTS), and quality metrics, use voicegateway: it consumes the `agent_name` and `metadata["tenant"]` OpenRTC emits and owns that lane. OpenRTC does not duplicate it.
+
+## Multi-tenancy
+
+Run every client (tenant) in one pool, isolated. A tenant is the `tenant` key in dispatch metadata (no key means the `"default"` tenant, so single-tenant setups are unchanged). Each tenant gets its own provider keys, its own session budget, and a blast-radius circuit breaker:
+
+```python
+pool = AgentPool(
+    agent=SupportAgent,
+    tenant_config={                                  # per-tenant STT/LLM/TTS + keys
+        "acme": {"llm": openai.LLM(api_key="acme-key")},
+        "globex": {"llm": anthropic.LLM(api_key="glx-key")},
+        # omitted providers fall back to the agent's; a missing tenant warns once
+    },
+    max_sessions_per_tenant={"acme": 50, "globex": 100},   # one tenant can't starve others
+    enable_tenant_circuit_breaker=True,              # a failing tenant is confined for a cooldown
+)
+```
+
+Provider keys are never shared across tenants; a tenant at its cap is rejected while siblings keep accepting; and a tenant whose calls start failing has its new sessions rejected for a cooldown (then auto-recovers) without touching the healthy tenants. The tenant is on every worker-internal signal (`openrtc top --tenant`, scoped logs, `runtime_snapshot().sessions_by_tenant`) and on the `SessionObserver` payload, so voicegateway attributes per-tenant cost with no extra config. Agent code reads it with `from openrtc.context import current_tenant_id`.
+
+Coroutine mode is shared-process isolation, not an OS sandbox: for a hard compliance wall run `isolation="process"` or a worker per tenant. Full model, guarantees, and limits: [multi-tenancy guide](docs/concepts/multi-tenancy.md), plus [onboarding](docs/runbooks/onboarding-a-tenant.md) and [incident](docs/runbooks/tenant-incident.md) runbooks.
 
 ## CLI
 

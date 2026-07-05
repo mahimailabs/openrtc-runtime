@@ -17,7 +17,9 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
+from openrtc.observability.base_observer import _coerce_metadata
 from openrtc.routing.base_routing import _agent_name_from_metadata, logger
+from openrtc.utils.validation import DEFAULT_TENANT
 
 if TYPE_CHECKING:
     from livekit.agents import JobRequest
@@ -145,6 +147,84 @@ def _build_per_agent_backpressure_filter(
                 )
                 await req.reject()
                 return
+        if base_filter is not None:
+            await base_filter(req)
+        else:
+            await req.accept()
+
+    return request_fnc
+
+
+def _resolve_request_tenant(*, job_metadata: object, room_metadata: object) -> str:
+    """Resolve the tenant for an incoming job from its dispatch metadata.
+
+    Mirrors the session's own resolution: merge room then job metadata (job wins),
+    read key ``tenant``, default to ``"default"``. Unvalidated here (a malformed
+    tenant simply matches no configured cap and is rejected later at session
+    start), so backpressure never crashes job acceptance.
+    """
+    merged = _coerce_metadata(room_metadata)
+    merged.update(_coerce_metadata(job_metadata))
+    return merged.get("tenant") or DEFAULT_TENANT
+
+
+def _build_per_tenant_backpressure_filter(
+    *,
+    caps: Mapping[str, int],
+    active_counts: Callable[[], Mapping[str, int]],
+    base_filter: RequestFilter | None,
+) -> RequestFilter:
+    """Reject a job when its tenant is at its per-tenant session cap (MAH-103).
+
+    Layers exactly like the per-agent filter (MAH-96): a job whose tenant is at cap
+    is rejected regardless of the base; otherwise the base decides (which may be the
+    per-agent filter, so tenant and agent caps compose — both must have headroom).
+    The global ``max_concurrent_sessions`` cap still applies on top. Soft/best-effort:
+    reads the live per-tenant active count, incremented at session start.
+    """
+
+    async def request_fnc(req: JobRequest) -> None:
+        tenant = _resolve_request_tenant(
+            job_metadata=getattr(req.job, "metadata", None),
+            room_metadata=getattr(req.room, "metadata", None),
+        )
+        cap = caps.get(tenant)
+        if cap is not None and active_counts().get(tenant, 0) >= cap:
+            logger.info(
+                "Rejecting job for tenant '%s': at per-tenant cap (%d).", tenant, cap
+            )
+            await req.reject()
+            return
+        if base_filter is not None:
+            await base_filter(req)
+        else:
+            await req.accept()
+
+    return request_fnc
+
+
+def _build_tenant_circuit_filter(
+    *,
+    should_reject: Callable[[str], bool],
+    base_filter: RequestFilter | None,
+) -> RequestFilter:
+    """Reject a tenant's new jobs while its circuit breaker is open (MAH-104).
+
+    The outermost safety layer: a tenant whose recent sessions failed past the
+    breaker's threshold is rejected for the cooldown, so its bad code path cannot
+    keep eating pool slots or tripping the worker supervisor. Healthy tenants pass
+    straight through to the base filter (caps / ownership).
+    """
+
+    async def request_fnc(req: JobRequest) -> None:
+        tenant = _resolve_request_tenant(
+            job_metadata=getattr(req.job, "metadata", None),
+            room_metadata=getattr(req.room, "metadata", None),
+        )
+        if should_reject(tenant):
+            logger.info("Rejecting job for tenant '%s': circuit breaker open.", tenant)
+            await req.reject()
+            return
         if base_filter is not None:
             await base_filter(req)
         else:

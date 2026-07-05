@@ -90,6 +90,7 @@ class StubPool:
             sessions_by_agent=(
                 {self._discovered[0].name: 1} if self._discovered else {}
             ),
+            sessions_by_tenant={"default": 1} if self._discovered else {},
             resident_set=ProcessResidentSetInfo(
                 bytes_value=256 * 1024 * 1024,
                 metric="linux_vm_rss",
@@ -562,6 +563,7 @@ def test_build_runtime_dashboard_renders_key_metrics() -> None:
         last_routed_agent="restaurant",
         last_error="RuntimeError: boom",
         sessions_by_agent={"restaurant": 1},
+        sessions_by_tenant={"acme": 1},
         resident_set=ProcessResidentSetInfo(
             bytes_value=512 * 1024 * 1024,
             metric="linux_vm_rss",

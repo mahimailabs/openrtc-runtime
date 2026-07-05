@@ -187,7 +187,9 @@ def test_runtime_metrics_store_drains_stream_events() -> None:
     store = RuntimeMetricsStore()
     store.record_session_started("dental")
     drained = store.drain_stream_events()
-    assert drained == [{"event": "session_started", "agent": "dental"}]
+    assert drained == [
+        {"event": "session_started", "agent": "dental", "tenant": "default"}
+    ]
     assert store.drain_stream_events() == []
 
 

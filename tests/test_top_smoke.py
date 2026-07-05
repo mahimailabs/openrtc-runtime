@@ -26,9 +26,13 @@ from openrtc.observability.introspection_runtime import IntrospectionRuntime
 
 
 def _info(job_id: str, agent: str, tenant: str | None, started_at: float) -> Any:
-    metadata = {"tenant": tenant} if tenant is not None else {}
+    resolved = tenant if tenant is not None else "default"
     return SimpleNamespace(
-        job_id=job_id, agent_name=agent, metadata=metadata, started_at=started_at
+        job_id=job_id,
+        agent_name=agent,
+        metadata={"tenant": resolved},
+        started_at=started_at,
+        tenant=resolved,
     )
 
 

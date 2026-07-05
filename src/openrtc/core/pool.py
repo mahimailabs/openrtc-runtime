@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from livekit.agents import Agent, AgentServer, cli
 
+from openrtc.core.circuit_breaker import TenantCircuitBreaker
 from openrtc.core.config import (
     AgentConfig,
     AgentDiscoveryConfig,
@@ -17,6 +18,7 @@ from openrtc.core.discovery import (
     _find_local_agent_subclass,
     _load_agent_module,
 )
+from openrtc.core.tenant_config import TenantConfigResolver, TenantConfigSource
 from openrtc.core.wiring import _PoolRuntimeState, wire_pool
 from openrtc.observability.base_observer import SessionObserver
 from openrtc.observability.metrics import (
@@ -25,7 +27,9 @@ from openrtc.observability.metrics import (
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.routing.request_filter import (
     _build_per_agent_backpressure_filter,
+    _build_per_tenant_backpressure_filter,
     _build_registered_rooms_filter,
+    _build_tenant_circuit_filter,
 )
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
 from openrtc.utils.types import AgentRouter, ProviderValue, RequestFilter
@@ -33,6 +37,7 @@ from openrtc.utils.validation import (
     require_agent_name,
     require_non_negative_number,
     require_positive_int,
+    require_tenant_id,
     validate_isolation,
 )
 
@@ -81,7 +86,11 @@ class AgentPool:
         request_fnc: RequestFilter | None = None,
         accept_only_registered_rooms: bool = False,
         router: AgentRouter | None = None,
+        tenant_config: TenantConfigSource | None = None,
         max_sessions_per_agent: Mapping[str, int] | None = None,
+        max_sessions_per_tenant: Mapping[str, int] | None = None,
+        enable_tenant_circuit_breaker: bool = False,
+        tenant_circuit_cooldown_s: float = 30.0,
         enable_introspection: bool = True,
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
@@ -112,6 +121,15 @@ class AgentPool:
         prefix) maps it to one of this pool's agents, and rejects everything
         else. It is mutually exclusive with ``request_fnc``.
 
+        ``tenant_config`` supplies per-tenant provider overrides (MAH-102): a
+        ``{tenant: {"stt"/"llm"/"tts": ProviderValue}}`` mapping, or a callable
+        ``tenant -> config`` (e.g. a DB load). At session start the tenant's providers
+        replace the agent's (omitted keys fall back to the agent's), so each tenant
+        runs on its own keys/models. Configs are cached per tenant; a missing tenant
+        falls back to the agent/pool defaults with a one-time warning. Per-tenant
+        prompts are out of scope: route a tenant to its own agent via ``router`` for a
+        distinct prompt. Same spawn-safety caveat as ``router`` under process isolation.
+
         ``router`` is a custom dispatch router: ``router(job_metadata) -> agent_name``
         (``job_metadata`` is the parsed dispatch metadata mapping or ``None``). It
         takes precedence over the default job/room-metadata + room-prefix chain;
@@ -126,6 +144,18 @@ class AgentPool:
         cap is soft/best-effort (it reads live active counts, incremented at session
         start), so a burst of simultaneous accepts can briefly overshoot. It layers
         over ``request_fnc`` / ``accept_only_registered_rooms`` when combined.
+
+        ``max_sessions_per_tenant`` sets per-tenant caps (e.g. ``{"acme": 50}``),
+        keyed by the dispatch metadata ``tenant``: a job for a tenant at its cap is
+        rejected while sibling tenants keep accepting. It composes with
+        ``max_sessions_per_agent`` (a job needs headroom under both) and the global
+        cap; it is soft/best-effort in the same way.
+
+        ``enable_tenant_circuit_breaker`` (default off) opens a per-tenant breaker
+        when a tenant's recent session failure ratio trips, rejecting that tenant's
+        new sessions for ``tenant_circuit_cooldown_s`` (default 30s) before auto-
+        recovering. This confines one tenant's bad code path so it cannot keep
+        consuming slots or trip the worker supervisor for the healthy tenants.
 
         ``memory_warn_mb`` / ``memory_limit_mb`` set worker memory watermarks in
         MB (``0`` disables a band; defaults mirror livekit: warn 1000, limit 0).
@@ -169,6 +199,11 @@ class AgentPool:
             agents=self._agents,
             observer_timeout=float(self._drain_timeout),
             router=router,
+            tenant_resolver=(
+                TenantConfigResolver(tenant_config)
+                if tenant_config is not None
+                else None
+            ),
         )
         if observers is not None:
             for observer in observers:
@@ -208,6 +243,36 @@ class AgentPool:
                 agents=self._agents,
                 caps=self._max_sessions_per_agent,
                 active_counts=self._runtime_state.metrics.active_by_agent,
+                base_filter=self._request_fnc,
+            )
+        # Per-tenant budgets (MAH-103): layer over the per-agent filter, so tenant
+        # and agent caps compose (a job needs headroom under both). Same global cap
+        # still applies on top.
+        self._max_sessions_per_tenant: dict[str, int] = {}
+        if max_sessions_per_tenant is not None:
+            self._max_sessions_per_tenant = {
+                require_tenant_id(name): require_positive_int(
+                    f"max_sessions_per_tenant[{name!r}]", cap
+                )
+                for name, cap in max_sessions_per_tenant.items()
+            }
+            self._request_fnc = _build_per_tenant_backpressure_filter(
+                caps=self._max_sessions_per_tenant,
+                active_counts=self._runtime_state.metrics.active_by_tenant,
+                base_filter=self._request_fnc,
+            )
+        # Per-tenant circuit breaker (MAH-104): the outermost safety layer. A tenant
+        # whose recent sessions fail past the breaker's threshold has its new
+        # sessions rejected for a cooldown, so its bad code cannot keep consuming
+        # slots or trip the worker supervisor for the healthy tenants.
+        self._circuit_breaker: TenantCircuitBreaker | None = None
+        if enable_tenant_circuit_breaker:
+            self._circuit_breaker = TenantCircuitBreaker(
+                cooldown_seconds=tenant_circuit_cooldown_s
+            )
+            self._runtime_state.circuit_breaker = self._circuit_breaker
+            self._request_fnc = _build_tenant_circuit_filter(
+                should_reject=self._circuit_breaker.should_reject,
                 base_filter=self._request_fnc,
             )
         wire_pool(self._server, self._runtime_state, self._request_fnc)
@@ -328,6 +393,16 @@ class AgentPool:
     def max_sessions_per_agent(self) -> dict[str, int]:
         """Return the per-agent session caps (empty when no per-agent budgets)."""
         return dict(self._max_sessions_per_agent)
+
+    @property
+    def max_sessions_per_tenant(self) -> dict[str, int]:
+        """Return the per-tenant session caps (empty when no per-tenant budgets)."""
+        return dict(self._max_sessions_per_tenant)
+
+    @property
+    def tenant_circuit_breaker(self) -> TenantCircuitBreaker | None:
+        """Return the per-tenant circuit breaker, or ``None`` when disabled."""
+        return self._circuit_breaker
 
     @property
     def router(self) -> AgentRouter | None:

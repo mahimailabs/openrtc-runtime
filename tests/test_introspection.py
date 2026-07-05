@@ -17,9 +17,14 @@ from openrtc.observability.session_memory import SessionMemory
 def _info(
     job_id: str, agent: str, tenant: str | None = None, started_at: float = 0.0
 ) -> Any:
-    metadata = {"tenant": tenant} if tenant is not None else {}
+    resolved = tenant if tenant is not None else "default"
+    metadata = {"tenant": resolved}
     return SimpleNamespace(
-        job_id=job_id, agent_name=agent, metadata=metadata, started_at=started_at
+        job_id=job_id,
+        agent_name=agent,
+        metadata=metadata,
+        started_at=started_at,
+        tenant=resolved,
     )
 
 
@@ -36,7 +41,7 @@ def test_registry_tracks_active_agents_and_tenant() -> None:
     assert reg.active_count() == 2
     live = {ls.session_id: ls for ls in reg.live_sessions()}
     assert live["s1"].tenant == "acme"
-    assert live["s2"].tenant is None
+    assert live["s2"].tenant == "default"  # tenant-less resolves to "default"
 
 
 def test_registry_drops_ended_session() -> None:

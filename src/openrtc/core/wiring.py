@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING
 from livekit.agents import AgentSession
 
 from openrtc.core.config import AgentConfig
+from openrtc.core.tenant_config import resolve_tenant_providers
 from openrtc.core.turn_handling import _build_session_kwargs
 from openrtc.observability.base_observer import (
     SessionInfo,
@@ -24,8 +26,10 @@ from openrtc.observability.metrics import RuntimeMetricsStore
 from openrtc.observability.session_context import (
     reset_agent_name,
     reset_session_id,
+    reset_tenant_id,
     set_agent_name,
     set_session_id,
+    set_tenant_id,
 )
 from openrtc.routing.resolver import _resolve_agent_config
 from openrtc.runtime.prewarm import _prewarm_worker
@@ -34,6 +38,8 @@ from openrtc.runtime.resources import PrewarmResources
 if TYPE_CHECKING:
     from livekit.agents import JobContext
 
+    from openrtc.core.circuit_breaker import TenantCircuitBreaker
+    from openrtc.core.tenant_config import TenantConfigResolver
     from openrtc.runtime.base_runtime import SessionRuntime
     from openrtc.utils.types import AgentRouter, RequestFilter
 
@@ -59,6 +65,13 @@ class _PoolRuntimeState:
     # the spawned worker's pickled state, so it must be picklable there (a
     # module-level function, not a lambda); coroutine mode accepts any callable.
     router: AgentRouter | None = None
+    # Optional per-tenant provider config resolver (MAH-102). Same spawn-safety
+    # caveat as ``router`` (its source + cached provider objects must be picklable
+    # under process isolation).
+    tenant_resolver: TenantConfigResolver | None = None
+    # Optional per-tenant circuit breaker (MAH-104): records each session's outcome
+    # and opens a tenant's breaker when its recent failure ratio trips.
+    circuit_breaker: TenantCircuitBreaker | None = None
 
 
 def build_session(
@@ -71,6 +84,16 @@ def build_session(
     config = _resolve_agent_config(
         runtime_state.agents, ctx, router=runtime_state.router
     )
+    # Build the info first so the resolved tenant is available for the per-tenant
+    # provider override (MAH-102): a tenant's stt/llm/tts (with its own key) replace
+    # the agent's; omitted keys fall back to the agent's provider.
+    info = _build_session_info(config.name, ctx)
+    tenant_config = (
+        runtime_state.tenant_resolver.resolve(info.tenant)
+        if runtime_state.tenant_resolver is not None
+        else None
+    )
+    stt, llm, tts = resolve_tenant_providers(config, tenant_config)
     # The inference executor rides on the JobContext, not the JobProcess; pass it
     # so the turn-detection gate selects the prewarmed multilingual detector
     # instead of always falling back to VAD (MAH-159).
@@ -80,13 +103,12 @@ def build_session(
         getattr(ctx, "inference_executor", None),
     )
     session: AgentSession[None] = AgentSession(
-        stt=config.stt,  # type: ignore[arg-type]
-        llm=config.llm,  # type: ignore[arg-type]
-        tts=config.tts,  # type: ignore[arg-type]
+        stt=stt,  # type: ignore[arg-type]
+        llm=llm,  # type: ignore[arg-type]
+        tts=tts,  # type: ignore[arg-type]
         vad=PrewarmResources.vad_from(ctx.proc),
         **session_kwargs,
     )
-    info = _build_session_info(config.name, ctx)
     return session, config, info
 
 
@@ -97,7 +119,11 @@ async def _finish_session(
     error: BaseException | None,
 ) -> None:
     """Record the session finished and notify observers of its end."""
-    runtime_state.metrics.record_session_finished(agent_name)
+    runtime_state.metrics.record_session_finished(agent_name, info.tenant)
+    # Feed the tenant's outcome to the circuit breaker (MAH-104): a run of failures
+    # from one tenant opens its breaker and rejects its new sessions for a cooldown.
+    if runtime_state.circuit_breaker is not None:
+        runtime_state.circuit_breaker.record_outcome(info.tenant, success=error is None)
     outcome = _build_session_outcome(info, error)
     await _notify_session_end(
         runtime_state.observers,
@@ -127,13 +153,18 @@ async def run_session(
 ) -> None:
     """Run one session through its lifecycle: metrics, observers, greeting."""
     session, config, info = build_session(runtime_state, ctx)
-    # Bind session_id + agent_name for this task tree so every log record and the
-    # per-session attribution (v0.3) can be scoped to this session (MAH-91) and
-    # namespaced by agent (MAH-98).
+    # Bind session_id + agent_name + tenant for this task tree so every log record
+    # and the per-session attribution (v0.3) can be scoped to this session
+    # (MAH-91), namespaced by agent (MAH-98), and isolated per tenant (MAH-101).
     sid_token = set_session_id(info.job_id)
     agent_token = set_agent_name(info.agent_name)
+    tenant_token = set_tenant_id(info.tenant)
+    # Expose the tenant on the session instance for agent code that reaches it via
+    # ``self.session.tenant_id`` (the contextvar is the primary, task-scoped path).
+    with contextlib.suppress(Exception):
+        session.tenant_id = info.tenant  # type: ignore[attr-defined]
     try:
-        runtime_state.metrics.record_session_started(config.name)
+        runtime_state.metrics.record_session_started(config.name, info.tenant)
         # Connect before starting the session. start() fires the agent's
         # on_enter as a detached task (livekit schedules it with
         # wait_on_enter=False); if the room is not connected yet, any on_enter
@@ -157,7 +188,7 @@ async def run_session(
             logger.debug("Generating greeting for agent '%s'.", config.name)
             await session.generate_reply(instructions=config.greeting)
     except Exception as exc:
-        runtime_state.metrics.record_session_failure(config.name, exc)
+        runtime_state.metrics.record_session_failure(config.name, exc, info.tenant)
         raise
     finally:
         error = sys.exc_info()[1]
@@ -177,6 +208,7 @@ async def run_session(
             await _finish_session(runtime_state, info, config.name, error)
         reset_session_id(sid_token)
         reset_agent_name(agent_token)
+        reset_tenant_id(tenant_token)
 
 
 async def run_session_end(ctx: JobContext) -> None:

@@ -270,6 +270,7 @@ def test_runtime_metrics_store_record_session_finished_keeps_positive_count() ->
         ("total_sessions_started", "not-an-int", "total_sessions_started"),
         ("total_session_failures", 1.5, "total_session_failures"),
         ("sessions_by_agent", ["not", "a", "mapping"], "sessions_by_agent"),
+        ("sessions_by_tenant", ["not", "a", "mapping"], "sessions_by_tenant"),
         ("_stream_events", "not-a-list", "_stream_events"),
         ("_metrics_stream_overflow_since_drain", "nope", "overflow"),
     ],

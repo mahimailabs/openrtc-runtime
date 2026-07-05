@@ -18,8 +18,10 @@ from openrtc.observability.log_scoping import (
 )
 from openrtc.observability.session_context import (
     reset_agent_name,
+    reset_tenant_id,
     session_scope,
     set_agent_name,
+    set_tenant_id,
 )
 
 
@@ -73,6 +75,31 @@ def test_json_formatter_agent_name_null_when_absent() -> None:
     fmt = JsonLogFormatter()
     out = json.loads(fmt.format(_record()))
     assert out["agent_name"] is None
+
+
+def test_filter_adds_tenant_in_scope() -> None:
+    log_filter = SessionIdFilter()
+    token = set_tenant_id("acme")
+    try:
+        rec = _record()
+        log_filter.filter(rec)
+        assert rec.tenant == "acme"
+    finally:
+        reset_tenant_id(token)
+
+
+def test_json_formatter_includes_tenant() -> None:
+    fmt = JsonLogFormatter()
+    rec = _record("hi")
+    rec.tenant = "globex"  # type: ignore[attr-defined]
+    out = json.loads(fmt.format(rec))
+    assert out["tenant"] == "globex"
+
+
+def test_json_formatter_tenant_null_when_absent() -> None:
+    fmt = JsonLogFormatter()
+    out = json.loads(fmt.format(_record()))
+    assert out["tenant"] is None
 
 
 def test_json_formatter_shape() -> None:
