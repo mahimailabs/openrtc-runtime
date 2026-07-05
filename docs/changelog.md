@@ -163,6 +163,38 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.17.0] - 2026-07-05
+
+## v0.6 — Zero-downtime worker upgrades
+
+Upgrade a worker fleet without dropping calls, using blue-green drain. The new version takes new calls; the old version stops accepting and lets its in-flight calls finish naturally, then exits. No live call is ever moved, so none is dropped.
+
+### Highlights
+
+- **Blue-green drain** — `pool.begin_drain()` (or a SIGTERM from your platform) stops the worker accepting new jobs while its in-flight calls run to hangup, then it exits. Reuses the graceful-drain path, now idempotent so `begin_drain()` then `drain()` compose.
+- **Deployment version tag** — `AgentPool(deployment_version="v2.0.0")` labels which version a worker runs, surfaced on `runtime_snapshot().deployment_version` / `.draining` and on the `SessionObserver` payload, so an operator can watch a drain and voicegateway can bucket deploy metrics by version.
+- **Signed-version membership** — `sign_membership` / `MembershipVerifier` (HMAC-SHA256, constant-time compare, replay window, secret rotation) keep a leftover old-version worker from grabbing new traffic during a rollout.
+- **Deployment audit log** — a monotonic-sequence, pluggable-sink `AuditLog` records deploy / drain / rollback / worker-rejection events for compliance (SOC 2, HIPAA, FedRAMP); `begin_drain()` emits `deployment.drain_started`. Ship events to a SIEM with `audit_sink=...`.
+- **Operator docs** — a full deployment guide: the blue-green walkthrough, monitoring signals, a rollback decision tree, the migration-vs-drain rationale, and an audit-event + signed-membership compliance reference.
+
+### The load-bearing decision: drain, not migrate
+
+A live `AgentSession` holds an open WebRTC transport and in-flight STT/LLM/TTS streams. That state is bound to this process and this moment: you cannot serialize a half-generated LLM token or an audio buffer mid-synthesis and resume it elsewhere without a gap the caller hears. So OpenRTC upgrades by draining, not by migrating live sessions. Mid-call migration is deferred by design; the `migration.*` audit events are reserved and not emitted. Full rationale and the state inventory are in the docs.
+
+### Lane boundary
+
+OpenRTC stays in its runtime lane. It emits `info.agent_name`, `info.metadata["tenant"]`, and now `info.deployment_version` on every session; voicegateway buckets deploy cost/quality/latency by version. Watch OpenRTC's `runtime_snapshot()` to confirm a deploy completed; watch voicegateway to judge whether the new version is better.
+
+### Notes
+
+- OpenRTC runs one worker and supplies the primitives (version tag, drain, signed membership, audit). The gradual traffic shift and rollout orchestration are the deployment platform's job (a Kubernetes rolling update, a LiveKit worker rotation).
+- Zero-downtime means every in-flight call finishes uninterrupted on its original worker and every new call lands on the new version. A call is never paused, moved, or resumed elsewhere. To have new code affect a call already live, either wait for it to end or use hot reload (a different, in-worker mechanism).
+- A rollback is just a blue-green deploy pointed the other way: the primitives are symmetric, so it also drops zero calls.
+
+Milestone: v0.6 — Zero-downtime worker upgrades (MAH-108, MAH-109, MAH-110, MAH-111, MAH-112, MAH-113, MAH-114).
+
+---
+
 ## [0.16.0] - 2026-07-05
 
 ## v0.5 — Per-tenant pool isolation
