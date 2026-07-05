@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from livekit.agents import Agent, AgentServer, cli
 
+from openrtc.core.audit import DEPLOYMENT_DRAIN_STARTED, AuditLog, AuditSink
 from openrtc.core.circuit_breaker import TenantCircuitBreaker
 from openrtc.core.config import (
     AgentConfig,
@@ -94,6 +95,8 @@ class AgentPool:
         enable_introspection: bool = True,
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
+        deployment_version: str | None = None,
+        audit_sink: AuditSink | None = None,
     ) -> None:
         """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
 
@@ -157,6 +160,13 @@ class AgentPool:
         recovering. This confines one tenant's bad code path so it cannot keep
         consuming slots or trip the worker supervisor for the healthy tenants.
 
+        ``deployment_version`` tags this worker's version (e.g. ``"v1.2.3"``) for
+        blue-green drain deploys: it is surfaced on ``runtime_snapshot()`` so an
+        operator can watch which version each worker runs while an old pool drains.
+        OpenRTC runs one worker; the gradual traffic shift and rollout orchestration
+        are the deployment platform's job (a rolling update / LiveKit worker
+        rotation). See the deployment guide.
+
         ``memory_warn_mb`` / ``memory_limit_mb`` set worker memory watermarks in
         MB (``0`` disables a band; defaults mirror livekit: warn 1000, limit 0).
         In ``process`` isolation livekit enforces them per subprocess natively.
@@ -193,6 +203,20 @@ class AgentPool:
         self._memory_limit_mb = require_non_negative_number(
             "memory_limit_mb", memory_limit_mb
         )
+        # Blue-green deployment tag (MAH-110): labels which version this worker
+        # runs, surfaced on runtime_snapshot() so an operator can watch a drain.
+        self._deployment_version: str | None = None
+        if deployment_version is not None:
+            stripped = deployment_version.strip()
+            if not stripped:
+                raise ValueError(
+                    "deployment_version must be a non-empty string when set."
+                )
+            self._deployment_version = stripped
+            logger.info("Pool deployment_version=%s", stripped)
+        # Deployment audit log (MAH-112): structured, monotonic-sequence events,
+        # logged by default or handed to a custom sink (S3 / SIEM).
+        self._audit = AuditLog(sink=audit_sink)
         self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(
@@ -204,6 +228,7 @@ class AgentPool:
                 if tenant_config is not None
                 else None
             ),
+            deployment_version=self._deployment_version,
         )
         if observers is not None:
             for observer in observers:
@@ -409,9 +434,50 @@ class AgentPool:
         """Return the custom dispatch router, or ``None`` for the default chain."""
         return self._runtime_state.router
 
+    @property
+    def deployment_version(self) -> str | None:
+        """Return the blue-green deployment version tag, or ``None`` if untagged."""
+        return self._deployment_version
+
+    @property
+    def draining(self) -> bool:
+        """``True`` once the worker has begun draining (rejecting new jobs, MAH-109)."""
+        pool = getattr(self._server, "coroutine_pool", None)
+        return bool(getattr(pool, "draining", False))
+
+    def begin_drain(self) -> None:
+        """Start a blue-green drain: reject new jobs; in-flight calls run to hangup.
+
+        Non-blocking. Production deploys trigger drain via SIGTERM (the deployment
+        platform handles the switchover); this is the programmatic trigger for a
+        coordinator. A no-op if the worker's coroutine pool is not running yet or in
+        process isolation (where the platform drains each subprocess directly).
+        """
+        pool = getattr(self._server, "coroutine_pool", None)
+        begin = getattr(pool, "begin_drain", None)
+        if callable(begin):
+            begin()
+            logger.info(
+                "Pool draining: rejecting new jobs; in-flight calls run to hangup."
+            )
+            self._audit.emit(
+                DEPLOYMENT_DRAIN_STARTED,
+                target="worker",
+                version=self._deployment_version,
+            )
+
+    @property
+    def audit_log(self) -> AuditLog:
+        """Return the pool's deployment audit log (MAH-112)."""
+        return self._audit
+
     def runtime_snapshot(self) -> PoolRuntimeSnapshot:
         """Return a live snapshot of worker metrics for dashboards and automation."""
-        return self._runtime_state.metrics.snapshot(registered_agents=len(self._agents))
+        return self._runtime_state.metrics.snapshot(
+            registered_agents=len(self._agents),
+            deployment_version=self._deployment_version,
+            draining=self.draining,
+        )
 
     def drain_metrics_stream_events(self) -> list[MetricsStreamEvent]:
         """Drain pending session lifecycle events for JSONL sidecar export."""

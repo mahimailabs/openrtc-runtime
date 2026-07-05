@@ -72,6 +72,9 @@ class _PoolRuntimeState:
     # Optional per-tenant circuit breaker (MAH-104): records each session's outcome
     # and opens a tenant's breaker when its recent failure ratio trips.
     circuit_breaker: TenantCircuitBreaker | None = None
+    # The worker's deployment version (MAH-112), stamped onto each session's
+    # observer payload for the per-call "which version handled it" audit.
+    deployment_version: str | None = None
 
 
 def build_session(
@@ -87,7 +90,7 @@ def build_session(
     # Build the info first so the resolved tenant is available for the per-tenant
     # provider override (MAH-102): a tenant's stt/llm/tts (with its own key) replace
     # the agent's; omitted keys fall back to the agent's provider.
-    info = _build_session_info(config.name, ctx)
+    info = _build_session_info(config.name, ctx, runtime_state.deployment_version)
     tenant_config = (
         runtime_state.tenant_resolver.resolve(info.tenant)
         if runtime_state.tenant_resolver is not None

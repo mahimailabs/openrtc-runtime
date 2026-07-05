@@ -37,7 +37,8 @@
         "concepts/routing",
         "concepts/hot-reload",
         "concepts/session-introspection",
-        "concepts/multi-tenancy"
+        "concepts/multi-tenancy",
+        "concepts/migration"
       ]
     },
     {
@@ -65,6 +66,20 @@
         "runbooks/debugging-density",
         "runbooks/onboarding-a-tenant",
         "runbooks/tenant-incident"
+      ]
+    },
+    {
+      "group": "Operations",
+      "pages": [
+        "operations/deployments",
+        "operations/monitoring-deploys",
+        "operations/rollback"
+      ]
+    },
+    {
+      "group": "Compliance",
+      "pages": [
+        "compliance/audit-events"
       ]
     },
     {

@@ -561,10 +561,23 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
             task.cancel()
         self._memory_monitor_task = None
 
+    def begin_drain(self) -> None:
+        """Stop accepting new jobs without awaiting in-flight (non-blocking); idempotent.
+
+        The blue-green drain trigger (MAH-109): flips the pool into draining so
+        ``launch_job`` rejects new jobs, while in-flight sessions run to their
+        natural hangup. The worker exits when the last one ends (via ``aclose`` /
+        the SIGTERM path). Use :meth:`drain` when you want to *await* completion.
+        """
+        self._draining = True
+
     async def drain(self) -> None:
-        """Stop accepting new jobs and await every in-flight executor; idempotent."""
-        if self._draining:
-            return
+        """Stop accepting new jobs and await every in-flight executor; idempotent.
+
+        Idempotent via the loop below (no in-flight executors is a no-op), so it is
+        safe to call after :meth:`begin_drain` (which only sets the flag) to then
+        await the in-flight calls.
+        """
         self._draining = True
 
         while self._executors:
