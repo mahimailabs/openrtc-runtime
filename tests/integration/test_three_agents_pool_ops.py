@@ -82,11 +82,19 @@ _PLAN = {"sales": 3, "support": 2, "scheduling": 1}
 @pytest.mark.asyncio
 async def test_three_agents_route_and_tag_in_one_live_pool(
     livekit_dev_server: LiveKitDevServer,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Three agents in one pool: each job routes to, and is tagged with, its agent."""
     os.environ["LIVEKIT_URL"] = livekit_dev_server.url
     os.environ["LIVEKIT_API_KEY"] = livekit_dev_server.api_key
     os.environ["LIVEKIT_API_SECRET"] = livekit_dev_server.api_secret
+    # Route end-of-turn to a remote (dummy) endpoint so the turn detector does not
+    # load local ONNX model files, which are not downloaded in CI. The fake agents
+    # never take a real turn, so the endpoint is never actually called. Without
+    # this, session.start() raises "Could not find file model_q8.onnx" and no
+    # session goes live (matches test_per_agent_reload_realroom.py).
+    if "LIVEKIT_REMOTE_EOT_URL" not in os.environ:
+        monkeypatch.setenv("LIVEKIT_REMOTE_EOT_URL", "http://eot-disabled.invalid/eot")
 
     recorder = _RecordingObserver()
     pool = AgentPool(
