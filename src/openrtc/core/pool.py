@@ -94,6 +94,7 @@ class AgentPool:
         enable_introspection: bool = True,
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
+        deployment_version: str | None = None,
     ) -> None:
         """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
 
@@ -157,6 +158,13 @@ class AgentPool:
         recovering. This confines one tenant's bad code path so it cannot keep
         consuming slots or trip the worker supervisor for the healthy tenants.
 
+        ``deployment_version`` tags this worker's version (e.g. ``"v1.2.3"``) for
+        blue-green drain deploys: it is surfaced on ``runtime_snapshot()`` so an
+        operator can watch which version each worker runs while an old pool drains.
+        OpenRTC runs one worker; the gradual traffic shift and rollout orchestration
+        are the deployment platform's job (a rolling update / LiveKit worker
+        rotation). See the deployment guide.
+
         ``memory_warn_mb`` / ``memory_limit_mb`` set worker memory watermarks in
         MB (``0`` disables a band; defaults mirror livekit: warn 1000, limit 0).
         In ``process`` isolation livekit enforces them per subprocess natively.
@@ -193,6 +201,17 @@ class AgentPool:
         self._memory_limit_mb = require_non_negative_number(
             "memory_limit_mb", memory_limit_mb
         )
+        # Blue-green deployment tag (MAH-110): labels which version this worker
+        # runs, surfaced on runtime_snapshot() so an operator can watch a drain.
+        self._deployment_version: str | None = None
+        if deployment_version is not None:
+            stripped = deployment_version.strip()
+            if not stripped:
+                raise ValueError(
+                    "deployment_version must be a non-empty string when set."
+                )
+            self._deployment_version = stripped
+            logger.info("Pool deployment_version=%s", stripped)
         self._server = self._build_server()
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(
@@ -409,9 +428,17 @@ class AgentPool:
         """Return the custom dispatch router, or ``None`` for the default chain."""
         return self._runtime_state.router
 
+    @property
+    def deployment_version(self) -> str | None:
+        """Return the blue-green deployment version tag, or ``None`` if untagged."""
+        return self._deployment_version
+
     def runtime_snapshot(self) -> PoolRuntimeSnapshot:
         """Return a live snapshot of worker metrics for dashboards and automation."""
-        return self._runtime_state.metrics.snapshot(registered_agents=len(self._agents))
+        return self._runtime_state.metrics.snapshot(
+            registered_agents=len(self._agents),
+            deployment_version=self._deployment_version,
+        )
 
     def drain_metrics_stream_events(self) -> list[MetricsStreamEvent]:
         """Drain pending session lifecycle events for JSONL sidecar export."""
