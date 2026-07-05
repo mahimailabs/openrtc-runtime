@@ -1,0 +1,156 @@
+---
+title: Coming from livekit-agents
+description: You already write livekit-agents. OpenRTC hosts all your agents in one worker and adds hot reload, per-tenant isolation, and zero-downtime deploys, without changing how you write an Agent.
+icon: arrow-right-arrow-left
+---
+
+If you run [livekit-agents](https://docs.livekit.io/agents), you know the shape:
+an `AgentServer`, one `@server.rtc_session` per agent, an `AgentSession` you wire
+up inside it, and `cli.run_app`. It works, but every agent is its own worker
+process, prewarm reloads in each one, and shipping a code change means restarting
+the worker and dropping in-flight calls.
+
+OpenRTC is a thin layer on top of the same SDK. **Your `Agent` subclasses do not
+change.** You register them on one `AgentPool` and host them all in a single
+worker, and you get density, hot reload, per-tenant isolation, and zero-downtime
+deploys on top. Think of it as livekit-agents with the operational parts filled in.
+
+## The one change that matters
+
+<CodeGroup>
+
+```python livekit-agents (one worker per agent)
+from livekit import agents
+from livekit.agents import AgentServer, AgentSession, Agent, inference, TurnHandlingOptions
+
+
+class SupportAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions="Help callers with support questions.")
+
+
+server = AgentServer()
+
+
+@server.rtc_session(agent_name="support")
+async def support(ctx: agents.JobContext):
+    session = AgentSession(
+        stt=inference.STT(model="deepgram/nova-3"),
+        llm=inference.LLM(model="openai/chat-latest"),
+        tts=inference.TTS(model="cartesia/sonic-3"),
+        turn_handling=TurnHandlingOptions(turn_detection=inference.TurnDetector()),
+    )
+    await session.start(room=ctx.room, agent=SupportAgent())
+    await session.generate_reply(instructions="Greet the caller.")
+
+
+# A second agent means a second rtc_session (and, to scale, a second worker).
+
+if __name__ == "__main__":
+    agents.cli.run_app(server)
+```
+
+```python OpenRTC (one worker, many agents)
+from livekit.agents import Agent, inference
+from openrtc import AgentPool
+
+
+class SupportAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions="Help callers with support questions.")
+
+
+class DentalAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions="You help callers book dental appointments.")
+
+
+pool = AgentPool(
+    default_stt=inference.STT(model="deepgram/nova-3"),
+    default_llm=inference.LLM(model="openai/chat-latest"),
+    default_tts=inference.TTS(model="cartesia/sonic-3"),
+    default_greeting="Greet the caller.",
+)
+pool.add("support", SupportAgent)
+pool.add("dental", DentalAgent)   # a second agent is one line, same worker
+pool.run()
+```
+
+</CodeGroup>
+
+The `Agent` subclass is identical. You write the session wiring once as pool
+defaults, adding an agent is a single `pool.add(...)`, every agent shares one
+prewarm, and routing is automatic.
+
+## What you keep
+
+Everything about writing an agent. OpenRTC never introduces a base class and
+never sits between you and the SDK:
+
+- Your `Agent` subclasses, instructions, and state.
+- `@function_tool`, `RunContext`, `on_enter` / `on_exit`, and the `*_node` hooks.
+- `inference.STT/LLM/TTS` and plugin provider objects, passed through unchanged.
+- `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` and the same dispatch model.
+- The CLI verbs you know: `openrtc dev` / `start` / `console` / `connect` mirror livekit's.
+
+## What you delete
+
+The per-worker boilerplate that OpenRTC now owns for you:
+
+- The per-agent `@server.rtc_session` function.
+- The `AgentSession(...)` you rebuilt in every session function.
+- The manual `session.start(...)` and greeting call.
+- `agents.cli.run_app(server)`, replaced by `pool.run()`.
+- The one-process-per-agent deployment. All your agents live in one worker.
+
+## What you gain
+
+The things livekit-agents alone leaves to you:
+
+<CardGroup cols={2}>
+  <Card title="Density" icon="bolt" href="/benchmarks/density-v0.1">
+    50+ concurrent sessions per worker as `asyncio` tasks, sharing one prewarm,
+    instead of a subprocess (~3 GB) per session.
+  </Card>
+  <Card title="Hot reload" icon="arrows-rotate" href="/concepts/hot-reload">
+    Edit an agent and live calls pick up the new code on their next turn, with no
+    dropped audio. A bad save rolls back.
+  </Card>
+  <Card title="Per-tenant isolation" icon="building" href="/concepts/multi-tenancy">
+    Per-tenant provider keys, session caps, and a blast-radius circuit breaker,
+    all in one pool.
+  </Card>
+  <Card title="Zero-downtime deploys" icon="tower-broadcast" href="/operations/deployments">
+    Blue-green drain: new calls hit the new version, in-flight calls finish on the
+    old one. No dropped calls.
+  </Card>
+</CardGroup>
+
+## Concept map
+
+| livekit-agents | OpenRTC |
+| --- | --- |
+| `AgentServer()` + one `@server.rtc_session(agent_name=...)` per agent | one `AgentPool()`, then `pool.add(name, Agent)` per agent |
+| `AgentSession(stt=, llm=, tts=, turn_handling=)` rebuilt in each session | built for you from pool defaults plus per-agent overrides |
+| prewarm reloaded in every worker process | shared prewarm (VAD, turn detector) loaded once per worker |
+| one worker process per agent to scale | many agents and 50+ sessions in one worker (coroutine mode) |
+| `agents.cli.run_app(server)` | `pool.run()`, which wraps the same CLI |
+| dispatch keyed on `agent_name` | routing chain: job metadata, room metadata, room-name prefix |
+| restart the worker to ship a change | hot reload swaps live sessions on their next turn |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/getting-started">
+    Install OpenRTC and run your first pool.
+  </Card>
+  <Card title="How it works" icon="sitemap" href="/concepts/architecture">
+    The universal entrypoint, coroutine density, and shared prewarm under the hood.
+  </Card>
+</CardGroup>
+
+<Note>
+Need hard crash isolation instead of density? Pass `isolation="process"` for the
+one-subprocess-per-session model, the same as livekit-agents, with per-session
+memory caps. Everything else on this page still applies.
+</Note>

@@ -6,6 +6,13 @@ icon: rocket
 
 # Getting Started
 
+<Note>
+Already using livekit-agents? Start with
+[Coming from livekit-agents](/coming-from-livekit-agents) for the before/after:
+what you delete, what you keep, and what you gain. This page is the from-scratch
+install.
+</Note>
+
 ## Requirements
 
 OpenRTC requires Python **`>=3.11,<3.14`** and depends on
