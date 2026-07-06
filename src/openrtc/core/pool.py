@@ -87,6 +87,7 @@ class AgentPool:
         request_fnc: RequestFilter | None = None,
         accept_only_registered_rooms: bool = False,
         router: AgentRouter | None = None,
+        agent_name: str | None = None,
         tenant_config: TenantConfigSource | None = None,
         max_sessions_per_agent: Mapping[str, int] | None = None,
         max_sessions_per_tenant: Mapping[str, int] | None = None,
@@ -160,6 +161,18 @@ class AgentPool:
         recovering. This confines one tenant's bad code path so it cannot keep
         consuming slots or trip the worker supervisor for the healthy tenants.
 
+        ``agent_name`` sets the worker's LiveKit dispatch name. The default
+        (``None``) registers an *unnamed* worker for **automatic dispatch**:
+        LiveKit offers it every room and the pool's own router picks the agent.
+        Set a name to register for **explicit dispatch** instead, so a caller that
+        requests this worker by name (``agent_dispatch.create_dispatch(agent_name=
+        ...)`` or a room created with ``roomConfig.agents[].agentName``) reaches
+        it, with its per-dispatch metadata intact. LiveKit only routes an explicit
+        dispatch to a worker registered under that name, so an unnamed pool never
+        receives one. This is orthogonal to routing (``router`` / the metadata
+        chain), which picks *which registered agent* handles a job the worker has
+        already accepted.
+
         ``deployment_version`` tags this worker's version (e.g. ``"v1.2.3"``) for
         blue-green drain deploys: it is surfaced on ``runtime_snapshot()`` so an
         operator can watch which version each worker runs while an old pool drains.
@@ -214,6 +227,18 @@ class AgentPool:
                 )
             self._deployment_version = stripped
             logger.info("Pool deployment_version=%s", stripped)
+        # Worker LiveKit dispatch name. None (default) registers an unnamed worker
+        # for automatic dispatch: LiveKit offers it every room and the pool's own
+        # router picks the agent. A non-empty name registers the worker for
+        # explicit dispatch (agent_dispatch / roomConfig.agents[].agentName), so a
+        # frontend or SIP rule that names this worker reaches it.
+        self._agent_name: str | None = None
+        if agent_name is not None:
+            stripped_name = agent_name.strip()
+            if not stripped_name:
+                raise ValueError("agent_name must be a non-empty string when set.")
+            self._agent_name = stripped_name
+            logger.info("Pool agent_name=%s (explicit dispatch)", stripped_name)
         # Deployment audit log (MAH-112): structured, monotonic-sequence events,
         # logged by default or handed to a custom sink (S3 / SIEM).
         self._audit = AuditLog(sink=audit_sink)
@@ -300,7 +325,12 @@ class AgentPool:
                 should_reject=self._circuit_breaker.should_reject,
                 base_filter=self._request_fnc,
             )
-        wire_pool(self._server, self._runtime_state, self._request_fnc)
+        wire_pool(
+            self._server,
+            self._runtime_state,
+            self._request_fnc,
+            agent_name=self._agent_name,
+        )
         self._introspection: IntrospectionRuntime | None = None
         if enable_introspection and isolation == "coroutine":
             self._setup_introspection(
@@ -438,6 +468,11 @@ class AgentPool:
     def deployment_version(self) -> str | None:
         """Return the blue-green deployment version tag, or ``None`` if untagged."""
         return self._deployment_version
+
+    @property
+    def agent_name(self) -> str | None:
+        """Return the worker's LiveKit dispatch name, or ``None`` for automatic dispatch."""
+        return self._agent_name
 
     @property
     def draining(self) -> bool:

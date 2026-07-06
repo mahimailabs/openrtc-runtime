@@ -116,6 +116,7 @@ module omits those values.
 | `isolation` | `Literal["coroutine", "process"]` | `"coroutine"` | Worker isolation mode. **`"coroutine"`** is the v0.1 default and runs every session as an `asyncio.Task` in one worker process; **`"process"`** preserves v0.0.17 behavior (one OS subprocess per session via `livekit-agents`'s `ProcPool`). See [Architecture → Coroutine-mode lifecycle](../concepts/architecture#coroutine-mode-lifecycle). |
 | `max_concurrent_sessions` | `int` | `50` | Coroutine-mode backpressure threshold. The worker reports `current_load >= 1.0` to LiveKit dispatch once this many sessions are in flight, so new jobs route elsewhere. Must be `>= 1`. Ignored in process mode (livekit-agents' own load math applies there). |
 | `consecutive_failure_limit` | `int` | `5` | After this many non-`SUCCESS` session terminations in a row, the coroutine pool's supervisor schedules `aclose()` so the deployment platform restarts the worker (bounded blast radius for systemic bugs). Must be `>= 1`. Ignored in process mode. |
+| `agent_name` | `str \| None` | `None` | The worker's LiveKit dispatch name. `None` registers an unnamed worker for **automatic dispatch** (LiveKit offers it every room; the pool's router picks the agent). A non-empty name registers for **explicit dispatch** so a caller that names this worker (`agent_dispatch.create_dispatch` / `roomConfig.agents[].agentName`) reaches it, with its per-dispatch metadata intact. Must be non-empty when set. Orthogonal to routing. |
 
 ### Read-only properties
 
@@ -124,6 +125,7 @@ module omits those values.
 | `pool.isolation` | `Literal["coroutine", "process"]` | The configured isolation mode (set in the constructor). |
 | `pool.max_concurrent_sessions` | `int` | The configured backpressure threshold. |
 | `pool.consecutive_failure_limit` | `int` | The configured supervisor threshold. |
+| `pool.agent_name` | `str \| None` | The worker's LiveKit dispatch name, or `None` for automatic dispatch. |
 
 ### Migration note
 

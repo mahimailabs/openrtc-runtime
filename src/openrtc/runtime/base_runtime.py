@@ -20,6 +20,7 @@ class SessionRuntime(Protocol):
     def rtc_session(
         self,
         *,
+        agent_name: str = "",
         on_request: Callable[[JobRequest], Any] | None = None,
         on_session_end: Callable[[JobContext], Any] | None = None,
     ) -> Callable[[Callable[..., Any]], Any]: ...

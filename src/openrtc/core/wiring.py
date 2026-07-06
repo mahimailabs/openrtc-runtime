@@ -233,6 +233,8 @@ def wire_pool(
     server: SessionRuntime,
     runtime_state: _PoolRuntimeState,
     request_fnc: RequestFilter | None = None,
+    *,
+    agent_name: str | None = None,
 ) -> None:
     """Bind prewarm and the session entrypoint onto the server.
 
@@ -241,9 +243,15 @@ def wire_pool(
     behavior; a filter lets the worker scope which rooms it handles.
     ``run_session_end`` is registered as the per-job end hook so a held-open
     coroutine session reports its end at real disconnect (MAH-166).
+
+    ``agent_name`` is the worker's LiveKit dispatch name. ``None`` maps to the
+    upstream ``""`` sentinel, registering an unnamed worker for automatic
+    dispatch (LiveKit offers it every room); a non-empty name registers the
+    worker for explicit dispatch under that name.
     """
     server.setup_fnc = partial(_prewarm_worker, runtime_state)
     server.rtc_session(
+        agent_name=agent_name or "",
         on_request=request_fnc,
         on_session_end=run_session_end,
     )(partial(run_session, runtime_state))

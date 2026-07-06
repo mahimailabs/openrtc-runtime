@@ -67,6 +67,26 @@ def test_wire_pool_registers_session_end_hook() -> None:
     assert server.rtc_session_kwargs["on_session_end"] is run_session_end
 
 
+def test_wire_pool_threads_agent_name_to_rtc_session() -> None:
+    """A named worker registers under its LiveKit dispatch name (explicit dispatch)."""
+    from openrtc.core.wiring import wire_pool
+
+    server = _RecordingServer()
+    wire_pool(server, _PoolRuntimeState(agents={}), agent_name="realty")
+
+    assert server.rtc_session_kwargs["agent_name"] == "realty"
+
+
+def test_wire_pool_defaults_agent_name_to_empty_for_automatic_dispatch() -> None:
+    """No name -> the upstream ``""`` sentinel, i.e. automatic dispatch (unchanged)."""
+    from openrtc.core.wiring import wire_pool
+
+    server = _RecordingServer()
+    wire_pool(server, _PoolRuntimeState(agents={}))
+
+    assert server.rtc_session_kwargs["agent_name"] == ""
+
+
 def test_is_held_open_session_predicate() -> None:
     from openrtc.core.wiring import _is_held_open_session
 
