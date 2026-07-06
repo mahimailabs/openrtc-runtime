@@ -163,6 +163,24 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.18.0] - 2026-07-06
+
+## What's Changed
+* test(v0.4): three-agent pool success gate (MAH-100) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/67
+* docs: adoption-first restructure for livekit-agents users by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/68
+* docs: lead with the livekit-agents adoption path by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/69
+* chore(actions)(deps): bump codecov/codecov-action from 5 to 7 by @dependabot[bot] in https://github.com/mahimailabs/openrtc-runtime/pull/46
+* chore(actions)(deps): bump astral-sh/setup-uv from 6 to 7 by @dependabot[bot] in https://github.com/mahimailabs/openrtc-runtime/pull/47
+* chore(actions)(deps): bump actions/upload-artifact from 4 to 7 by @dependabot[bot] in https://github.com/mahimailabs/openrtc-runtime/pull/57
+* feat(dispatch): named-worker support via AgentPool(agent_name=...) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/71
+
+## New Contributors
+* @dependabot[bot] made their first contribution in https://github.com/mahimailabs/openrtc-runtime/pull/46
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.17.0...v0.18.0
+
+---
+
 ## [0.17.0] - 2026-07-05
 
 ## v0.6 — Zero-downtime worker upgrades
