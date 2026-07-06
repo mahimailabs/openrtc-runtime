@@ -219,6 +219,14 @@ pool = AgentPool(request_fnc=support_filter)
 
 `request_fnc` is LiveKit's `on_request` hook, threaded straight through. The default is `None` (accept every job, unchanged). The two options are mutually exclusive.
 
+**Named worker (explicit dispatch).** By default the pool registers an *unnamed* worker: LiveKit uses **automatic dispatch** and offers it every room, and OpenRTC's router picks the agent. If your caller instead requests an **explicit dispatch** by name (`agent_dispatch.create_dispatch(agent_name="realty")`, or a room created with `roomConfig.agents[].agentName`), name the pool so LiveKit routes the dispatch (and its per-dispatch metadata) to this worker:
+
+```python
+pool = AgentPool(agent_name="realty")   # register for explicit dispatch as "realty"
+```
+
+LiveKit only hands an explicit dispatch to a worker registered under that name, so an unnamed pool never receives one. `agent_name` is orthogonal to routing: it decides *which worker LiveKit picks*, while the routing chain decides *which registered agent* handles a job the worker already accepted.
+
 ## Session observers
 
 Attach external telemetry to every session without subclassing or touching internals. Any object with two async methods satisfies the `SessionObserver` protocol (structural typing, no base class):
