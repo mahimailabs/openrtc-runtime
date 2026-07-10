@@ -1,10 +1,10 @@
 ---
 title: Density Benchmark (v0.1)
-description: 50+ concurrent sessions per worker at under 4 GB peak RSS — methodology and results.
+description: 50+ concurrent sessions per worker at under 4 GB peak RSS (methodology and results).
 icon: gauge-high
 ---
 
-# Density Benchmark — v0.1
+# Density Benchmark: v0.1
 
 Phase 1 success gate from `docs/design/v0.1.md` §7:
 
@@ -57,7 +57,7 @@ error.
 
 ## Results
 
-### 2026-05-03 — local: macOS Darwin 24.3.0 / Python 3.13.5 / uv 0.8.15 / arm64
+### 2026-05-03: local: macOS Darwin 24.3.0 / Python 3.13.5 / uv 0.8.15 / arm64
 
 Three back-to-back runs at the §7 gate (50 sessions, 4096 MB budget) plus
 a headroom sweep:
@@ -75,8 +75,8 @@ Notes:
 
 - Per-session memory tracks the 5 MB buffer up to ~200 sessions; at 500
   sessions GC starts compacting and the per-session amortized cost drops
-  to ~2.5 MB. This says nothing about real workloads — under 5 MB
-  buffers are tiny — but it confirms the asyncio scheduler is not
+  to ~2.5 MB. This says nothing about real workloads (under 5 MB
+  buffers are tiny) but it confirms the asyncio scheduler is not
   pathologically expensive at scale.
 - Walltime stays in the 1.0-1.3 s band (essentially the 1 s sleep + tiny
   setup/teardown) across 50-500 sessions. There is no quadratic
@@ -92,7 +92,7 @@ per-session footprint validation (and the ~50-100 sessions per 4 GB
 working number) is deferred to the §8.4 real-LiveKit integration tests
 once the dev-server harness lands in Phase 2.
 
-### 2026-05-05 — local: macOS Darwin 24.3.0 / Python 3.13.5 / arm64 (10 cores, 16 GB)
+### 2026-05-05: local: macOS Darwin 24.3.0 / Python 3.13.5 / arm64 (10 cores, 16 GB)
 
 Re-run after `tests/benchmarks/density.py` was extended with scheduler-
 latency sampling (10 ms cadence, median + p99 + max) and a hardware
@@ -113,13 +113,13 @@ Notes:
 - Peak-RSS numbers track the 2026-05-03 row at the same N=50 config
   (~367 MB), confirming no regression from the benchmark instrumentation
   additions.
-- Scheduler median latency holds in the 1.06-1.10 ms band — well below
+- Scheduler median latency holds in the 1.06-1.10 ms band, well below
   the 10 ms sampling interval, so the loop is not starved at this load.
 - Scheduler p99 sits at 3-6 ms; the higher values (50-64 ms) on runs A
   and B come from a single-sample tail spike each (the `max` column),
   most likely a transient OS scheduling event on a busy laptop. Run C,
   with all background processes quiet, lands at p99 = 3.19 ms / max =
-  3.36 ms — the clean baseline. The p99 is the load-bearing number for
+  3.36 ms, the clean baseline. The p99 is the load-bearing number for
   worker stability; the tail max is an environmental artefact.
 - Walltime stays in the same 1.0-1.1 s band (≈ 1 s sleep + setup).
 

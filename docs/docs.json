@@ -1,0 +1,109 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "OpenRTC",
+  "colors": {
+    "primary": "#006f94",
+    "light": "#5ae4ff",
+    "dark": "#006f94"
+  },
+  "favicon": "/public/logo.svg",
+  "logo": {
+    "light": "/public/logo.png",
+    "dark": "/public/logo.png"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Overview",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "index",
+              "coming-from-livekit-agents"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Guide",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "getting-started",
+              "examples"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/routing",
+              "concepts/hot-reload",
+              "concepts/session-introspection",
+              "concepts/multi-tenancy",
+              "concepts/migration"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "operations/deployments",
+              "operations/monitoring-deploys",
+              "operations/rollback",
+              "compliance/audit-events",
+              "runbooks/debugging-density",
+              "runbooks/onboarding-a-tenant",
+              "runbooks/tenant-incident"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI",
+        "groups": [
+          {
+            "group": "CLI",
+            "pages": [
+              "cli",
+              "cli/top"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Reference",
+            "pages": [
+              "api/pool",
+              "benchmarks/density-v0.1",
+              "changelog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/mahimailabs/openrtc"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "PyPI",
+      "href": "https://pypi.org/project/openrtc"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/mahimailabs/openrtc"
+    }
+  }
+}
