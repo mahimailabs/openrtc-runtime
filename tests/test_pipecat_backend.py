@@ -11,7 +11,12 @@ from pipecat.observers.base_observer import FramePushed
 from pipecat.processors.frame_processor import Frame, FrameDirection, FrameProcessor
 from pipecat.tests.utils import run_test
 
-from openrtc.backends.pipecat.backend import PipecatBackend, build_backend
+from openrtc import AgentPool
+from openrtc.backends.pipecat.backend import (
+    PipecatAgentConfig,
+    PipecatBackend,
+    build_backend,
+)
 from openrtc.backends.pipecat.dispatch import dispatch_pipecat_call
 from openrtc.backends.pipecat.observer import PipecatLifecycleObserver
 from openrtc.backends.pipecat.session import build_pipecat_session
@@ -269,6 +274,49 @@ def test_pipecat_backend_drain_is_idempotent() -> None:
     assert backend.begin_drain() is True
     assert backend.draining is True
     assert backend.begin_drain() is False  # already draining
+
+
+# --- AgentPool(backend="pipecat") ------------------------------------------
+
+
+def test_agent_pool_pipecat_registers_builders() -> None:
+    pool = AgentPool(backend="pipecat")
+    config = pool.add("support", _builder_recording("support", []))
+    assert isinstance(config, PipecatAgentConfig)
+    assert config.name == "support"
+    assert pool.list_agents() == ["support"]
+
+
+def test_agent_pool_pipecat_rejects_duplicate_and_non_callable() -> None:
+    pool = AgentPool(backend="pipecat")
+    pool.add("support", _builder_recording("support", []))
+    with pytest.raises(ValueError, match="already registered"):
+        pool.add("support", _builder_recording("support", []))
+    with pytest.raises(TypeError, match="callable pipeline builder"):
+        pool.add("bad", 42)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_agent_pool_pipecat_backend_dispatches_a_registered_builder() -> None:
+    recorder = _RecordingObserver()
+    pool = AgentPool(backend="pipecat", observers=[recorder])
+    seen: list[str] = []
+    pool.add("support", _builder_recording("support", seen))
+    assert isinstance(pool._backend, PipecatBackend)
+    processors, observer = pool._backend.dispatch(_view_routing_to("support"))
+    assert seen == ["support"]  # the pool's registration reached the backend
+    await simulate_call(processors, user_frames=[TextFrame("hi")], observers=[observer])
+    assert recorder.start_infos[0].agent_name == "support"  # pool observer threaded
+
+
+def test_agent_pool_pipecat_run_requires_an_agent() -> None:
+    with pytest.raises(RuntimeError, match="Register at least one agent"):
+        AgentPool(backend="pipecat").run()
+
+
+def test_agent_pool_pipecat_rejects_hot_reload() -> None:
+    with pytest.raises(ValueError, match="requires the livekit backend"):
+        AgentPool(backend="pipecat", enable_hot_reload=True)
 
 
 @pytest.mark.asyncio

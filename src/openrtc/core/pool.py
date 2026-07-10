@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from openrtc.backends.registry import resolve_backend_builder
 from openrtc.core.audit import DEPLOYMENT_DRAIN_STARTED, AuditLog, AuditSink
@@ -54,6 +54,7 @@ logger = logging.getLogger("openrtc")
 if TYPE_CHECKING:
     from livekit.agents import Agent, AgentServer
 
+    from openrtc.backends.pipecat.backend import PipecatAgentConfig
     from openrtc.core.backend import Backend
     from openrtc.observability.introspection_runtime import IntrospectionRuntime
 
@@ -345,7 +346,12 @@ class AgentPool:
             agent_name=self._agent_name,
         )
         self._introspection: IntrospectionRuntime | None = None
-        if enable_introspection and isolation == "coroutine":
+        # openrtc top attaches to the coroutine AgentServer, so it is livekit-only.
+        if (
+            enable_introspection
+            and isolation == "coroutine"
+            and self._backend_name == "livekit"
+        ):
             self._setup_introspection(
                 slow_session_threshold_ms, introspection_socket_path
             )
@@ -389,8 +395,11 @@ class AgentPool:
         """Wire live-session tracking and the reload coordinator onto the worker.
 
         Hot reload is coroutine-mode only: process mode runs one subprocess per
-        session and cannot swap an agent class in place.
+        session and cannot swap an agent class in place. It is also livekit-only
+        (it swaps a live ``AgentSession``'s agent class).
         """
+        if self._backend_name != "livekit":
+            raise ValueError("enable_hot_reload requires the livekit backend.")
         if self._isolation != "coroutine":
             raise ValueError(
                 "enable_hot_reload requires isolation='coroutine'; process mode "
@@ -529,7 +538,7 @@ class AgentPool:
     def add(
         self,
         name: str,
-        agent_cls: type[Agent],
+        agent_cls: type[Agent] | Callable[..., Any],
         *,
         stt: ProviderValue | None = None,
         llm: ProviderValue | None = None,
@@ -538,11 +547,20 @@ class AgentPool:
         session_kwargs: Mapping[str, Any] | None = None,
         source_path: Path | str | None = None,
         **session_options: Any,
-    ) -> AgentConfig:
-        """Register an agent in the pool and return its configuration."""
+    ) -> AgentConfig | PipecatAgentConfig:
+        """Register an agent in the pool and return its configuration.
+
+        On the livekit backend ``agent_cls`` is a ``livekit.agents.Agent``
+        subclass. On the pipecat backend it is a pipeline builder callable
+        ``(SessionView) -> processors``; the provider / session options are
+        livekit-only (the builder owns the pipecat pipeline) and are ignored.
+        """
+        normalized_name = require_agent_name(name)
+        if self._backend_name != "livekit":
+            return self._register_pipeline_builder(normalized_name, agent_cls)
+
         from livekit.agents import Agent
 
-        normalized_name = require_agent_name(name)
         if normalized_name in self._agents:
             raise ValueError(f"Agent '{normalized_name}' is already registered.")
         if not isinstance(agent_cls, type) or not issubclass(agent_cls, Agent):
@@ -571,6 +589,24 @@ class AgentPool:
         logger.debug("Registered agent '%s'.", normalized_name)
         return config
 
+    def _register_pipeline_builder(
+        self, name: str, builder: object
+    ) -> PipecatAgentConfig:
+        """Register a pipecat pipeline builder on the backend (the pipecat add())."""
+        from openrtc.backends.pipecat.backend import (
+            PipecatAgentConfig,
+            PipecatBackend,
+        )
+
+        if not callable(builder):
+            raise TypeError(
+                "On the pipecat backend, add() takes a callable pipeline builder."
+            )
+        assert isinstance(self._backend, PipecatBackend)
+        self._backend.register(name, builder)
+        logger.debug("Registered pipecat agent '%s'.", name)
+        return PipecatAgentConfig(name=name, builder=builder)
+
     def discover(self, agents_dir: str | Path) -> list[AgentConfig]:
         """Discover and register agent modules from a directory; return registered configs."""
         directory = Path(agents_dir).expanduser().resolve()
@@ -589,14 +625,19 @@ class AgentPool:
             agent_cls = _find_local_agent_subclass(module)
             metadata = _resolve_discovery_metadata(agent_cls)
             agent_name = metadata.name or module_path.stem
-            config = self.add(
-                agent_name,
-                agent_cls,
-                stt=metadata.stt,
-                llm=metadata.llm,
-                tts=metadata.tts,
-                greeting=metadata.greeting,
-                source_path=module_path,
+            # discover() loads livekit Agent subclasses, so add() takes the
+            # livekit path and returns an AgentConfig.
+            config = cast(
+                "AgentConfig",
+                self.add(
+                    agent_name,
+                    agent_cls,
+                    stt=metadata.stt,
+                    llm=metadata.llm,
+                    tts=metadata.tts,
+                    greeting=metadata.greeting,
+                    source_path=module_path,
+                ),
             )
             logger.info(
                 "Discovered agent '%s' from %s using class %s.",
@@ -610,6 +651,11 @@ class AgentPool:
 
     def list_agents(self) -> list[str]:
         """Return registered agent names in registration order."""
+        if self._backend_name != "livekit":
+            from openrtc.backends.pipecat.backend import PipecatBackend
+
+            assert isinstance(self._backend, PipecatBackend)
+            return self._backend.registered_names()
         return list(self._agents)
 
     def get(self, name: str) -> AgentConfig:
@@ -643,12 +689,12 @@ class AgentPool:
         self._runtime_state.observers.append(observer)
 
     def run(self) -> None:
-        """Run the LiveKit worker for the registered agents.
+        """Run the worker for the registered agents on the selected backend.
 
         Raises:
             RuntimeError: If no agents were registered before startup.
         """
-        if not self._agents:
+        if not self.list_agents():
             raise RuntimeError("Register at least one agent before calling run().")
         self._backend.run()
 

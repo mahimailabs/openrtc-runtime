@@ -11,6 +11,7 @@ piece; ``run`` documents that boundary.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from openrtc.backends.pipecat.dispatch import dispatch_pipecat_call
@@ -28,9 +29,21 @@ if TYPE_CHECKING:
     from openrtc.runtime.registry import ServerParams
     from openrtc.utils.types import AgentRouter, RequestFilter
 
-__all__ = ["PipecatBackend", "build_backend"]
+__all__ = ["PipecatAgentConfig", "PipecatBackend", "build_backend"]
 
 _DEFAULT_OBSERVER_TIMEOUT = 30.0
+
+
+@dataclass(frozen=True, slots=True)
+class PipecatAgentConfig:
+    """A registered pipecat agent: a name and its pipeline builder.
+
+    The pipecat counterpart of ``AgentConfig`` (which holds a livekit ``Agent``
+    class). Returned by ``AgentPool.add`` on the pipecat backend.
+    """
+
+    name: str
+    builder: PipelineBuilder
 
 
 class PipecatBackend:
@@ -78,7 +91,13 @@ class PipecatBackend:
 
     def register(self, name: str, builder: PipelineBuilder) -> None:
         """Register a pipeline builder under an agent name (``pool.add`` on pipecat)."""
+        if name in self._builders:
+            raise ValueError(f"Agent '{name}' is already registered.")
         self._builders[name] = builder
+
+    def registered_names(self) -> list[str]:
+        """Return the registered agent names in registration order."""
+        return list(self._builders)
 
     def dispatch(
         self, view: SessionView
