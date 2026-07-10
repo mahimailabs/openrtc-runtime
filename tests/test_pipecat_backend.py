@@ -276,6 +276,30 @@ def test_pipecat_backend_drain_is_idempotent() -> None:
     assert backend.begin_drain() is False  # already draining
 
 
+def test_pipecat_backend_get_and_remove_registered_builders() -> None:
+    backend = PipecatBackend(_PARAMS)
+    builder = _builder_recording("support", [])
+    backend.register("support", builder)
+
+    got = backend.get("support")
+    assert isinstance(got, PipecatAgentConfig)
+    assert got.name == "support"
+    assert got.builder is builder  # get exposes the registered builder
+
+    removed = backend.remove("support")
+    assert isinstance(removed, PipecatAgentConfig)
+    assert removed.builder is builder
+    assert backend.registered_names() == []  # remove unregisters it
+
+
+def test_pipecat_backend_get_and_remove_reject_an_unknown_agent() -> None:
+    backend = PipecatBackend(_PARAMS)
+    with pytest.raises(KeyError, match="Unknown agent 'ghost'"):
+        backend.get("ghost")
+    with pytest.raises(KeyError, match="Unknown agent 'ghost'"):
+        backend.remove("ghost")
+
+
 # --- AgentPool(backend="pipecat") ------------------------------------------
 
 
@@ -317,6 +341,41 @@ def test_agent_pool_pipecat_run_requires_an_agent() -> None:
 def test_agent_pool_pipecat_rejects_hot_reload() -> None:
     with pytest.raises(ValueError, match="requires the livekit backend"):
         AgentPool(backend="pipecat", enable_hot_reload=True)
+
+
+def test_agent_pool_pipecat_get_returns_the_registered_config() -> None:
+    pool = AgentPool(backend="pipecat")
+    builder = _builder_recording("support", [])
+    pool.add("support", builder)
+    config = pool.get("support")
+    assert isinstance(config, PipecatAgentConfig)
+    assert config.name == "support"
+    assert config.builder is builder
+
+
+def test_agent_pool_pipecat_get_rejects_an_unknown_agent() -> None:
+    pool = AgentPool(backend="pipecat")
+    with pytest.raises(KeyError, match="Unknown agent 'ghost'"):
+        pool.get("ghost")
+
+
+def test_agent_pool_pipecat_remove_unregisters_the_builder() -> None:
+    pool = AgentPool(backend="pipecat")
+    builder = _builder_recording("support", [])
+    pool.add("support", builder)
+    removed = pool.remove("support")
+    assert isinstance(removed, PipecatAgentConfig)
+    assert removed.builder is builder
+    assert pool.list_agents() == []  # gone from the registry
+    # the freed name can be registered again
+    pool.add("support", _builder_recording("support", []))
+    assert pool.list_agents() == ["support"]
+
+
+def test_agent_pool_pipecat_remove_rejects_an_unknown_agent() -> None:
+    pool = AgentPool(backend="pipecat")
+    with pytest.raises(KeyError, match="Unknown agent 'ghost'"):
+        pool.remove("ghost")
 
 
 @pytest.mark.asyncio
