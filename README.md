@@ -61,11 +61,11 @@ Full release history: [docs/changelog.md](docs/changelog.md).
 ## Quick start
 
 ```bash
-pip install openrtc            # or: uv add openrtc
-pip install "openrtc[cli]"     # adds the openrtc CLI (rich + typer)
+pip install "openrtc[livekit]"        # or: uv add "openrtc[livekit]"
+pip install "openrtc[livekit,cli]"    # adds the openrtc CLI (rich + typer)
 ```
 
-Requires Python 3.11 to 3.13 (`>=3.11,<3.14`; the transitive `onnxruntime` behind Silero and the turn detector has no 3.10 wheels). The base install pulls `livekit-agents[openai,silero,turn-detector]>=1.5,<1.7` and `watchfiles`. Ships a PEP 561 `py.typed` marker. Set `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` as for any LiveKit worker.
+Requires Python 3.11 to 3.13 (`>=3.11,<3.14`; the transitive `onnxruntime` behind Silero and the turn detector has no 3.10 wheels). The voice framework is an opt-in extra: `import openrtc` pulls neither livekit nor pipecat, and the neutral core is just `watchfiles`. The default livekit backend ships as `openrtc[livekit]`, which pulls `livekit-agents[openai,silero,turn-detector]>=1.5,<1.7`. Ships a PEP 561 `py.typed` marker. Set `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` as for any LiveKit worker.
 
 **Explicit registration with `add()`** when you want every agent named and configured in one place:
 

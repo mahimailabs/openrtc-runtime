@@ -23,27 +23,31 @@ wheels for CPython 3.10 in current releases). See the repository's
 
 ## Install
 
+The voice framework is an opt-in extra: `import openrtc` pulls neither livekit
+nor pipecat. The livekit backend is the default, so install `openrtc[livekit]`
+to run it (add `cli` for the CLI):
+
 <Tabs>
   <Tab title="uv (recommended)">
     ```bash
-    uv add openrtc
+    uv add "openrtc[livekit]"
     ```
 
     Include the CLI extras (`openrtc list`, `openrtc start`, `openrtc dev`, `openrtc console`, ...):
 
     ```bash
-    uv add "openrtc[cli]"
+    uv add "openrtc[livekit,cli]"
     ```
   </Tab>
   <Tab title="pip">
     ```bash
-    pip install openrtc
+    pip install "openrtc[livekit]"
     ```
 
     With CLI extras:
 
     ```bash
-    pip install 'openrtc[cli]'
+    pip install 'openrtc[livekit,cli]'
     ```
   </Tab>
   <Tab title="Editable (contributors)">

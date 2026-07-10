@@ -82,6 +82,47 @@ def test_agent_pool_rejects_an_unknown_backend() -> None:
         AgentPool(backend="bogus")
 
 
+def test_resolve_backend_builder_hints_install_when_framework_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import importlib
+
+    from openrtc.backends import registry
+
+    real = importlib.import_module
+
+    def fake(module_name: str, *args: object, **kwargs: object) -> object:
+        if module_name == "openrtc.backends.livekit":
+            raise ModuleNotFoundError("No module named 'livekit'", name="livekit")
+        return real(module_name)
+
+    monkeypatch.setattr(registry.importlib, "import_module", fake)
+    with pytest.raises(ImportError, match=r"pip install openrtc\[livekit\]"):
+        registry.resolve_backend_builder("livekit")
+
+
+def test_resolve_backend_builder_propagates_unrelated_import_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import importlib
+
+    from openrtc.backends import registry
+
+    real = importlib.import_module
+
+    def fake(module_name: str, *args: object, **kwargs: object) -> object:
+        if module_name == "openrtc.backends.livekit":
+            raise ModuleNotFoundError(
+                "No module named 'notaframework'", name="notaframework"
+            )
+        return real(module_name)
+
+    monkeypatch.setattr(registry.importlib, "import_module", fake)
+    # A missing module that is not the framework must not be masked by the hint.
+    with pytest.raises(ModuleNotFoundError, match="notaframework"):
+        registry.resolve_backend_builder("livekit")
+
+
 # --- run / drain migrated onto the Backend ---------------------------------
 
 
