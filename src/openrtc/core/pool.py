@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from livekit.agents import Agent, AgentServer
 
-from openrtc.backends.livekit.backend import build_backend
+from openrtc.backends.registry import resolve_backend_builder
 from openrtc.core.audit import DEPLOYMENT_DRAIN_STARTED, AuditLog, AuditSink
 from openrtc.core.circuit_breaker import TenantCircuitBreaker
 from openrtc.core.config import (
@@ -78,6 +78,7 @@ class AgentPool:
         default_tts: ProviderValue | None = None,
         default_greeting: str | None = None,
         observers: Sequence[SessionObserver] | None = None,
+        backend: str = "livekit",
         isolation: IsolationMode = "coroutine",
         max_concurrent_sessions: int = 50,
         consecutive_failure_limit: int = 5,
@@ -204,6 +205,10 @@ class AgentPool:
         if agent is not None and agents is not None:
             raise ValueError("Pass either agent or agents, not both.")
         validate_isolation(isolation)
+        # The voice framework this pool runs on. Defaults to livekit; a pipecat
+        # backend plugs in behind openrtc[pipecat]. resolve_backend_builder rejects
+        # an unknown name and lazily imports only the selected framework.
+        self._backend_name = backend
         self._isolation: IsolationMode = isolation
         self._max_concurrent_sessions = require_positive_int(
             "max_concurrent_sessions", max_concurrent_sessions
@@ -248,7 +253,7 @@ class AgentPool:
         # The livekit backend builds and wraps the AgentServer for the isolation
         # mode; run and drain run through the seam, while introspection and reload
         # still read the raw server (exposed as .server) until they migrate too.
-        self._backend: Backend = build_backend(
+        self._backend: Backend = resolve_backend_builder(self._backend_name)(
             self._build_server_params(), self._isolation
         )
         self._server: AgentServer = self._backend.raw_server
