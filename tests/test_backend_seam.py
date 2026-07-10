@@ -10,6 +10,8 @@ server and are migrated onto the seam in later steps.
 
 from __future__ import annotations
 
+import pytest
+
 from openrtc import AgentPool
 from openrtc.backends.livekit.backend import LiveKitBackend
 from openrtc.core.backend import Backend
@@ -49,6 +51,42 @@ def test_agent_pool_drives_a_livekit_backend() -> None:
     assert isinstance(pool._backend, LiveKitBackend)
     assert isinstance(pool._backend, Backend)
     # The raw server stays the same object the pool exposes as .server, so the
-    # introspection / reload / drain code that still reads it is unaffected.
+    # introspection / reload code that still reads it is unaffected.
     assert pool._server is pool._backend.raw_server
     assert pool.server is pool._backend.raw_server
+
+
+# --- run / drain migrated onto the Backend ---------------------------------
+
+
+class _StubCoroutinePool:
+    def __init__(self) -> None:
+        self.draining = False
+
+    def begin_drain(self) -> None:
+        self.draining = True
+
+
+def test_run_delegates_to_cli_run_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    import openrtc.backends.livekit.backend as backend_mod
+
+    server = _server()
+    captured: list[object] = []
+    monkeypatch.setattr(backend_mod.cli, "run_app", lambda s: captured.append(s))
+    LiveKitBackend(server).run()
+    assert captured == [server]
+
+
+def test_begin_drain_returns_false_without_a_running_pool() -> None:
+    backend = LiveKitBackend(_server())
+    assert backend.begin_drain() is False
+    assert backend.draining is False
+
+
+def test_begin_drain_delegates_to_the_coroutine_pool() -> None:
+    server = _server()
+    server._coroutine_pool = _StubCoroutinePool()  # type: ignore[attr-defined]
+    backend = LiveKitBackend(server)
+    assert backend.begin_drain() is True
+    assert backend.draining is True
+    assert server.coroutine_pool.draining is True  # type: ignore[attr-defined]

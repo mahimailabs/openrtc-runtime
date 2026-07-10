@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from livekit.agents import Agent, AgentServer, cli
+from livekit.agents import Agent, AgentServer
 
 from openrtc.backends.livekit.backend import LiveKitBackend
 from openrtc.core.audit import DEPLOYMENT_DRAIN_STARTED, AuditLog, AuditSink
@@ -483,8 +483,7 @@ class AgentPool:
     @property
     def draining(self) -> bool:
         """``True`` once the worker has begun draining (rejecting new jobs, MAH-109)."""
-        pool = getattr(self._server, "coroutine_pool", None)
-        return bool(getattr(pool, "draining", False))
+        return self._backend.draining
 
     def begin_drain(self) -> None:
         """Start a blue-green drain: reject new jobs; in-flight calls run to hangup.
@@ -494,10 +493,7 @@ class AgentPool:
         coordinator. A no-op if the worker's coroutine pool is not running yet or in
         process isolation (where the platform drains each subprocess directly).
         """
-        pool = getattr(self._server, "coroutine_pool", None)
-        begin = getattr(pool, "begin_drain", None)
-        if callable(begin):
-            begin()
+        if self._backend.begin_drain():
             logger.info(
                 "Pool draining: rejecting new jobs; in-flight calls run to hangup."
             )
@@ -646,7 +642,7 @@ class AgentPool:
         """
         if not self._agents:
             raise RuntimeError("Register at least one agent before calling run().")
-        cli.run_app(self._server)
+        self._backend.run()
 
     def _resolve_provider(
         self,

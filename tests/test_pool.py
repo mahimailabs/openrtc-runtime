@@ -939,8 +939,10 @@ def test_run_invokes_cli_run_app_when_agents_are_registered(
     """``run()`` hands the configured server to LiveKit's ``cli.run_app``."""
     captured: list[object] = []
 
+    # run() now hands off through the livekit backend, which owns the cli call.
     monkeypatch.setattr(
-        "openrtc.core.pool.cli.run_app", lambda server: captured.append(server)
+        "openrtc.backends.livekit.backend.cli.run_app",
+        lambda server: captured.append(server),
     )
     pool = AgentPool()
     pool.add("a", DemoAgent)

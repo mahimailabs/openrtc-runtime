@@ -11,11 +11,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from livekit.agents import AgentServer, cli
+
 from openrtc.core.wiring import wire_pool
 
 if TYPE_CHECKING:
     from openrtc.core.wiring import _PoolRuntimeState
-    from openrtc.runtime.base_runtime import SessionRuntime
     from openrtc.utils.types import RequestFilter
 
 __all__ = ["LiveKitBackend"]
@@ -26,7 +27,7 @@ class LiveKitBackend:
 
     __slots__ = ("_server",)
 
-    def __init__(self, server: SessionRuntime) -> None:
+    def __init__(self, server: AgentServer) -> None:
         self._server = server
 
     @property
@@ -43,3 +44,26 @@ class LiveKitBackend:
     ) -> None:
         """Bind shared prewarm and the universal session entrypoint onto the server."""
         wire_pool(self._server, runtime_state, request_fnc, agent_name=agent_name)
+
+    def run(self) -> None:
+        """Hand the worker to livekit's CLI runtime (blocking until it exits)."""
+        cli.run_app(self._server)
+
+    def begin_drain(self) -> bool:
+        """Begin draining the coroutine pool if one is running; return whether it did.
+
+        A no-op returning ``False`` in process isolation or before the pool starts
+        (the platform drains each subprocess directly there).
+        """
+        pool = getattr(self._server, "coroutine_pool", None)
+        begin = getattr(pool, "begin_drain", None)
+        if callable(begin):
+            begin()
+            return True
+        return False
+
+    @property
+    def draining(self) -> bool:
+        """Whether the coroutine pool has begun draining (rejecting new jobs)."""
+        pool = getattr(self._server, "coroutine_pool", None)
+        return bool(getattr(pool, "draining", False))

@@ -45,3 +45,21 @@ class Backend(Protocol):
     ) -> None:
         """Bind shared prewarm and the universal session entrypoint onto the server."""
         ...
+
+    def run(self) -> None:
+        """Hand the worker to the framework's runtime (blocking until it exits)."""
+        ...
+
+    def begin_drain(self) -> bool:
+        """Begin draining if the substrate is running; return whether it did.
+
+        Returns ``False`` when there is nothing to drain (no running pool, or a
+        backend without a drain concept), so the caller can skip drain-side
+        effects such as the audit event.
+        """
+        ...
+
+    @property
+    def draining(self) -> bool:
+        """Whether the worker has begun draining (rejecting new jobs)."""
+        ...
