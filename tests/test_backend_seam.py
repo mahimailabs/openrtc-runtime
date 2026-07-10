@@ -56,6 +56,32 @@ def test_agent_pool_drives_a_livekit_backend() -> None:
     assert pool.server is pool._backend.raw_server
 
 
+# --- backend selection -----------------------------------------------------
+
+
+def test_resolve_backend_builder_returns_the_livekit_builder() -> None:
+    from openrtc.backends.livekit import build_backend
+    from openrtc.backends.registry import resolve_backend_builder
+
+    assert resolve_backend_builder("livekit") is build_backend
+
+
+def test_resolve_backend_builder_rejects_unknown_backend() -> None:
+    from openrtc.backends.registry import resolve_backend_builder
+
+    with pytest.raises(ValueError, match="Unknown backend 'bogus'"):
+        resolve_backend_builder("bogus")
+
+
+def test_agent_pool_defaults_to_the_livekit_backend() -> None:
+    assert isinstance(AgentPool(backend="livekit")._backend, LiveKitBackend)
+
+
+def test_agent_pool_rejects_an_unknown_backend() -> None:
+    with pytest.raises(ValueError, match="Unknown backend 'bogus'"):
+        AgentPool(backend="bogus")
+
+
 # --- run / drain migrated onto the Backend ---------------------------------
 
 
