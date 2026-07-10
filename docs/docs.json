@@ -40,6 +40,7 @@
             "group": "Concepts",
             "pages": [
               "concepts/architecture",
+              "concepts/frameworks",
               "concepts/routing",
               "concepts/hot-reload",
               "concepts/session-introspection",
