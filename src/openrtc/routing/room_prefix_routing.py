@@ -2,29 +2,26 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection
 
-from openrtc.core.config import AgentConfig
 from openrtc.core.session_view import SessionView
 from openrtc.routing.base_routing import logger
 
 
 class _RoomNamePrefixStrategy:
-    """Resolve when the room name starts with ``<agent>-``."""
+    """Resolve the name whose ``<name>-`` prefix the room name starts with."""
 
-    def resolve(
-        self, agents: Mapping[str, AgentConfig], view: SessionView
-    ) -> AgentConfig | None:
+    def resolve(self, agent_names: Collection[str], view: SessionView) -> str | None:
         # The view resolves the pre-connect room name (job room preferred over the
         # rtc room, which is empty until connect) and always yields a str, so a
         # non-matching or absent name simply matches no prefix and defers.
         room_name = view.room_name
-        for agent_name, config in agents.items():
-            if room_name.startswith(f"{agent_name}-"):
+        for name in agent_names:
+            if room_name.startswith(f"{name}-"):
                 logger.info(
                     "Resolved agent '%s' via room name prefix from room '%s'.",
-                    agent_name,
+                    name,
                     room_name,
                 )
-                return config
+                return name
         return None

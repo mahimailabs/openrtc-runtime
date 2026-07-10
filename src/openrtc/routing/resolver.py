@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from typing import Any
 
 from openrtc.core.config import AgentConfig
@@ -46,11 +46,11 @@ def _metadata_to_mapping(metadata: Any) -> Mapping[str, Any] | None:
 
 
 def _resolve_via_router(
-    agents: Mapping[str, AgentConfig],
+    agent_names: Collection[str],
     view: SessionView,
     router: AgentRouter,
-) -> AgentConfig | None:
-    """Resolve the agent via the custom router, or ``None`` to defer to the chain.
+) -> str | None:
+    """Resolve the agent name via the custom router, or ``None`` to defer.
 
     An unknown agent name or a raised router rejects the session (raises
     ``ValueError``, which aborts the entrypoint). Returning ``None`` lets the
@@ -67,13 +67,35 @@ def _resolve_via_router(
         ) from exc
     if name is None:
         return None
-    config = agents.get(name)
-    if config is None:
+    if name not in agent_names:
         raise ValueError(
             f"Custom router returned unknown agent '{name}' for job '{job_id}'."
         )
     logger.info("Router resolved agent '%s' for job '%s'.", name, job_id)
-    return config
+    return name
+
+
+def _resolve_agent_name(
+    agent_names: Collection[str],
+    view: SessionView,
+    *,
+    router: AgentRouter | None = None,
+) -> str:
+    """Resolve which registered agent name handles a call: router, then the chain.
+
+    Backend-neutral: every backend routes with the same precedence (custom router,
+    then job / room metadata, then room-name prefix, then first registered), then
+    looks the name up in its own registry.
+    """
+    if router is not None:
+        name = _resolve_via_router(agent_names, view, router)
+        if name is not None:
+            return name
+    for strategy in _ROUTING_STRATEGIES:
+        name = strategy.resolve(agent_names, view)
+        if name is not None:
+            return name
+    raise RuntimeError("No routing strategy resolved an agent.")  # pragma: no cover
 
 
 def _resolve_agent_config(
@@ -82,7 +104,7 @@ def _resolve_agent_config(
     *,
     router: AgentRouter | None = None,
 ) -> AgentConfig:
-    """Resolve the agent for a session: custom router first, then the default chain.
+    """Resolve the agent config for a session: name resolution, then lookup.
 
     ``ctx`` is a livekit ``JobContext`` (or any object shaped like one). It is
     adapted to the backend-neutral :class:`SessionView` once here, so the router
@@ -91,12 +113,5 @@ def _resolve_agent_config(
     if not agents:
         raise RuntimeError("No agents are registered in the pool.")
     view = for_livekit(ctx)
-    if router is not None:
-        resolved = _resolve_via_router(agents, view, router)
-        if resolved is not None:
-            return resolved
-    for strategy in _ROUTING_STRATEGIES:
-        resolved = strategy.resolve(agents, view)
-        if resolved is not None:
-            return resolved
-    raise RuntimeError("No routing strategy resolved an agent.")  # pragma: no cover
+    name = _resolve_agent_name(agents.keys(), view, router=router)
+    return agents[name]
