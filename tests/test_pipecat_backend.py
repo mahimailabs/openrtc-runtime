@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -11,7 +12,9 @@ from pipecat.processors.frame_processor import Frame, FrameDirection, FrameProce
 from pipecat.tests.utils import run_test
 
 from openrtc.backends.pipecat.observer import PipecatLifecycleObserver
+from openrtc.backends.pipecat.session import build_pipecat_session
 from openrtc.backends.pipecat.testing import simulate_call
+from openrtc.core.session_view import SessionView, for_livekit
 from openrtc.observability.base_observer import (
     SessionInfo,
     SessionOutcome,
@@ -115,6 +118,40 @@ async def test_simulate_call_drives_the_full_lifecycle_with_the_observer() -> No
     )
     assert recorder.starts == ["SESSION"]
     assert len(recorder.ends) == 1
+    assert recorder.ends[0].status is SessionStatus.SUCCESS
+
+
+def _view(session: Any = "SESSION") -> SessionView:
+    return for_livekit(
+        SimpleNamespace(
+            room=SimpleNamespace(name="room-1", metadata=None),
+            job=SimpleNamespace(id="j1", metadata=None),
+            _primary_agent_session=session,
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_session_builder_invokes_the_builder_and_attaches_observability() -> None:
+    view = _view(session="SESSION")
+    seen: list[SessionView] = []
+
+    def builder(call_view: SessionView) -> list[FrameProcessor]:
+        seen.append(call_view)
+        return [_Passthrough()]
+
+    recorder = _RecordingObserver()
+    processors, observer = build_pipecat_session(
+        builder, view, info=_info(), observers=[recorder], timeout=5.0
+    )
+    assert seen == [view]  # the builder receives the call's neutral view
+
+    # The returned session runs a genuine call lifecycle end-to-end.
+    captured = await simulate_call(
+        processors, user_frames=[TextFrame("hi")], observers=[observer]
+    )
+    assert any(isinstance(f, TextFrame) and f.text == "hi" for f in captured)
+    assert recorder.starts == ["SESSION"]  # observer bound to view.session
     assert recorder.ends[0].status is SessionStatus.SUCCESS
 
 
