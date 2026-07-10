@@ -45,19 +45,20 @@ def test_blank_agent_name_is_rejected() -> None:
 
 
 def test_pool_threads_agent_name_to_wire_pool(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The regression guard: the pool must actually hand the name to wire_pool,
-    which is what reaches ``server.rtc_session(agent_name=...)``. The original
-    bug was that the name never left the constructor."""
-    import openrtc.core.pool as pool_mod
+    """The regression guard: the pool must actually hand the name through to
+    wire_pool (now via the livekit backend's wire()), which is what reaches
+    ``server.rtc_session(agent_name=...)``. The original bug was that the name
+    never left the constructor."""
+    import openrtc.backends.livekit.backend as backend_mod
 
     captured: dict[str, Any] = {}
-    real = pool_mod.wire_pool
+    real = backend_mod.wire_pool
 
     def _spy(server: Any, state: Any, request_fnc: Any = None, **kwargs: Any) -> Any:
         captured["agent_name"] = kwargs.get("agent_name")
         return real(server, state, request_fnc, **kwargs)
 
-    monkeypatch.setattr(pool_mod, "wire_pool", _spy)
+    monkeypatch.setattr(backend_mod, "wire_pool", _spy)
     AgentPool(agent=_Agent, agent_name="realty", enable_introspection=False)
 
     assert captured["agent_name"] == "realty"
