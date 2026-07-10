@@ -11,16 +11,20 @@ from pipecat.observers.base_observer import FramePushed
 from pipecat.processors.frame_processor import Frame, FrameDirection, FrameProcessor
 from pipecat.tests.utils import run_test
 
+from openrtc.backends.pipecat.backend import PipecatBackend, build_backend
 from openrtc.backends.pipecat.dispatch import dispatch_pipecat_call
 from openrtc.backends.pipecat.observer import PipecatLifecycleObserver
 from openrtc.backends.pipecat.session import build_pipecat_session
 from openrtc.backends.pipecat.testing import simulate_call
+from openrtc.core.backend import Backend
 from openrtc.core.session_view import SessionView, for_livekit
+from openrtc.core.wiring import _PoolRuntimeState
 from openrtc.observability.base_observer import (
     SessionInfo,
     SessionOutcome,
     SessionStatus,
 )
+from openrtc.runtime.registry import ServerParams
 
 
 class _RecordingObserver:
@@ -210,6 +214,61 @@ def test_dispatch_rejects_an_unregistered_agent() -> None:
         dispatch_pipecat_call(
             _view_routing_to("ghost"), builders, observers=[], timeout=5.0
         )
+
+
+# --- PipecatBackend + registry ---------------------------------------------
+
+_PARAMS = ServerParams(
+    max_concurrent_sessions=10, consecutive_failure_limit=3, drain_timeout=30
+)
+
+
+def test_pipecat_registered_in_the_backend_registry() -> None:
+    from openrtc.backends.registry import resolve_backend_builder
+
+    assert resolve_backend_builder("pipecat") is build_backend
+
+
+def test_build_backend_returns_a_pipecat_backend() -> None:
+    backend = build_backend(_PARAMS, "coroutine")
+    assert isinstance(backend, PipecatBackend)
+    assert isinstance(backend, Backend)  # satisfies the neutral Backend seam
+    assert backend.raw_server is None
+
+
+@pytest.mark.asyncio
+async def test_pipecat_backend_wires_registers_and_dispatches() -> None:
+    backend = PipecatBackend(_PARAMS)
+    recorder = _RecordingObserver()
+    # wire threads the neutral runtime state (observers, router, timeout) in.
+    backend.wire(
+        _PoolRuntimeState(agents={}, observers=[recorder], observer_timeout=5.0),
+        None,
+        agent_name=None,
+    )
+    seen: list[str] = []
+    backend.register("support", _builder_recording("support", seen))
+    processors, observer = backend.dispatch(_view_routing_to("support"))
+    assert seen == ["support"]
+
+    captured = await simulate_call(
+        processors, user_frames=[TextFrame("hi")], observers=[observer]
+    )
+    assert any(isinstance(f, TextFrame) for f in captured)
+    assert recorder.start_infos[0].agent_name == "support"  # observers came from wire
+
+
+def test_pipecat_backend_run_documents_the_transport_boundary() -> None:
+    with pytest.raises(NotImplementedError, match="serving front"):
+        PipecatBackend(_PARAMS).run()
+
+
+def test_pipecat_backend_drain_is_idempotent() -> None:
+    backend = PipecatBackend(_PARAMS)
+    assert backend.draining is False
+    assert backend.begin_drain() is True
+    assert backend.draining is True
+    assert backend.begin_drain() is False  # already draining
 
 
 @pytest.mark.asyncio
