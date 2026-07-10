@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from livekit.agents import Agent, AgentServer, cli
 
+from openrtc.backends.livekit.backend import LiveKitBackend
 from openrtc.core.audit import DEPLOYMENT_DRAIN_STARTED, AuditLog, AuditSink
 from openrtc.core.circuit_breaker import TenantCircuitBreaker
 from openrtc.core.config import (
@@ -20,7 +21,7 @@ from openrtc.core.discovery import (
     _load_agent_module,
 )
 from openrtc.core.tenant_config import TenantConfigResolver, TenantConfigSource
-from openrtc.core.wiring import _PoolRuntimeState, wire_pool
+from openrtc.core.wiring import _PoolRuntimeState
 from openrtc.observability.base_observer import SessionObserver
 from openrtc.observability.metrics import (
     MetricsStreamEvent,
@@ -53,6 +54,7 @@ __all__ = [
 logger = logging.getLogger("openrtc")
 
 if TYPE_CHECKING:
+    from openrtc.core.backend import Backend
     from openrtc.observability.introspection_runtime import IntrospectionRuntime
 
 IsolationMode = Literal["coroutine", "process"]
@@ -243,6 +245,11 @@ class AgentPool:
         # logged by default or handed to a custom sink (S3 / SIEM).
         self._audit = AuditLog(sink=audit_sink)
         self._server = self._build_server()
+        # The worker substrate the pool drives, behind the neutral Backend seam.
+        # Today the livekit backend wraps the AgentServer; run / introspection /
+        # reload / drain still read the raw server (exposed as .server) until they
+        # migrate onto the seam.
+        self._backend: Backend = LiveKitBackend(self._server)
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(
             agents=self._agents,
@@ -325,8 +332,7 @@ class AgentPool:
                 should_reject=self._circuit_breaker.should_reject,
                 base_filter=self._request_fnc,
             )
-        wire_pool(
-            self._server,
+        self._backend.wire(
             self._runtime_state,
             self._request_fnc,
             agent_name=self._agent_name,
