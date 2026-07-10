@@ -11,6 +11,7 @@ from pipecat.observers.base_observer import FramePushed
 from pipecat.processors.frame_processor import Frame, FrameDirection, FrameProcessor
 from pipecat.tests.utils import run_test
 
+from openrtc.backends.pipecat.dispatch import dispatch_pipecat_call
 from openrtc.backends.pipecat.observer import PipecatLifecycleObserver
 from openrtc.backends.pipecat.session import build_pipecat_session
 from openrtc.backends.pipecat.testing import simulate_call
@@ -27,10 +28,12 @@ class _RecordingObserver:
 
     def __init__(self) -> None:
         self.starts: list[Any] = []
+        self.start_infos: list[SessionInfo] = []
         self.ends: list[SessionOutcome] = []
 
     async def on_session_start(self, info: SessionInfo, session: Any) -> None:
         self.starts.append(session)
+        self.start_infos.append(info)
 
     async def on_session_end(self, info: SessionInfo, outcome: SessionOutcome) -> None:
         self.ends.append(outcome)
@@ -153,6 +156,60 @@ async def test_session_builder_invokes_the_builder_and_attaches_observability() 
     assert any(isinstance(f, TextFrame) and f.text == "hi" for f in captured)
     assert recorder.starts == ["SESSION"]  # observer bound to view.session
     assert recorder.ends[0].status is SessionStatus.SUCCESS
+
+
+# --- dispatch: route a call to its builder ---------------------------------
+
+
+def _view_routing_to(agent: str) -> SessionView:
+    return for_livekit(
+        SimpleNamespace(
+            room=SimpleNamespace(name="room-1", metadata=None),
+            job=SimpleNamespace(id="j1", metadata=f'{{"agent": "{agent}"}}'),
+            _primary_agent_session="SESSION",
+        )
+    )
+
+
+def _builder_recording(label: str, seen: list[str]) -> Any:
+    def builder(view: SessionView) -> list[FrameProcessor]:
+        seen.append(label)
+        return [_Passthrough()]
+
+    return builder
+
+
+@pytest.mark.asyncio
+async def test_dispatch_routes_to_the_builder_and_builds_the_session() -> None:
+    seen: list[str] = []
+    builders = {
+        "sales": _builder_recording("sales", seen),
+        "support": _builder_recording("support", seen),
+    }
+    recorder = _RecordingObserver()
+    processors, observer = dispatch_pipecat_call(
+        _view_routing_to("support"), builders, observers=[recorder], timeout=5.0
+    )
+    assert seen == ["support"]  # only the routed builder is invoked
+
+    captured = await simulate_call(
+        processors, user_frames=[TextFrame("hi")], observers=[observer]
+    )
+    assert any(isinstance(f, TextFrame) for f in captured)
+    assert recorder.start_infos[0].agent_name == "support"
+
+
+def test_dispatch_rejects_when_no_agents_registered() -> None:
+    with pytest.raises(RuntimeError, match="No agents are registered"):
+        dispatch_pipecat_call(_view(), {}, observers=[], timeout=5.0)
+
+
+def test_dispatch_rejects_an_unregistered_agent() -> None:
+    builders = {"sales": _builder_recording("sales", [])}
+    with pytest.raises(ValueError, match="Unknown agent 'ghost'"):
+        dispatch_pipecat_call(
+            _view_routing_to("ghost"), builders, observers=[], timeout=5.0
+        )
 
 
 @pytest.mark.asyncio
