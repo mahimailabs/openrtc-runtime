@@ -37,6 +37,10 @@ openrtc = "openrtc.cli:main"
 livekit = [
   "livekit-agents[openai,silero,turn-detector]>=1.5,<1.7",
 ]
+# The pipecat backend. Install `openrtc[pipecat]` to run it.
+pipecat = [
+  "pipecat-ai>=1.5,<2",
+]
 cli = [
   "rich>=13",
   "typer>=0.12",
@@ -44,8 +48,9 @@ cli = [
 
 [dependency-groups]
 dev = [
-  # The dev/test suite exercises the livekit backend, so pull its extra in.
+  # The dev/test suite exercises both backends, so pull their extras in.
   "openrtc[livekit]",
+  "openrtc[pipecat]",
   "mypy>=1.19.1",
   "pre-commit>=4.5.1",
   "psutil>=7",
