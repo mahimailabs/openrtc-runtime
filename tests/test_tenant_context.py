@@ -129,7 +129,7 @@ async def test_run_session_binds_tenant_and_sets_session_attr(
             seen_ctxvar.append(current_tenant_id())
             seen_attr.append(getattr(self, "tenant_id", None))
 
-    monkeypatch.setattr(wiring, "AgentSession", _FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
 
     async def _connect() -> None:
         pass

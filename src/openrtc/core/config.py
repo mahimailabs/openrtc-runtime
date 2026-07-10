@@ -5,9 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TypeVar, cast
-
-from livekit.agents import Agent
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from openrtc.core.serialization import (
     _AgentClassRef,
@@ -18,7 +16,10 @@ from openrtc.core.serialization import (
 )
 from openrtc.utils.types import ProviderValue
 
-_AgentType = TypeVar("_AgentType", bound=type[Agent])
+if TYPE_CHECKING:
+    from livekit.agents import Agent
+
+_AgentType = TypeVar("_AgentType", bound="type[Agent]")
 _AGENT_METADATA_ATTR = "__openrtc_agent_config__"
 
 

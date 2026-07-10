@@ -67,7 +67,7 @@ def test_coroutine_pool_runs_one_simulated_job_through_universal_entrypoint(
         async def generate_reply(self, *, instructions: str) -> None:
             generate_calls.append(instructions)
 
-    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
 
     # Skip the real Silero/turn-detector load. _prewarm_worker is sync.
     def _stub_prewarm(_runtime_state: Any, proc: Any) -> None:

@@ -10,8 +10,10 @@ import sys
 from hashlib import sha1
 from pathlib import Path
 from types import ModuleType
+from typing import TYPE_CHECKING
 
-from livekit.agents import Agent
+if TYPE_CHECKING:
+    from livekit.agents import Agent
 
 logger = logging.getLogger("openrtc")
 
@@ -65,6 +67,8 @@ def _load_agent_module(module_path: Path) -> ModuleType:
 
 
 def _find_local_agent_subclass(module: ModuleType) -> type[Agent]:
+    from livekit.agents import Agent
+
     for value in vars(module).values():
         if (
             isinstance(value, type)

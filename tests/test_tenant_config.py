@@ -108,7 +108,7 @@ def _build_env(monkeypatch: pytest.MonkeyPatch, resolver: TenantConfigResolver) 
             captured["llm"] = llm
             captured["tts"] = tts
 
-    monkeypatch.setattr(wiring, "AgentSession", _FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
 
     state = wiring._PoolRuntimeState(agents={"a": config}, tenant_resolver=resolver)
     return wiring, state, captured

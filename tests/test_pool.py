@@ -11,7 +11,6 @@ import pytest
 from livekit.agents import Agent
 
 import openrtc.core.discovery as discovery_module
-import openrtc.core.pool as pool_module
 import openrtc.core.serialization as serialization_module
 import openrtc.core.wiring as wiring_module
 import openrtc.runtime.prewarm as prewarm_module
@@ -541,8 +540,10 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     openai = pytest.importorskip("livekit.plugins.openai")
+    from livekit.agents import AgentServer
+
     registered_session_callback = None
-    original_rtc_session = pool_module.AgentServer.rtc_session
+    original_rtc_session = AgentServer.rtc_session
 
     def capture_rtc_session(self: object, *args: object, **kwargs: object):
         decorator = original_rtc_session(self, *args, **kwargs)
@@ -554,7 +555,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
 
         return capture
 
-    monkeypatch.setattr(pool_module.AgentServer, "rtc_session", capture_rtc_session)
+    monkeypatch.setattr(AgentServer, "rtc_session", capture_rtc_session)
 
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     pool = AgentPool(
@@ -622,7 +623,7 @@ def test_worker_callbacks_are_pickleable_and_keep_registered_agents(
             raise AssertionError("Greeting should not be generated in this test.")
 
     ctx = FakeJobContext()
-    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", FakeSession)
     asyncio.run(session_callback(ctx))
 
     assert ctx.connected is True
@@ -677,7 +678,7 @@ def test_runtime_snapshot_reports_active_sessions_and_failures(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", FakeSession)
     ctx = FakeJobContext()
 
     async def run_session() -> None:
@@ -730,7 +731,7 @@ def test_runtime_snapshot_records_session_failures(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", FakeSession)
 
     with pytest.raises(RuntimeError, match="boom"):
         asyncio.run(wiring_module.run_session(pool._runtime_state, FakeJobContext()))
@@ -802,7 +803,7 @@ def test_runtime_snapshot_does_not_leak_active_sessions_when_session_constructor
         def __init__(self, **kwargs: object) -> None:
             raise RuntimeError("session constructor boom")
 
-    monkeypatch.setattr("openrtc.core.wiring.AgentSession", BrokenSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", BrokenSession)
 
     with pytest.raises(RuntimeError, match="session constructor boom"):
         asyncio.run(wiring_module.run_session(pool._runtime_state, FakeJobContext()))
@@ -853,7 +854,7 @@ def test_deprecated_session_kwargs_warning(
         async def start(self, *, agent: object, room: object) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", FakeSession)
     pool.add(
         "test",
         DemoAgent,
@@ -892,7 +893,7 @@ def test_no_warning_for_modern_session_kwargs(
         async def start(self, *, agent: object, room: object) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.wiring.AgentSession", FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", FakeSession)
     pool.add(
         "test",
         DemoAgent,
