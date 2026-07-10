@@ -7,9 +7,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any, Protocol, runtime_checkable
 
-from livekit.agents import JobContext
-
 from openrtc.core.config import AgentConfig
+from openrtc.core.session_view import SessionView
 
 logger = logging.getLogger("openrtc")
 
@@ -21,7 +20,7 @@ class RoutingStrategy(Protocol):
     """Resolve the agent for a session, or return None to defer to the next strategy."""
 
     def resolve(
-        self, agents: Mapping[str, AgentConfig], ctx: JobContext
+        self, agents: Mapping[str, AgentConfig], view: SessionView
     ) -> AgentConfig | None: ...
 
 

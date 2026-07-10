@@ -8,6 +8,7 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
+from openrtc.core.session_view import for_livekit
 from openrtc.core.wiring import run_session
 from openrtc.routing.resolver import _resolve_agent_config
 
@@ -484,6 +485,6 @@ def test_resolve_agent_room_metadata_returns_none_when_both_absent(
     strategy = _MetadataStrategy(source_attr="room", source_label="room metadata")
     ctx = FakeJobContext(room_name="general-room")
 
-    result = strategy.resolve(pool._agents, ctx)
+    result = strategy.resolve(pool._agents, for_livekit(ctx))
 
     assert result is None

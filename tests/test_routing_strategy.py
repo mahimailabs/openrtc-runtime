@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from openrtc.core.session_view import for_livekit
 from openrtc.routing.base_routing import RoutingStrategy
 from openrtc.routing.default_routing import _DefaultFallbackStrategy
 from openrtc.routing.metadata_routing import _MetadataStrategy
@@ -32,4 +33,5 @@ def test_default_fallback_returns_first_registered() -> None:
         job=SimpleNamespace(metadata=None),
         room=SimpleNamespace(metadata=None, name=None),
     )
-    assert _DefaultFallbackStrategy().resolve(agents, ctx).name == "a"  # type: ignore[union-attr]
+    view = for_livekit(ctx)
+    assert _DefaultFallbackStrategy().resolve(agents, view).name == "a"  # type: ignore[union-attr]

@@ -7,9 +7,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-from livekit.agents import JobContext
-
 from openrtc.core.config import AgentConfig
+from openrtc.core.session_view import SessionView, for_livekit
 from openrtc.routing.base_routing import RoutingStrategy
 from openrtc.routing.default_routing import _DefaultFallbackStrategy
 from openrtc.routing.metadata_routing import _MetadataStrategy
@@ -48,7 +47,7 @@ def _metadata_to_mapping(metadata: Any) -> Mapping[str, Any] | None:
 
 def _resolve_via_router(
     agents: Mapping[str, AgentConfig],
-    ctx: JobContext,
+    view: SessionView,
     router: AgentRouter,
 ) -> AgentConfig | None:
     """Resolve the agent via the custom router, or ``None`` to defer to the chain.
@@ -57,9 +56,8 @@ def _resolve_via_router(
     ``ValueError``, which aborts the entrypoint). Returning ``None`` lets the
     default metadata / prefix / fallback chain decide.
     """
-    job = getattr(ctx, "job", None)
-    job_id = getattr(job, "id", None) or "unknown"
-    metadata = _metadata_to_mapping(getattr(job, "metadata", None))
+    job_id = view.job_id or "unknown"
+    metadata = _metadata_to_mapping(view.job_metadata)
     try:
         name = router(metadata)
     except Exception as exc:
@@ -80,19 +78,25 @@ def _resolve_via_router(
 
 def _resolve_agent_config(
     agents: Mapping[str, AgentConfig],
-    ctx: JobContext,
+    ctx: Any,
     *,
     router: AgentRouter | None = None,
 ) -> AgentConfig:
-    """Resolve the agent for a session: custom router first, then the default chain."""
+    """Resolve the agent for a session: custom router first, then the default chain.
+
+    ``ctx`` is a livekit ``JobContext`` (or any object shaped like one). It is
+    adapted to the backend-neutral :class:`SessionView` once here, so the router
+    and every routing strategy read only that seam, never a framework type.
+    """
     if not agents:
         raise RuntimeError("No agents are registered in the pool.")
+    view = for_livekit(ctx)
     if router is not None:
-        resolved = _resolve_via_router(agents, ctx, router)
+        resolved = _resolve_via_router(agents, view, router)
         if resolved is not None:
             return resolved
     for strategy in _ROUTING_STRATEGIES:
-        resolved = strategy.resolve(agents, ctx)
+        resolved = strategy.resolve(agents, view)
         if resolved is not None:
             return resolved
     raise RuntimeError("No routing strategy resolved an agent.")  # pragma: no cover

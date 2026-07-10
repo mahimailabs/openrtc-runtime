@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from livekit.agents import JobContext
-
 from openrtc.core.config import AgentConfig
+from openrtc.core.session_view import SessionView
 from openrtc.routing.base_routing import logger
 
 
@@ -14,17 +13,12 @@ class _RoomNamePrefixStrategy:
     """Resolve when the room name starts with ``<agent>-``."""
 
     def resolve(
-        self, agents: Mapping[str, AgentConfig], ctx: JobContext
+        self, agents: Mapping[str, AgentConfig], view: SessionView
     ) -> AgentConfig | None:
-        # Routing runs before ctx.connect(), so the rtc.Room name is still empty
-        # ("" until connected). The authoritative room name is on the job
-        # assignment (ctx.job.room.name) and is available immediately; prefer it,
-        # falling back to ctx.room.name for already-connected or stubbed contexts.
-        job = getattr(ctx, "job", None)
-        job_room = getattr(job, "room", None)
-        room_name = getattr(job_room, "name", None) or getattr(ctx.room, "name", None)
-        if not isinstance(room_name, str):
-            return None
+        # The view resolves the pre-connect room name (job room preferred over the
+        # rtc room, which is empty until connect) and always yields a str, so a
+        # non-matching or absent name simply matches no prefix and defers.
+        room_name = view.room_name
         for agent_name, config in agents.items():
             if room_name.startswith(f"{agent_name}-"):
                 logger.info(
