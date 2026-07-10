@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from openrtc.core.session_view import SessionView, for_livekit
+from openrtc.core.session_view import SessionView, for_livekit, for_pipecat
 
 
 def _livekit_ctx(
@@ -115,3 +115,63 @@ def test_room_metadata_prefers_job_room_when_present() -> None:
 def test_room_metadata_falls_back_to_rtc_room_when_job_room_absent() -> None:
     ctx, _ = _livekit_ctx(room_meta='{"agent": "sales"}')  # no job room
     assert for_livekit(ctx).room_metadata == '{"agent": "sales"}'
+
+
+# ---------------------------------------------------------------------------
+# Pipecat adapter. Pipecat's runner hands one RunnerArguments per connection;
+# for_pipecat maps it onto the same neutral view: body carries the routing
+# signal, session_id is the job id, and the room name comes from whichever
+# transport-specific field is present. The adapter imports no pipecat type (it
+# only reads attributes), so importing the module stays framework-free.
+# ---------------------------------------------------------------------------
+
+
+def _pipecat_args(**kwargs):
+    # RunnerArguments is a per-connection attribute bag; a SimpleNamespace stands
+    # in without importing pipecat, since the adapter only uses getattr.
+    return SimpleNamespace(**kwargs)
+
+
+def test_for_pipecat_exposes_the_neutral_surface() -> None:
+    args = _pipecat_args(
+        session_id="s1", body={"agent": "sales"}, room_url="https://x.daily.co/r"
+    )
+    sv = for_pipecat(args)
+    assert isinstance(sv, SessionView)  # satisfies the runtime-checkable Protocol
+    assert sv.room_name == "https://x.daily.co/r"
+    assert sv.job_id == "s1"
+    assert sv.job_metadata == {"agent": "sales"}  # raw body; consumers parse it
+    assert sv.room_metadata is None
+    assert sv.session is None
+
+
+def test_for_pipecat_room_name_prefers_room_url_then_room_name_then_session() -> None:
+    both = _pipecat_args(room_url="ru", room_name="rn", session_id="s")
+    assert for_pipecat(both).room_name == "ru"  # room_url wins (Daily)
+    no_url = _pipecat_args(room_name="rn", session_id="s")
+    assert for_pipecat(no_url).room_name == "rn"  # room_name next (LiveKit)
+    only_session = _pipecat_args(session_id="s")
+    assert for_pipecat(only_session).room_name == "s"  # session_id last resort
+
+
+def test_for_pipecat_defaults_absent_fields_defensively() -> None:
+    # A RunnerArguments missing every mapped field must never raise.
+    sv = for_pipecat(_pipecat_args())
+    assert sv.room_name == ""
+    assert sv.job_id == ""
+    assert sv.job_metadata is None
+    assert sv.room_metadata is None
+    assert sv.session is None
+
+
+def test_for_pipecat_surfaces_an_attached_session() -> None:
+    # The serving glue may attach the live PipelineTask; the view surfaces it.
+    sv = for_pipecat(_pipecat_args(session="TASK"))
+    assert sv.session == "TASK"
+
+
+@pytest.mark.asyncio
+async def test_for_pipecat_connect_is_a_noop() -> None:
+    # Pipecat connects inside its transport/runner, so the view's connect() does
+    # nothing (and never raises).
+    await for_pipecat(_pipecat_args()).connect()

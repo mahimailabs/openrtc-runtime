@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-__all__ = ["SessionView", "for_livekit"]
+__all__ = ["SessionView", "for_livekit", "for_pipecat"]
 
 
 @runtime_checkable
@@ -99,3 +99,59 @@ class _LiveKitSessionView:
 def for_livekit(ctx: Any) -> SessionView:
     """Wrap a livekit ``JobContext`` as a neutral :class:`SessionView`."""
     return _LiveKitSessionView(ctx)
+
+
+class _PipecatSessionView:
+    """Adapts a pipecat ``RunnerArguments`` to :class:`SessionView` (getattr only).
+
+    Pipecat's runner hands one ``RunnerArguments`` per connection. Its ``body``
+    dict carries the dispatch payload (where ``{"agent": ...}`` lives, the pipecat
+    equivalent of livekit's job metadata), ``session_id`` identifies the call, and
+    the room name comes from whichever transport-specific field is present
+    (``room_url`` for Daily, ``room_name`` for LiveKit, else the session id). All
+    reads are defensive ``getattr`` so a subclass missing a field never raises, and
+    no pipecat type is imported, so importing this module stays framework-free.
+    """
+
+    __slots__ = ("_args",)
+
+    def __init__(self, runner_args: Any) -> None:
+        self._args = runner_args
+
+    @property
+    def room_name(self) -> str:
+        name = (
+            getattr(self._args, "room_url", None)
+            or getattr(self._args, "room_name", None)
+            or getattr(self._args, "session_id", None)
+        )
+        return name if isinstance(name, str) else ""
+
+    @property
+    def job_id(self) -> str:
+        session_id = getattr(self._args, "session_id", None)
+        return session_id if isinstance(session_id, str) else ""
+
+    @property
+    def job_metadata(self) -> Any:
+        return getattr(self._args, "body", None)
+
+    @property
+    def room_metadata(self) -> Any:
+        # Pipecat has no separate pre-connect room metadata; the dispatch payload
+        # rides on body (exposed as job_metadata).
+        return None
+
+    @property
+    def session(self) -> Any:
+        # The serving glue may attach the live PipelineTask here; None until then.
+        return getattr(self._args, "session", None)
+
+    async def connect(self) -> None:
+        # Pipecat connects inside its transport / runner, so this is a no-op.
+        return None
+
+
+def for_pipecat(runner_args: Any) -> SessionView:
+    """Wrap a pipecat ``RunnerArguments`` as a neutral :class:`SessionView`."""
+    return _PipecatSessionView(runner_args)
