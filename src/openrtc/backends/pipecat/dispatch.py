@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from openrtc.backends.pipecat.call_view import PipecatCallView
+from openrtc.backends.pipecat.prewarm import SharedPrewarm
 from openrtc.backends.pipecat.session import build_pipecat_session
 from openrtc.observability.base_observer import _build_session_info
 from openrtc.routing.resolver import _resolve_agent_name
@@ -38,6 +40,7 @@ def dispatch_pipecat_call(
     timeout: float,
     deployment_version: str | None = None,
     router: AgentRouter | None = None,
+    prewarm: SharedPrewarm | None = None,
 ) -> tuple[list[FrameProcessor], PipecatLifecycleObserver]:
     """Resolve which builder handles a call and build its observed session.
 
@@ -45,11 +48,19 @@ def dispatch_pipecat_call(
     then room-name prefix, then first registered). Raises ``RuntimeError`` when no
     agent is registered, and ``ValueError`` when a routing signal names an
     unregistered agent, matching the livekit backend.
+
+    ``prewarm`` is the worker's shared VAD/turn holder; the neutral view is wrapped
+    as a :class:`~openrtc.backends.pipecat.call_view.PipecatCallView` carrying it,
+    so the builder reaches the same analyzers on every call. When omitted (direct
+    callers that do not use prewarm) a fresh, unloaded holder is used.
     """
     if not builders:
         raise RuntimeError("No agents are registered in the pool.")
-    name = _resolve_agent_name(builders.keys(), view, router=router)
-    info = _build_session_info(name, view, deployment_version)
+    call_view = PipecatCallView(
+        view, prewarm if prewarm is not None else SharedPrewarm()
+    )
+    name = _resolve_agent_name(builders.keys(), call_view, router=router)
+    info = _build_session_info(name, call_view, deployment_version)
     return build_pipecat_session(
-        builders[name], view, info=info, observers=observers, timeout=timeout
+        builders[name], call_view, info=info, observers=observers, timeout=timeout
     )

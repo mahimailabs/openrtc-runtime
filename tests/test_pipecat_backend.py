@@ -17,8 +17,10 @@ from openrtc.backends.pipecat.backend import (
     PipecatBackend,
     build_backend,
 )
+from openrtc.backends.pipecat.call_view import PipecatCallView
 from openrtc.backends.pipecat.dispatch import dispatch_pipecat_call
 from openrtc.backends.pipecat.observer import PipecatLifecycleObserver
+from openrtc.backends.pipecat.prewarm import SharedPrewarm
 from openrtc.backends.pipecat.session import build_pipecat_session
 from openrtc.backends.pipecat.testing import simulate_call
 from openrtc.core.backend import Backend
@@ -300,6 +302,79 @@ def test_pipecat_backend_get_and_remove_reject_an_unknown_agent() -> None:
         backend.remove("ghost")
 
 
+# --- shared prewarm reaches the builder through dispatch --------------------
+
+
+def _prewarm_recording(seen_vads: list[Any]) -> Any:
+    def builder(view: PipecatCallView) -> list[FrameProcessor]:
+        seen_vads.append(view.prewarmed.vad)  # the builder pulls shared prewarm
+        return [_Passthrough()]
+
+    return builder
+
+
+def test_dispatch_wraps_the_neutral_view_as_a_pipecat_call_view() -> None:
+    seen: list[Any] = []
+
+    def builder(view: PipecatCallView) -> list[FrameProcessor]:
+        seen.append(view)
+        return [_Passthrough()]
+
+    dispatch_pipecat_call(
+        _view_routing_to("support"), {"support": builder}, observers=[], timeout=5.0
+    )
+    assert isinstance(seen[0], PipecatCallView)  # builder receives the enriched view
+
+
+def test_dispatch_hands_the_shared_prewarm_to_the_builder() -> None:
+    calls = 0
+
+    def vad_factory() -> object:
+        nonlocal calls
+        calls += 1
+        return object()
+
+    prewarm = SharedPrewarm(vad_factory=vad_factory, turn_factory=object)
+    seen: list[Any] = []
+    builders = {"support": _prewarm_recording(seen)}
+
+    dispatch_pipecat_call(
+        _view_routing_to("support"),
+        builders,
+        observers=[],
+        timeout=5.0,
+        prewarm=prewarm,
+    )
+    dispatch_pipecat_call(
+        _view_routing_to("support"),
+        builders,
+        observers=[],
+        timeout=5.0,
+        prewarm=prewarm,
+    )
+    assert seen[0] is seen[1]  # same VAD across calls: loaded once, shared
+    assert calls == 1
+
+
+def test_pipecat_backend_shares_one_prewarm_across_dispatches() -> None:
+    calls = 0
+
+    def vad_factory() -> object:
+        nonlocal calls
+        calls += 1
+        return object()
+
+    backend = PipecatBackend(
+        _PARAMS, prewarm=SharedPrewarm(vad_factory=vad_factory, turn_factory=object)
+    )
+    seen: list[Any] = []
+    backend.register("support", _prewarm_recording(seen))
+    backend.dispatch(_view_routing_to("support"))
+    backend.dispatch(_view_routing_to("support"))
+    assert seen[0] is seen[1]  # backend holds one SharedPrewarm, shared across calls
+    assert calls == 1
+
+
 # --- AgentPool(backend="pipecat") ------------------------------------------
 
 
@@ -331,6 +406,23 @@ async def test_agent_pool_pipecat_backend_dispatches_a_registered_builder() -> N
     assert seen == ["support"]  # the pool's registration reached the backend
     await simulate_call(processors, user_frames=[TextFrame("hi")], observers=[observer])
     assert recorder.start_infos[0].agent_name == "support"  # pool observer threaded
+
+
+def test_agent_pool_pipecat_builder_receives_a_prewarm_capable_view() -> None:
+    pool = AgentPool(backend="pipecat")
+    seen: list[Any] = []
+
+    def builder(view: PipecatCallView) -> list[FrameProcessor]:
+        seen.append(view)
+        return [_Passthrough()]
+
+    pool.add("support", builder)
+    assert isinstance(pool._backend, PipecatBackend)
+    pool._backend.dispatch(_view_routing_to("support"))
+    # the pool -> backend -> dispatch chain delivers shared prewarm to the builder
+    # (the analyzers stay unloaded here: .vad/.turn are untouched).
+    assert isinstance(seen[0], PipecatCallView)
+    assert isinstance(seen[0].prewarmed, SharedPrewarm)
 
 
 def test_agent_pool_pipecat_run_requires_an_agent() -> None:

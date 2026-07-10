@@ -552,8 +552,9 @@ class AgentPool:
 
         On the livekit backend ``agent_cls`` is a ``livekit.agents.Agent``
         subclass. On the pipecat backend it is a pipeline builder callable
-        ``(SessionView) -> processors``; the provider / session options are
-        livekit-only (the builder owns the pipecat pipeline) and are ignored.
+        ``(PipecatCallView) -> processors`` (the call view carries the worker's
+        shared prewarm); the provider / session options are livekit-only (the
+        builder owns the pipecat pipeline) and are ignored.
         """
         normalized_name = require_agent_name(name)
         if self._backend_name != "livekit":
