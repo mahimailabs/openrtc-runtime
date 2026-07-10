@@ -34,4 +34,4 @@ def test_default_fallback_returns_first_registered() -> None:
         room=SimpleNamespace(metadata=None, name=None),
     )
     view = for_livekit(ctx)
-    assert _DefaultFallbackStrategy().resolve(agents, view).name == "a"  # type: ignore[union-attr]
+    assert _DefaultFallbackStrategy().resolve(agents, view) == "a"

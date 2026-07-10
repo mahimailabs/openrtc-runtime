@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from typing import Any, Protocol, runtime_checkable
 
-from openrtc.core.config import AgentConfig
 from openrtc.core.session_view import SessionView
 
 logger = logging.getLogger("openrtc")
@@ -17,11 +16,15 @@ _METADATA_AGENT_KEYS = ("agent", "demo")
 
 @runtime_checkable
 class RoutingStrategy(Protocol):
-    """Resolve the agent for a session, or return None to defer to the next strategy."""
+    """Resolve the agent name for a session, or None to defer to the next strategy.
+
+    Strategies resolve a *name* (backend-neutral); the resolver looks it up in the
+    backend's registry (an ``AgentConfig`` for livekit, a builder for pipecat).
+    """
 
     def resolve(
-        self, agents: Mapping[str, AgentConfig], view: SessionView
-    ) -> AgentConfig | None: ...
+        self, agent_names: Collection[str], view: SessionView
+    ) -> str | None: ...
 
 
 def _agent_name_from_metadata(metadata: Any) -> str | None:
@@ -53,15 +56,13 @@ def _agent_name_from_mapping(metadata: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _get_registered_agent(
-    agents: Mapping[str, AgentConfig],
+def _require_registered_name(
+    agent_names: Collection[str],
     name: str,
     *,
     source: str,
-) -> AgentConfig:
-    try:
-        config = agents[name]
-    except KeyError as exc:
-        raise ValueError(f"Unknown agent '{name}' requested via {source}.") from exc
+) -> str:
+    if name not in agent_names:
+        raise ValueError(f"Unknown agent '{name}' requested via {source}.")
     logger.info("Resolved agent '%s' via %s.", name, source)
-    return config
+    return name
