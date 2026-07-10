@@ -45,10 +45,18 @@ def _fake_ctx(
     room_metadata: object = None,
     room_name: str = "general-room",
     job_id: str | None = None,
+    job_room_name: str | None = None,
+    job_room_metadata: object = None,
 ) -> types.SimpleNamespace:
     job = types.SimpleNamespace(metadata=job_metadata)
     if job_id is not None:
         job.id = job_id
+    # Real livekit jobs carry the pre-connect room on ctx.job.room; add it only
+    # when a test asks for one so the "job room absent" fallback stays exercised.
+    if job_room_name is not None or job_room_metadata is not None:
+        job.room = types.SimpleNamespace(
+            name=job_room_name or "", metadata=job_room_metadata
+        )
     room = types.SimpleNamespace(metadata=room_metadata, name=room_name)
     return types.SimpleNamespace(job=job, room=room)
 
@@ -116,6 +124,22 @@ def test_build_session_info_defends_missing_attrs() -> None:
     # The resolved tenant is always injected (default when unset).
     assert info.metadata == {"tenant": "default"}
     assert info.tenant == "default"
+
+
+def test_build_session_info_uses_job_room_before_connect() -> None:
+    # SessionInfo is built before ctx.connect(), so for a real job the rtc room
+    # name/metadata are still empty; the authoritative pre-connect values live on
+    # ctx.job.room. The info must reflect those (matching routing), not "".
+    ctx = _fake_ctx(
+        room_name="",
+        room_metadata=None,
+        job_room_name="restaurant-1",
+        job_room_metadata={"region": "eu"},
+        job_metadata='{"agent": "restaurant"}',
+    )
+    info = _build_session_info("restaurant", ctx)
+    assert info.room_name == "restaurant-1"
+    assert info.metadata == {"agent": "restaurant", "region": "eu", "tenant": "default"}
 
 
 def test_coerce_metadata_edge_cases() -> None:

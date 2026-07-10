@@ -22,10 +22,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from openrtc.core.session_view import SessionView, for_livekit
 from openrtc.utils.validation import DEFAULT_TENANT, require_tenant_id
 
 if TYPE_CHECKING:
-    from livekit.agents import AgentSession, JobContext
+    from livekit.agents import AgentSession
 
 logger = logging.getLogger("openrtc")
 
@@ -114,12 +115,15 @@ def _coerce_metadata(raw: Any) -> dict[str, str]:
     return {}
 
 
-def _merge_metadata(ctx: JobContext) -> dict[str, str]:
-    """Merge room metadata then job metadata (job wins) into one str map."""
-    room = getattr(ctx, "room", None)
-    job = getattr(ctx, "job", None)
-    merged = _coerce_metadata(getattr(room, "metadata", None))
-    merged.update(_coerce_metadata(getattr(job, "metadata", None)))
+def _merge_metadata(view: SessionView) -> dict[str, str]:
+    """Merge room metadata then job metadata (job wins) into one str map.
+
+    The view resolves the pre-connect room metadata (job room preferred over the
+    rtc room, which is empty until connect), so the merge sees the same dispatch
+    metadata the routing chain does.
+    """
+    merged = _coerce_metadata(view.room_metadata)
+    merged.update(_coerce_metadata(view.job_metadata))
     return merged
 
 
@@ -137,18 +141,21 @@ def _resolve_tenant(metadata: Mapping[str, str]) -> str:
 
 
 def _build_session_info(
-    agent_name: str, ctx: JobContext, deployment_version: str | None = None
+    agent_name: str, ctx: Any, deployment_version: str | None = None
 ) -> SessionInfo:
     """Build a ``SessionInfo`` from the resolved agent and the job context.
 
-    Uses defensive attribute access so a missing room name or job id can never
-    turn a healthy session into a failed one. The tenant is the one validated
+    ``ctx`` is a livekit ``JobContext`` (or any object shaped like one); it is
+    adapted to the backend-neutral :class:`SessionView` so this reads only that
+    seam. The view uses defensive attribute access, so a missing room name or job
+    id can never turn a healthy session into a failed one, and it resolves the
+    pre-connect room name/metadata (job room preferred over the rtc room, which is
+    empty until connect) exactly as routing does. The tenant is the one validated
     field (a malformed ``tenant`` in dispatch metadata rejects the session).
     ``deployment_version`` tags which worker version handled the call (MAH-112).
     """
-    room = getattr(ctx, "room", None)
-    job = getattr(ctx, "job", None)
-    metadata = _merge_metadata(ctx)
+    view = for_livekit(ctx)
+    metadata = _merge_metadata(view)
     tenant = _resolve_tenant(metadata)
     # Ensure metadata["tenant"] always carries the resolved tenant (including the
     # "default" fallback), so voicegateway's VoiceGatewayObserver attributes
@@ -156,8 +163,8 @@ def _build_session_info(
     metadata["tenant"] = tenant
     return SessionInfo(
         agent_name=agent_name,
-        room_name=getattr(room, "name", "") or "",
-        job_id=getattr(job, "id", "") or "",
+        room_name=view.room_name,
+        job_id=view.job_id,
         metadata=metadata,
         started_at=time.time(),
         tenant=tenant,
