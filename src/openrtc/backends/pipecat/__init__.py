@@ -9,4 +9,6 @@ builder and dispatch front next.
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from openrtc.backends.pipecat.backend import PipecatBackend, build_backend
+
+__all__ = ["PipecatBackend", "build_backend"]

@@ -25,6 +25,7 @@ __all__ = ["resolve_backend_builder"]
 # install hint when it is not installed.
 _BACKENDS: dict[str, tuple[str, str, str]] = {
     "livekit": ("openrtc.backends.livekit", "build_backend", "livekit"),
+    "pipecat": ("openrtc.backends.pipecat", "build_backend", "pipecat"),
 }
 
 
