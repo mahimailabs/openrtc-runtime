@@ -91,13 +91,13 @@ first non-flag token after the subcommand is rewritten before parsing; use
 Discovers agent modules and prints each agent’s resolved settings.
 
 - **Default:** Rich **table** (human-friendly).
-- **`--plain`** — Stable, line-oriented text (no ANSI/table borders); good for
+- **`--plain`**: Stable, line-oriented text (no ANSI/table borders); good for
   grep and CI.
-- **`--json`** — Stable JSON. Top-level fields include `schema_version` (bump
+- **`--json`**: Stable JSON. Top-level fields include `schema_version` (bump
   when the shape changes) and `command: "list"`. Combine with `--resources` for
   `resource_summary`.
 - **`--plain` and `--json` together** are rejected (non-zero exit).
-- **`--resources`** — Footprint and memory hints (grouped under **Advanced** in
+- **`--resources`**: Footprint and memory hints (grouped under **Advanced** in
   `--help`).
 
 ```bash
@@ -124,7 +124,7 @@ Two flags pick the worker isolation mode and the coroutine-mode
 backpressure threshold. They show up under the **OpenRTC** panel in
 `--help` and are accepted by `start`, `dev`, and `console`.
 
-- **`--isolation`** — `coroutine` (default) or `process`.
+- **`--isolation`**: `coroutine` (default) or `process`.
   - `coroutine` runs every session as an `asyncio.Task` inside one
     worker process and shares the prewarmed VAD / turn detector
     across sessions. Use this when density is the goal.
@@ -132,7 +132,7 @@ backpressure threshold. They show up under the **OpenRTC** panel in
     session via `livekit-agents`'s default `ProcPool`. Use this when
     you need hard process isolation between sessions or per-session
     memory caps via `livekit-agents`' `job_memory_limit_mb`.
-- **`--max-concurrent-sessions`** — Integer ≥ 1, default `50`. The
+- **`--max-concurrent-sessions`**: Integer ≥ 1, default `50`. The
   coroutine pool reports `load >= 1.0` to LiveKit dispatch once this
   many sessions are in flight, so the dispatcher routes new jobs
   elsewhere. Ignored under `--isolation process` (livekit-agents'
@@ -165,8 +165,8 @@ openrtc connect ./agents --room my-room
 ### `openrtc download-files`
 
 Download plugin assets (LiveKit `download-files`). Only needs the agents
-directory (for a valid worker entrypoint) plus connection settings—**no**
-`--default-stt` / `--default-llm` / `--default-tts` / `--default-greeting`.
+directory (for a valid worker entrypoint) plus connection settings (**no**
+`--default-stt` / `--default-llm` / `--default-tts` / `--default-greeting`).
 
 ```bash
 openrtc download-files ./agents
@@ -174,20 +174,20 @@ openrtc download-files ./agents
 
 ## Runtime visibility and automation
 
-- **`--dashboard`** — Live Rich summary (RSS, sessions, routing, savings
+- **`--dashboard`**: Live Rich summary (RSS, sessions, routing, savings
   estimate). Off by default.
-- **`--metrics-json-file PATH`** — Overwrites a JSON file each tick with the
+- **`--metrics-json-file PATH`**: Overwrites a JSON file each tick with the
   latest `PoolRuntimeSnapshot` (good for scripts). Grouped under **Advanced**.
-- **`--metrics-jsonl PATH`** — Appends **versioned JSON Lines** (truncates when
+- **`--metrics-jsonl PATH`**: Appends **versioned JSON Lines** (truncates when
   the worker starts). Each line is one record: `schema_version`, `kind`
   (`snapshot` or `event`), `seq`, `wall_time_unix`, `payload`. Snapshots match
   `PoolRuntimeSnapshot.to_dict()`; events carry session lifecycle hints
   (`session_started`, `session_finished`, `session_failed`). Tail it with
   `tail -f ./openrtc-metrics.jsonl`, pipe it through `jq`, or point any log
   shipper or script at it.
-- **`--dashboard-refresh`** — Interval in seconds for dashboard, metrics file,
+- **`--dashboard-refresh`**: Interval in seconds for dashboard, metrics file,
   and JSONL when `--metrics-jsonl-interval` is not set (**Advanced**).
-- **`--metrics-jsonl-interval`** — Override JSONL cadence only (**Advanced**).
+- **`--metrics-jsonl-interval`**: Override JSONL cadence only (**Advanced**).
 
 ## Shared default options (discovery)
 
@@ -219,10 +219,10 @@ With **`--resources`**, `list` adds:
 
 - **Per-agent** on-disk size of the discovered `.py` module when the path is
   known (see `AgentConfig.source_path` in the API docs).
-- **Summary** — total source bytes and a **best-effort** process memory metric
+- **Summary**: total source bytes and a **best-effort** process memory metric
   from `openrtc.observability.metrics` (Linux: current VmRSS; macOS: peak
-  `ru_maxrss`, not live RSS—see `resident_set.description` in `--json` output).
-- **Savings estimate** — a transparent estimate of the memory saved by one
+  `ru_maxrss`, not live RSS, see `resident_set.description` in `--json` output).
+- **Savings estimate**: a transparent estimate of the memory saved by one
   shared worker versus one worker per registered agent.
 
 ```bash

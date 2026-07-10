@@ -39,7 +39,7 @@ OpenRTC accepts:
 
 The `"demo"` key is an alias for `"agent"` with lower priority. You can use it for showcase scenarios where the primary `"agent"` key is absent.
 
-Non-JSON strings, blank strings, and JSON scalars (e.g. `"42"`) are ignored — the strategy defers to the next one. An absent metadata field is also a no-op (no error).
+Non-JSON strings, blank strings, and JSON scalars (e.g. `"42"`) are ignored: the strategy defers to the next one. An absent metadata field is also a no-op (no error).
 
 ## Routing a session via job metadata
 
@@ -72,7 +72,7 @@ await lk_api.room.create_room(
 )
 ```
 
-OpenRTC reads `ctx.job.room.metadata` (priority 3) — the LiveKit dispatch system copies the room metadata onto the job assignment, so routing works pre-connect.
+OpenRTC reads `ctx.job.room.metadata` (priority 3): the LiveKit dispatch system copies the room metadata onto the job assignment, so routing works pre-connect.
 
 ## Routing via room name prefix
 
@@ -143,7 +143,7 @@ pool = AgentPool(request_fnc=support_filter)
 
 | Condition | Behavior |
 |---|---|
-| Metadata specifies an agent name that is not registered | Raises `ValueError("Unknown agent '...' requested via ...")` — no silent fallback |
+| Metadata specifies an agent name that is not registered | Raises `ValueError("Unknown agent '...' requested via ...")`: no silent fallback |
 | Pool has no registered agents | Raises `RuntimeError("No agents are registered in the pool.")` |
 | Valid agent resolved | Logs `Resolved agent '<name>' via <source>.` at INFO level |
 

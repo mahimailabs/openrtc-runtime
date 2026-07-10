@@ -18,9 +18,9 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
-### v0.9.0 — routing: resolve room metadata from the job's room assignment so it works before connect
+### v0.9.0: routing: resolve room metadata from the job's room assignment so it works before connect
 
-### v0.1.0 — coroutine-mode worker (default behavior change)
+### v0.1.0: coroutine-mode worker (default behavior change)
 
 > **Heads up:** the default isolation flips from process-per-session to
 > a coroutine-mode worker that hosts every session as an `asyncio.Task`
@@ -119,7 +119,7 @@ Changes that have landed on `main` but have not yet been tagged for release.
 - The `current_load()` reported in coroutine mode is
   `len(active) / max_concurrent_sessions`. If your dispatch policy
   was tuned around `livekit-agents`' default CPU-based load math, the
-  new shape may route differently — verify against your dispatch
+  new shape may route differently. Verify against your dispatch
   thresholds (`load_threshold` defaults to `0.7`).
 
 - Per-session memory caps (`job_memory_limit_mb` on `AgentServer`)
@@ -133,7 +133,7 @@ benchmark numbers.
 
 **Developer experience**
 
-User-facing behavior is unchanged by these — they land here so the
+User-facing behavior is unchanged by these: they land here so the
 contributor onboarding matches what's in the repo.
 
 - Test coverage: combined line + branch coverage now sits at 100%
@@ -183,17 +183,17 @@ contributor onboarding matches what's in the repo.
 
 ## [0.17.0] - 2026-07-05
 
-## v0.6 — Zero-downtime worker upgrades
+## v0.6: Zero-downtime worker upgrades
 
 Upgrade a worker fleet without dropping calls, using blue-green drain. The new version takes new calls; the old version stops accepting and lets its in-flight calls finish naturally, then exits. No live call is ever moved, so none is dropped.
 
 ### Highlights
 
-- **Blue-green drain** — `pool.begin_drain()` (or a SIGTERM from your platform) stops the worker accepting new jobs while its in-flight calls run to hangup, then it exits. Reuses the graceful-drain path, now idempotent so `begin_drain()` then `drain()` compose.
-- **Deployment version tag** — `AgentPool(deployment_version="v2.0.0")` labels which version a worker runs, surfaced on `runtime_snapshot().deployment_version` / `.draining` and on the `SessionObserver` payload, so an operator can watch a drain and voicegateway can bucket deploy metrics by version.
-- **Signed-version membership** — `sign_membership` / `MembershipVerifier` (HMAC-SHA256, constant-time compare, replay window, secret rotation) keep a leftover old-version worker from grabbing new traffic during a rollout.
-- **Deployment audit log** — a monotonic-sequence, pluggable-sink `AuditLog` records deploy / drain / rollback / worker-rejection events for compliance (SOC 2, HIPAA, FedRAMP); `begin_drain()` emits `deployment.drain_started`. Ship events to a SIEM with `audit_sink=...`.
-- **Operator docs** — a full deployment guide: the blue-green walkthrough, monitoring signals, a rollback decision tree, the migration-vs-drain rationale, and an audit-event + signed-membership compliance reference.
+- **Blue-green drain**: `pool.begin_drain()` (or a SIGTERM from your platform) stops the worker accepting new jobs while its in-flight calls run to hangup, then it exits. Reuses the graceful-drain path, now idempotent so `begin_drain()` then `drain()` compose.
+- **Deployment version tag**: `AgentPool(deployment_version="v2.0.0")` labels which version a worker runs, surfaced on `runtime_snapshot().deployment_version` / `.draining` and on the `SessionObserver` payload, so an operator can watch a drain and voicegateway can bucket deploy metrics by version.
+- **Signed-version membership**: `sign_membership` / `MembershipVerifier` (HMAC-SHA256, constant-time compare, replay window, secret rotation) keep a leftover old-version worker from grabbing new traffic during a rollout.
+- **Deployment audit log**: a monotonic-sequence, pluggable-sink `AuditLog` records deploy / drain / rollback / worker-rejection events for compliance (SOC 2, HIPAA, FedRAMP); `begin_drain()` emits `deployment.drain_started`. Ship events to a SIEM with `audit_sink=...`.
+- **Operator docs**: a full deployment guide: the blue-green walkthrough, monitoring signals, a rollback decision tree, the migration-vs-drain rationale, and an audit-event + signed-membership compliance reference.
 
 ### The load-bearing decision: drain, not migrate
 
@@ -209,23 +209,23 @@ OpenRTC stays in its runtime lane. It emits `info.agent_name`, `info.metadata["t
 - Zero-downtime means every in-flight call finishes uninterrupted on its original worker and every new call lands on the new version. A call is never paused, moved, or resumed elsewhere. To have new code affect a call already live, either wait for it to end or use hot reload (a different, in-worker mechanism).
 - A rollback is just a blue-green deploy pointed the other way: the primitives are symmetric, so it also drops zero calls.
 
-Milestone: v0.6 — Zero-downtime worker upgrades (MAH-108, MAH-109, MAH-110, MAH-111, MAH-112, MAH-113, MAH-114).
+Milestone: v0.6, Zero-downtime worker upgrades (MAH-108, MAH-109, MAH-110, MAH-111, MAH-112, MAH-113, MAH-114).
 
 ---
 
 ## [0.16.0] - 2026-07-05
 
-## v0.5 — Per-tenant pool isolation
+## v0.5: Per-tenant pool isolation
 
 Run every client (tenant) in one pool, isolated. The agency rung: per-tenant provider keys, resource fairness, and blast-radius isolation.
 
 ### Highlights
 
-- **Per-tenant provider keys** — `tenant_config={tenant: {stt/llm/tts: ...}}` (or a callable) runs each client on its own STT/LLM/TTS keys and models, resolved at session start and cached per tenant. Keys are never shared across tenants, so an agency can attribute API cost per client.
-- **Per-tenant budgets** — `max_sessions_per_tenant={"acme": 50}`: a tenant at its cap is rejected while sibling tenants keep accepting. Composes with per-agent caps and the global cap.
-- **Blast-radius isolation** — `enable_tenant_circuit_breaker=True`: a tenant whose calls start failing has its new sessions rejected for a cooldown (default 30s) before auto-recovering. Failures are counted per tenant, so one noisy client never tears down the worker for the others.
-- **Tenant tagging** — the tenant is on every worker-internal signal (`openrtc top --tenant`, scoped logs, `runtime_snapshot().sessions_by_tenant`) and on the `SessionObserver` payload, so voicegateway attributes per-tenant cost with no extra config.
-- **Tenant context** — resolved from the dispatch metadata key `tenant` (default `"default"`), readable in agent code via `from openrtc.context import current_tenant_id` or `session.tenant_id`.
+- **Per-tenant provider keys**: `tenant_config={tenant: {stt/llm/tts: ...}}` (or a callable) runs each client on its own STT/LLM/TTS keys and models, resolved at session start and cached per tenant. Keys are never shared across tenants, so an agency can attribute API cost per client.
+- **Per-tenant budgets**: `max_sessions_per_tenant={"acme": 50}`: a tenant at its cap is rejected while sibling tenants keep accepting. Composes with per-agent caps and the global cap.
+- **Blast-radius isolation**: `enable_tenant_circuit_breaker=True`: a tenant whose calls start failing has its new sessions rejected for a cooldown (default 30s) before auto-recovering. Failures are counted per tenant, so one noisy client never tears down the worker for the others.
+- **Tenant tagging**: the tenant is on every worker-internal signal (`openrtc top --tenant`, scoped logs, `runtime_snapshot().sessions_by_tenant`) and on the `SessionObserver` payload, so voicegateway attributes per-tenant cost with no extra config.
+- **Tenant context**: resolved from the dispatch metadata key `tenant` (default `"default"`), readable in agent code via `from openrtc.context import current_tenant_id` or `session.tenant_id`.
 
 ### Lane boundary
 
@@ -238,23 +238,23 @@ Per-tenant cost and quality attribution stay with voicegateway, keyed off the `m
 - Per-tenant prompts are done via per-tenant agents (route with `router`), not `tenant_config` (which governs providers only).
 - Coroutine mode is shared-process isolation, not an OS sandbox. For a hard wall, run `isolation="process"` or a worker per tenant. See the multi-tenancy guide.
 
-Milestone: v0.5 — Per-tenant pool isolation (MAH-101, MAH-102, MAH-103, MAH-104, MAH-105, MAH-106, MAH-107).
+Milestone: v0.5, Per-tenant pool isolation (MAH-101, MAH-102, MAH-103, MAH-104, MAH-105, MAH-106, MAH-107).
 
 ---
 
 ## [0.15.0] - 2026-07-05
 
-## v0.4 — Multi-agent ergonomics
+## v0.4: Multi-agent ergonomics
 
 Run several agent types in one pool, with per-agent registration, budgets, routing, reload isolation, and introspection. The bridge from solo dev to small team.
 
 ### Highlights
 
-- **Multi-agent registration** — `AgentPool(agents={"sales": SalesAgent, "support": SupportAgent})`, plus the single-agent shorthand `AgentPool(agent=MyAgent)`. Names are validated and duplicates rejected; both compose with `add()` / `discover()`.
-- **Per-agent budgets** — `max_sessions_per_agent={"sales": 30, "support": 20}`: a job for an agent at its cap is rejected (backpressure) while sibling agents keep accepting. The global `max_concurrent_sessions` cap still applies on top.
-- **Custom router** — `AgentPool(router=fn)` maps dispatch metadata to an agent name, taking precedence over the default metadata/prefix chain. Return `None` to defer to it; an unknown name or a raised router rejects the session.
-- **Per-agent hot reload** — editing one agent's file re-binds only that agent's live sessions; sibling agents' calls are untouched (proven with a two-agent real-media integration test).
-- **Per-agent metrics namespace** — `agent_name` on scoped log records, and `openrtc top --agent` to filter to one agent (group with `--sort agent_name`).
+- **Multi-agent registration**: `AgentPool(agents={"sales": SalesAgent, "support": SupportAgent})`, plus the single-agent shorthand `AgentPool(agent=MyAgent)`. Names are validated and duplicates rejected; both compose with `add()` / `discover()`.
+- **Per-agent budgets**: `max_sessions_per_agent={"sales": 30, "support": 20}`: a job for an agent at its cap is rejected (backpressure) while sibling agents keep accepting. The global `max_concurrent_sessions` cap still applies on top.
+- **Custom router**: `AgentPool(router=fn)` maps dispatch metadata to an agent name, taking precedence over the default metadata/prefix chain. Return `None` to defer to it; an unknown name or a raised router rejects the session.
+- **Per-agent hot reload**: editing one agent's file re-binds only that agent's live sessions; sibling agents' calls are untouched (proven with a two-agent real-media integration test).
+- **Per-agent metrics namespace**: `agent_name` on scoped log records, and `openrtc top --agent` to filter to one agent (group with `--sort agent_name`).
 
 ### Lane boundary
 
@@ -266,23 +266,23 @@ Per-agent cost and latency stay with voicegateway, attributed from the `info.age
 - Per-agent caps are soft/best-effort (they read live active counts, incremented at session start), matching LiveKit's load-based backpressure.
 - A custom `router` must be picklable under `process` isolation (a module-level function); the default `coroutine` mode accepts any callable.
 
-Milestone: v0.4 — Multi-agent ergonomics (MAH-95, MAH-96, MAH-97, MAH-98, MAH-99).
+Milestone: v0.4, Multi-agent ergonomics (MAH-95, MAH-96, MAH-97, MAH-98, MAH-99).
 
 ---
 
 ## [0.14.0] - 2026-07-04
 
-## v0.3 — Pool observability
+## v0.3: Pool observability
 
 See inside a shared coroutine worker for the first time. This release adds per-session introspection: how each multiplexed session uses memory and CPU, and which one is blocking the loop.
 
 ### Highlights
 
-- **`openrtc top`** — an htop-style live inspector for your session pool. Columns for memory, CPU, duration, tenant, and status; sort (`s`), filter (`f`), refresh, and `--once` for scripts/CI. Connects to a running coroutine worker over a private local Unix socket (mode 0600, per-user).
-- **Per-session memory** — equal-share RSS attribution with a per-session peak (sums back to process RSS). An honest approximation of a shared process; use `isolation="process"` for hard accounting.
-- **Per-session CPU** — statistical sampling of which session is on-CPU, via asyncio task->session tagging.
-- **Slow-session detector** — attributes an event-loop block over `slow_session_threshold_ms` (default 50ms) to the running session and logs it. The tool for "one session is starving the others".
-- **Per-session log scoping** — `session_id` on every log record inside a session, plus `openrtc logs --session` to filter a JSONL log.
+- **`openrtc top`**: an htop-style live inspector for your session pool. Columns for memory, CPU, duration, tenant, and status; sort (`s`), filter (`f`), refresh, and `--once` for scripts/CI. Connects to a running coroutine worker over a private local Unix socket (mode 0600, per-user).
+- **Per-session memory**: equal-share RSS attribution with a per-session peak (sums back to process RSS). An honest approximation of a shared process; use `isolation="process"` for hard accounting.
+- **Per-session CPU**: statistical sampling of which session is on-CPU, via asyncio task->session tagging.
+- **Slow-session detector**: attributes an event-loop block over `slow_session_threshold_ms` (default 50ms) to the running session and logs it. The tool for "one session is starving the others".
+- **Per-session log scoping**: `session_id` on every log record inside a session, plus `openrtc logs --session` to filter a JSONL log.
 
 ### Lane boundary
 
@@ -293,7 +293,7 @@ OpenRTC introspection sees coroutines, not the voice pipeline. Cost, provider la
 - Introspection is on by default in coroutine mode and skipped in process mode; disable with `AgentPool(enable_introspection=False)`.
 - New docs: session introspection concept, `openrtc top` reference (with screenshot), and a density-debugging runbook.
 
-Milestone: v0.3 — Pool observability (MAH-88, MAH-89, MAH-90, MAH-91, MAH-92, MAH-94).
+Milestone: v0.3, Pool observability (MAH-88, MAH-89, MAH-90, MAH-91, MAH-92, MAH-94).
 
 ---
 
@@ -310,7 +310,7 @@ Milestone: v0.3 — Pool observability (MAH-88, MAH-89, MAH-90, MAH-91, MAH-92, 
 ## [0.12.0] - 2026-07-04
 
 ## What's Changed
-* fix(coroutine): clear coroutine debt — turn detector, memory watermark, liveness test, bench framing (MAH-159/161/164/165) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/61
+* fix(coroutine): clear coroutine debt: turn detector, memory watermark, liveness test, bench framing (MAH-159/161/164/165) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/61
 
 
 **Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.11.0...v0.12.0
@@ -335,7 +335,7 @@ Milestone: v0.3 — Pool observability (MAH-88, MAH-89, MAH-90, MAH-91, MAH-92, 
 * docs: visual polish on architecture, examples, and getting-started by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/55
 * fix: flatten mint.json navigation to group/pages format by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/56
 * docs: rebrand and meticulously refresh the README by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/58
-* feat: hot reload — edit an agent, swap live sessions on the next turn (v0.2, MAH-81..87) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/59
+* feat: hot reload: edit an agent, swap live sessions on the next turn (v0.2, MAH-81..87) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/59
 
 
 **Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.9.0...v0.10.0

@@ -73,14 +73,14 @@ flowchart TD
     A[AgentServer.run] --> B[Build CoroutinePool]
     B --> C[CoroutinePool.start]
     C --> D[Run setup_fnc ONCE into singleton JobProcess\nLoads VAD, turn detector, ...]
-    D --> E[Worker registered — accepts dispatch]
+    D --> E[Worker registered (accepts dispatch)]
     E --> F[per session: CoroutinePool.launch_job]
     F --> G[Build CoroutineJobExecutor\nwired with entrypoint_fnc + context_factory]
     G --> H[executor.launch_job schedules _run_entrypoint as asyncio.Task]
-    H --> I[User entrypoint runs — AgentSession etc.]
+    H --> I[User entrypoint runs (AgentSession etc.)]
     I --> J{Session outcome}
-    J -- success --> K[Status SUCCESS — executor removed from pool]
-    J -- error --> L[Status FAILED — session_end_fnc called\nsupervisor counts consecutive failures]
+    J -- success --> K[Status SUCCESS (executor removed from pool)]
+    J -- error --> L[Status FAILED (session_end_fnc called)\nsupervisor counts consecutive failures]
     E --> M[On shutdown: pool.drain awaits all executors\npool.aclose cancels anything still pending]
 ```
 
@@ -131,5 +131,5 @@ During prewarm, OpenRTC loads:
 Both plugins are bundled with `openrtc` as package dependencies. If they are missing at runtime, OpenRTC raises a `RuntimeError` with install instructions.
 </Info>
 
-- `livekit.plugins.silero` — voice activity detection (VAD)
-- `livekit.plugins.turn_detector.multilingual.MultilingualModel` — end-of-turn detection
+- `livekit.plugins.silero`: voice activity detection (VAD)
+- `livekit.plugins.turn_detector.multilingual.MultilingualModel`: end-of-turn detection

@@ -7,10 +7,12 @@ on:
       - '.github/workflows/docs.yml'
 
 jobs:
-  validate-mint-json:
-    name: Validate mint.json
+  validate-docs:
+    name: Validate docs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate mint.json is valid JSON
-        run: python3 -c "import json, sys; json.load(open('docs/mint.json')); print('mint.json is valid')"
+      - name: Validate docs structure and house style
+        # Stdlib-only validator: docs.json shape, page/link resolution, no orphans,
+        # required frontmatter, and the no-em-dash house-style rule. No deps to install.
+        run: python3 docs/_check_docs.py

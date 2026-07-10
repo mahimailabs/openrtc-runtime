@@ -12,7 +12,7 @@ runtime resources (VAD, turn detector).
 
 ## Multi-agent worker
 
-`examples/main.py` registers two agents — `restaurant` and `dental` — with per-agent
+`examples/main.py` registers two agents (`restaurant` and `dental`) with per-agent
 instructions and tools:
 
 ```python
@@ -117,7 +117,7 @@ openrtc dev ./examples/agents \
 
 ## What the example demonstrates
 
-- Two `livekit.agents.Agent` subclasses registered in one `AgentPool` — no OpenRTC base class required.
+- Two `livekit.agents.Agent` subclasses registered in one `AgentPool`: no OpenRTC base class required.
 - Shared prewarm: VAD and turn detector load once for both agents.
 - Routing by room prefix (`restaurant-*`, `dental-*`) or metadata key (`{"agent": "dental"}`).
 - Per-agent greeting: only `RestaurantAgent` sends a greeting on connect.
