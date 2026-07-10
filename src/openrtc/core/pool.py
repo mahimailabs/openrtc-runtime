@@ -658,15 +658,25 @@ class AgentPool:
             return self._backend.registered_names()
         return list(self._agents)
 
-    def get(self, name: str) -> AgentConfig:
+    def get(self, name: str) -> AgentConfig | PipecatAgentConfig:
         """Return a registered agent configuration by name."""
+        if self._backend_name != "livekit":
+            from openrtc.backends.pipecat.backend import PipecatBackend
+
+            assert isinstance(self._backend, PipecatBackend)
+            return self._backend.get(name)
         try:
             return self._agents[name]
         except KeyError as exc:
             raise KeyError(f"Unknown agent '{name}'.") from exc
 
-    def remove(self, name: str) -> AgentConfig:
+    def remove(self, name: str) -> AgentConfig | PipecatAgentConfig:
         """Remove and return a registered agent configuration."""
+        if self._backend_name != "livekit":
+            from openrtc.backends.pipecat.backend import PipecatBackend
+
+            assert isinstance(self._backend, PipecatBackend)
+            return self._backend.remove(name)
         try:
             removed = self._agents.pop(name)
         except KeyError as exc:

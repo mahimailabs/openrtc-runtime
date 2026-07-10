@@ -99,6 +99,22 @@ class PipecatBackend:
         """Return the registered agent names in registration order."""
         return list(self._builders)
 
+    def get(self, name: str) -> PipecatAgentConfig:
+        """Return a registered agent configuration by name (``pool.get``)."""
+        try:
+            builder = self._builders[name]
+        except KeyError as exc:
+            raise KeyError(f"Unknown agent '{name}'.") from exc
+        return PipecatAgentConfig(name=name, builder=builder)
+
+    def remove(self, name: str) -> PipecatAgentConfig:
+        """Remove and return a registered agent configuration (``pool.remove``)."""
+        try:
+            builder = self._builders.pop(name)
+        except KeyError as exc:
+            raise KeyError(f"Unknown agent '{name}'.") from exc
+        return PipecatAgentConfig(name=name, builder=builder)
+
     def dispatch(
         self, view: SessionView
     ) -> tuple[list[FrameProcessor], PipecatLifecycleObserver]:
