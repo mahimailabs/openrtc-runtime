@@ -20,17 +20,17 @@ if TYPE_CHECKING:
 
     from pipecat.processors.frame_processor import FrameProcessor
 
-    from openrtc.core.session_view import SessionView
+    from openrtc.backends.pipecat.call_view import PipecatCallView
     from openrtc.observability.base_observer import SessionInfo, SessionObserver
 
-    PipelineBuilder = Callable[[SessionView], Sequence[FrameProcessor]]
+    PipelineBuilder = Callable[[PipecatCallView], Sequence[FrameProcessor]]
 
 __all__ = ["build_pipecat_session"]
 
 
 def build_pipecat_session(
     builder: PipelineBuilder,
-    view: SessionView,
+    view: PipecatCallView,
     *,
     info: SessionInfo,
     observers: Sequence[SessionObserver],
@@ -38,11 +38,13 @@ def build_pipecat_session(
 ) -> tuple[list[FrameProcessor], PipecatLifecycleObserver]:
     """Invoke a registered builder for a call and attach OpenRTC observability.
 
-    Returns the call's pipecat processors and a :class:`PipecatLifecycleObserver`
-    bound to this session's ``info`` and live handle (``view.session``). The caller
-    runs them (``PipelineWorker(Pipeline(processors), observers=[observer])``); the
-    observer then drives ``on_session_start`` / ``on_session_end`` from the
-    pipeline's frame boundaries.
+    ``view`` is the enriched :class:`~openrtc.backends.pipecat.call_view.PipecatCallView`
+    (the neutral view plus shared prewarm), so the builder can reach the worker's
+    shared VAD/turn (``view.prewarmed``). Returns the call's pipecat processors and
+    a :class:`PipecatLifecycleObserver` bound to this session's ``info`` and live
+    handle (``view.session``). The caller runs them (``PipelineWorker(Pipeline(
+    processors), observers=[observer])``); the observer then drives
+    ``on_session_start`` / ``on_session_end`` from the pipeline's frame boundaries.
     """
     processors = list(builder(view))
     observer = PipecatLifecycleObserver(

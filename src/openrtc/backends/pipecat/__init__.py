@@ -10,5 +10,7 @@ builder and dispatch front next.
 from __future__ import annotations
 
 from openrtc.backends.pipecat.backend import PipecatBackend, build_backend
+from openrtc.backends.pipecat.call_view import PipecatCallView
+from openrtc.backends.pipecat.prewarm import SharedPrewarm
 
-__all__ = ["PipecatBackend", "build_backend"]
+__all__ = ["PipecatBackend", "PipecatCallView", "SharedPrewarm", "build_backend"]

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from openrtc.backends.pipecat.dispatch import dispatch_pipecat_call
+from openrtc.backends.pipecat.prewarm import SharedPrewarm
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -55,16 +56,22 @@ class PipecatBackend:
         "_draining",
         "_observer_timeout",
         "_observers",
+        "_prewarm",
         "_router",
     )
 
-    def __init__(self, params: ServerParams) -> None:
+    def __init__(
+        self, params: ServerParams, *, prewarm: SharedPrewarm | None = None
+    ) -> None:
         self._builders: dict[str, PipelineBuilder] = {}
         self._observers: Sequence[SessionObserver] = ()
         self._observer_timeout: float = _DEFAULT_OBSERVER_TIMEOUT
         self._router: AgentRouter | None = None
         self._deployment_version: str | None = None
         self._draining = False
+        # One shared VAD/turn holder, handed to every call so N sessions share
+        # one analyzer instead of pipecat's per-bot construction.
+        self._prewarm = prewarm if prewarm is not None else SharedPrewarm()
 
     @property
     def raw_server(self) -> Any:
@@ -126,6 +133,7 @@ class PipecatBackend:
             timeout=self._observer_timeout,
             deployment_version=self._deployment_version,
             router=self._router,
+            prewarm=self._prewarm,
         )
 
     def run(self) -> None:
