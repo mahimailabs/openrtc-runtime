@@ -11,6 +11,7 @@ from pipecat.processors.frame_processor import Frame, FrameDirection, FrameProce
 from pipecat.tests.utils import run_test
 
 from openrtc.backends.pipecat.observer import PipecatLifecycleObserver
+from openrtc.backends.pipecat.testing import simulate_call
 from openrtc.observability.base_observer import (
     SessionInfo,
     SessionOutcome,
@@ -97,6 +98,24 @@ async def test_end_without_start_is_skipped() -> None:
     # A pipeline torn down before it started must not report an end.
     await observer.on_push_frame(_pushed(EndFrame()))
     assert recorder.ends == []
+
+
+@pytest.mark.asyncio
+async def test_simulate_call_drives_the_full_lifecycle_with_the_observer() -> None:
+    # The call-simulation harness runs a genuine PipelineWorker/WorkerRunner:
+    # StartFrame (connect), the user frame, then EndFrame (disconnect).
+    recorder = _RecordingObserver()
+    captured = await simulate_call(
+        [_Passthrough()],
+        user_frames=[TextFrame("hello")],
+        observers=[_observer(recorder)],
+    )
+    assert any(
+        isinstance(frame, TextFrame) and frame.text == "hello" for frame in captured
+    )
+    assert recorder.starts == ["SESSION"]
+    assert len(recorder.ends) == 1
+    assert recorder.ends[0].status is SessionStatus.SUCCESS
 
 
 @pytest.mark.asyncio
