@@ -50,6 +50,12 @@ class _LiveKitSessionView:
     Uses the same defensive ``getattr`` reads the current observability/routing
     code uses, so a missing room name or job id can never turn a healthy session
     into a failed one, matching today's behavior exactly.
+
+    Routing runs before ``ctx.connect()``, so the rtc ``Room`` name/metadata are
+    still empty; the authoritative pre-connect values are on ``ctx.job.room`` (the
+    dispatch assignment). ``room_name`` and ``room_metadata`` therefore prefer the
+    job room, falling back to the rtc room for already-connected or stubbed
+    contexts, exactly as the routing strategies did before they read this view.
     """
 
     __slots__ = ("_ctx",)
@@ -59,7 +65,11 @@ class _LiveKitSessionView:
 
     @property
     def room_name(self) -> str:
-        return getattr(getattr(self._ctx, "room", None), "name", "") or ""
+        job_room = getattr(getattr(self._ctx, "job", None), "room", None)
+        name = getattr(job_room, "name", None) or getattr(
+            getattr(self._ctx, "room", None), "name", None
+        )
+        return name if isinstance(name, str) else ""
 
     @property
     def job_id(self) -> str:
@@ -71,6 +81,10 @@ class _LiveKitSessionView:
 
     @property
     def room_metadata(self) -> Any:
+        job_room = getattr(getattr(self._ctx, "job", None), "room", None)
+        job_room_metadata = getattr(job_room, "metadata", None)
+        if job_room_metadata is not None:
+            return job_room_metadata
         return getattr(getattr(self._ctx, "room", None), "metadata", None)
 
     @property

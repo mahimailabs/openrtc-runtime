@@ -21,16 +21,28 @@ from openrtc.core.session_view import SessionView, for_livekit
 
 
 def _livekit_ctx(
-    *, room_name: str = "sales-1", job_id: str = "j1", job_meta=None, room_meta=None
+    *,
+    room_name="sales-1",
+    job_id="j1",
+    job_meta=None,
+    room_meta=None,
+    job_room_name=None,
+    job_room_meta=None,
 ):
     connected = {"value": False}
 
     async def _connect() -> None:
         connected["value"] = True
 
+    job = SimpleNamespace(id=job_id, metadata=job_meta)
+    # Real livekit jobs carry the pre-connect room on ctx.job.room; add it only
+    # when a test asks for one so the "job room absent" fallback stays exercised.
+    if job_room_name is not None or job_room_meta is not None:
+        job.room = SimpleNamespace(name=job_room_name or "", metadata=job_room_meta)
+
     ctx = SimpleNamespace(
         room=SimpleNamespace(name=room_name, metadata=room_meta),
-        job=SimpleNamespace(id=job_id, metadata=job_meta),
+        job=job,
         connect=_connect,
         _primary_agent_session="LIVE_SESSION",
     )
@@ -67,3 +79,39 @@ async def test_for_livekit_connect_delegates() -> None:
     sv = for_livekit(ctx)
     await sv.connect()
     assert connected["value"] is True
+
+
+# ---------------------------------------------------------------------------
+# Pre-connect room semantics. Routing runs before ctx.connect(), so the rtc
+# Room name/metadata are still empty; the authoritative pre-connect values live
+# on ctx.job.room (the dispatch assignment). The adapter must prefer those,
+# mirroring the routing strategies exactly, so routing can read only the view.
+# ---------------------------------------------------------------------------
+
+
+def test_room_name_prefers_job_room_over_rtc_room() -> None:
+    # rtc room name is empty pre-connect; the job room name is authoritative.
+    ctx, _ = _livekit_ctx(room_name="", job_room_name="dental-follow-up")
+    assert for_livekit(ctx).room_name == "dental-follow-up"
+
+
+def test_room_name_falls_back_to_rtc_room_when_job_room_absent() -> None:
+    ctx, _ = _livekit_ctx(room_name="sales-1")  # no job room
+    assert for_livekit(ctx).room_name == "sales-1"
+
+
+def test_room_name_is_empty_string_when_neither_is_a_string() -> None:
+    # A missing rtc room name (None) and no job room coerce to "" (never raises,
+    # and "" matches no agent prefix, so routing simply defers).
+    ctx, _ = _livekit_ctx(room_name=None)
+    assert for_livekit(ctx).room_name == ""
+
+
+def test_room_metadata_prefers_job_room_when_present() -> None:
+    ctx, _ = _livekit_ctx(room_meta=None, job_room_meta='{"agent": "dental"}')
+    assert for_livekit(ctx).room_metadata == '{"agent": "dental"}'
+
+
+def test_room_metadata_falls_back_to_rtc_room_when_job_room_absent() -> None:
+    ctx, _ = _livekit_ctx(room_meta='{"agent": "sales"}')  # no job room
+    assert for_livekit(ctx).room_metadata == '{"agent": "sales"}'
