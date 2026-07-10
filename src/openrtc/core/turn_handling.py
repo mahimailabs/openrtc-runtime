@@ -12,11 +12,12 @@ import logging
 import os
 import warnings
 from collections.abc import Mapping
-from typing import Any
-
-from livekit.agents import JobProcess
+from typing import TYPE_CHECKING, Any
 
 from openrtc.runtime.resources import PrewarmResources
+
+if TYPE_CHECKING:
+    from livekit.agents import JobProcess
 
 logger = logging.getLogger("openrtc")
 

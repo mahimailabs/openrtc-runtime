@@ -5,8 +5,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from livekit.agents import Agent, AgentServer
-
 from openrtc.backends.registry import resolve_backend_builder
 from openrtc.core.audit import DEPLOYMENT_DRAIN_STARTED, AuditLog, AuditSink
 from openrtc.core.circuit_breaker import TenantCircuitBreaker
@@ -54,6 +52,8 @@ __all__ = [
 logger = logging.getLogger("openrtc")
 
 if TYPE_CHECKING:
+    from livekit.agents import Agent, AgentServer
+
     from openrtc.core.backend import Backend
     from openrtc.observability.introspection_runtime import IntrospectionRuntime
 
@@ -540,6 +540,8 @@ class AgentPool:
         **session_options: Any,
     ) -> AgentConfig:
         """Register an agent in the pool and return its configuration."""
+        from livekit.agents import Agent
+
         normalized_name = require_agent_name(name)
         if normalized_name in self._agents:
             raise ValueError(f"Agent '{normalized_name}' is already registered.")

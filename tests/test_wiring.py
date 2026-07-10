@@ -149,7 +149,7 @@ async def test_run_session_defers_end_for_held_open_session(monkeypatch) -> None
         async def start(self, **kwargs: object) -> None:
             pass
 
-    monkeypatch.setattr(wiring, "AgentSession", _FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
 
     async def _connect() -> None:
         pass
@@ -231,7 +231,7 @@ async def test_run_session_connects_before_starting(monkeypatch) -> None:
         async def generate_reply(self, **kwargs: object) -> None:
             order.append("greet")
 
-    monkeypatch.setattr(wiring, "AgentSession", _FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
 
     async def _connect() -> None:
         order.append("connect")
@@ -266,7 +266,7 @@ def test_build_session_uses_resolved_config_and_prewarm_vad(monkeypatch) -> None
         def __init__(self, **kwargs):
             captured.update(kwargs)
 
-    monkeypatch.setattr(wiring, "AgentSession", _FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
     proc = SimpleNamespace(userdata={"vad": "VAD", "turn_detection_factory": object()})
     ctx = SimpleNamespace(
         proc=proc,

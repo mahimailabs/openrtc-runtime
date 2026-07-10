@@ -13,13 +13,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from livekit.agents import JobProcess
-
 from openrtc.observability.resident_set import process_resident_set_bytes
 from openrtc.observability.savings import format_prewarm_savings
 from openrtc.runtime.resources import PrewarmResources
 
 if TYPE_CHECKING:
+    from livekit.agents import JobProcess
+
     from openrtc.core.wiring import _PoolRuntimeState
 
 logger = logging.getLogger("openrtc.runtime.prewarm")

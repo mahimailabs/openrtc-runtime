@@ -9,8 +9,6 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING
 
-from livekit.agents import AgentSession
-
 from openrtc.core.config import AgentConfig
 from openrtc.core.tenant_config import resolve_tenant_providers
 from openrtc.core.turn_handling import _build_session_kwargs
@@ -36,7 +34,7 @@ from openrtc.runtime.prewarm import _prewarm_worker
 from openrtc.runtime.resources import PrewarmResources
 
 if TYPE_CHECKING:
-    from livekit.agents import JobContext
+    from livekit.agents import AgentSession, JobContext
 
     from openrtc.core.circuit_breaker import TenantCircuitBreaker
     from openrtc.core.tenant_config import TenantConfigResolver
@@ -82,6 +80,8 @@ def build_session(
     ctx: JobContext,
 ) -> tuple[AgentSession[None], AgentConfig, SessionInfo]:
     """Resolve the agent and construct its AgentSession (no side effects)."""
+    from livekit.agents import AgentSession
+
     if not runtime_state.agents:
         raise RuntimeError("No agents are registered in the pool.")
     config = _resolve_agent_config(

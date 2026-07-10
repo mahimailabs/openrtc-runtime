@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
-from livekit.agents import JobRequest
+if TYPE_CHECKING:
+    from livekit.agents import JobRequest
 
 # Values accepted for STT, LLM, and TTS configuration:
 # - Provider ID strings (e.g. ``"openai/gpt-4o-mini-transcribe"``) used by LiveKit
@@ -19,7 +20,7 @@ ProviderValue: TypeAlias = str | object
 # automatic dispatch; a request filter lets a pool accept only the rooms it
 # should handle by awaiting ``req.accept()`` or ``req.reject()``. Passed to
 # ``AgentPool(request_fnc=...)``; ``None`` keeps LiveKit's accept-all default.
-RequestFilter: TypeAlias = Callable[[JobRequest], Awaitable[None]]
+RequestFilter: TypeAlias = Callable[["JobRequest"], Awaitable[None]]
 
 # A custom dispatch router: maps a job's parsed dispatch metadata to a registered
 # agent name (or ``None`` to defer to the default routing chain). Passed to

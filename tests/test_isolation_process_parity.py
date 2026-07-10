@@ -109,7 +109,7 @@ def test_universal_entrypoint_runs_under_both_modes(
         async def generate_reply(self, *, instructions: str) -> None:
             return None
 
-    monkeypatch.setattr("openrtc.core.wiring.AgentSession", _FakeSession)
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
 
     pool = AgentPool(isolation=isolation)  # type: ignore[arg-type]
     pool.add("demo", _DemoAgent, greeting="hi")

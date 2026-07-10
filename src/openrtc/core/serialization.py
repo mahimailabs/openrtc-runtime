@@ -14,11 +14,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
-from typing import Any
-
-from livekit.agents import Agent
+from typing import TYPE_CHECKING, Any
 
 from openrtc.core.discovery import _load_module_from_path, _try_get_module_path
+
+if TYPE_CHECKING:
+    from livekit.agents import Agent
 
 _SPAWN_PROBE = importlib.import_module("pickle")
 
@@ -178,6 +179,8 @@ def _resolve_agent_class(agent_ref: _AgentClassRef) -> type[Agent]:
             if module_path is None:
                 raise
             module = _load_module_from_path(agent_ref.module_name, module_path)
+
+    from livekit.agents import Agent
 
     agent_cls = _resolve_qualname(module, agent_ref.qualname)
     if not isinstance(agent_cls, type) or not issubclass(agent_cls, Agent):
