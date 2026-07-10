@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from livekit.agents import Agent, AgentServer
 
-from openrtc.backends.livekit.backend import LiveKitBackend
+from openrtc.backends.livekit.backend import build_backend
 from openrtc.core.audit import DEPLOYMENT_DRAIN_STARTED, AuditLog, AuditSink
 from openrtc.core.circuit_breaker import TenantCircuitBreaker
 from openrtc.core.config import (
@@ -33,7 +33,7 @@ from openrtc.routing.request_filter import (
     _build_registered_rooms_filter,
     _build_tenant_circuit_filter,
 )
-from openrtc.runtime.registry import ServerParams, resolve_server_builder
+from openrtc.runtime.registry import ServerParams
 from openrtc.utils.types import AgentRouter, ProviderValue, RequestFilter
 from openrtc.utils.validation import (
     require_agent_name,
@@ -244,12 +244,14 @@ class AgentPool:
         # Deployment audit log (MAH-112): structured, monotonic-sequence events,
         # logged by default or handed to a custom sink (S3 / SIEM).
         self._audit = AuditLog(sink=audit_sink)
-        self._server = self._build_server()
         # The worker substrate the pool drives, behind the neutral Backend seam.
-        # Today the livekit backend wraps the AgentServer; run / introspection /
-        # reload / drain still read the raw server (exposed as .server) until they
-        # migrate onto the seam.
-        self._backend: Backend = LiveKitBackend(self._server)
+        # The livekit backend builds and wraps the AgentServer for the isolation
+        # mode; run and drain run through the seam, while introspection and reload
+        # still read the raw server (exposed as .server) until they migrate too.
+        self._backend: Backend = build_backend(
+            self._build_server_params(), self._isolation
+        )
+        self._server: AgentServer = self._backend.raw_server
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(
             agents=self._agents,
@@ -346,16 +348,15 @@ class AgentPool:
         if enable_hot_reload:
             self._setup_hot_reload(watch_paths)
 
-    def _build_server(self) -> AgentServer:
-        """Construct the underlying LiveKit server matching ``isolation``."""
-        params = ServerParams(
+    def _build_server_params(self) -> ServerParams:
+        """Collect the shared worker options the backend builds its server from."""
+        return ServerParams(
             max_concurrent_sessions=self._max_concurrent_sessions,
             consecutive_failure_limit=self._consecutive_failure_limit,
             drain_timeout=self._drain_timeout,
             memory_warn_mb=self._memory_warn_mb,
             memory_limit_mb=self._memory_limit_mb,
         )
-        return resolve_server_builder(self._isolation)(params)
 
     def _setup_introspection(
         self, slow_session_threshold_ms: float, socket_path: Path | None

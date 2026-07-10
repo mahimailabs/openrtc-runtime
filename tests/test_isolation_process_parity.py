@@ -165,10 +165,10 @@ def test_process_mode_does_not_import_coroutine_subsystem(
 ) -> None:
     """Process-only callers should not pay for ``execution/coroutine*`` imports.
 
-    The lazy import in ``AgentPool._build_server`` only fires for
-    ``isolation="coroutine"``; this test confirms that purging the
-    coroutine modules from ``sys.modules`` and constructing a process
-    pool does not re-import them.
+    The lazy import via ``build_backend`` / ``resolve_server_builder`` only
+    pulls the server module for the selected isolation mode; this test confirms
+    that purging the coroutine modules from ``sys.modules`` and constructing a
+    process pool does not re-import them.
     """
     for name in ("openrtc.runtime.coroutine_server",):
         monkeypatch.delitem(sys.modules, name, raising=False)
