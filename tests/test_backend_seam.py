@@ -67,6 +67,20 @@ class _StubCoroutinePool:
         self.draining = True
 
 
+def test_build_backend_constructs_the_isolation_server() -> None:
+    from openrtc.backends.livekit import build_backend
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
+
+    coroutine = build_backend(_PARAMS, "coroutine")
+    assert isinstance(coroutine, LiveKitBackend)
+    assert isinstance(coroutine.raw_server, _CoroutineAgentServer)
+    assert coroutine.raw_server._max_concurrent_sessions == 10
+
+    process = build_backend(_PARAMS, "process")
+    assert isinstance(process, LiveKitBackend)
+    assert not isinstance(process.raw_server, _CoroutineAgentServer)
+
+
 def test_run_delegates_to_cli_run_app(monkeypatch: pytest.MonkeyPatch) -> None:
     import openrtc.backends.livekit.backend as backend_mod
 

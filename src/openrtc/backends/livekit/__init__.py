@@ -7,6 +7,6 @@ livekit, so the pool imports it only for the livekit backend, never at
 
 from __future__ import annotations
 
-from openrtc.backends.livekit.backend import LiveKitBackend
+from openrtc.backends.livekit.backend import LiveKitBackend, build_backend
 
-__all__ = ["LiveKitBackend"]
+__all__ = ["LiveKitBackend", "build_backend"]

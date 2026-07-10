@@ -14,12 +14,13 @@ from typing import TYPE_CHECKING, Any
 from livekit.agents import AgentServer, cli
 
 from openrtc.core.wiring import wire_pool
+from openrtc.runtime.registry import ServerParams, resolve_server_builder
 
 if TYPE_CHECKING:
     from openrtc.core.wiring import _PoolRuntimeState
     from openrtc.utils.types import RequestFilter
 
-__all__ = ["LiveKitBackend"]
+__all__ = ["LiveKitBackend", "build_backend"]
 
 
 class LiveKitBackend:
@@ -67,3 +68,12 @@ class LiveKitBackend:
         """Whether the coroutine pool has begun draining (rejecting new jobs)."""
         pool = getattr(self._server, "coroutine_pool", None)
         return bool(getattr(pool, "draining", False))
+
+
+def build_backend(params: ServerParams, isolation: str) -> LiveKitBackend:
+    """Build a livekit backend running the ``AgentServer`` for an isolation mode.
+
+    The isolation mode (``"coroutine"`` / ``"process"``) selects the server the
+    backend wraps, keeping construction of the livekit substrate behind the seam.
+    """
+    return LiveKitBackend(resolve_server_builder(isolation)(params))
