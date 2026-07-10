@@ -143,13 +143,16 @@ def test_begin_drain_emits_audit_event() -> None:
 def test_session_info_carries_deployment_version() -> None:
     from types import SimpleNamespace
 
+    from openrtc.core.session_view import for_livekit
     from openrtc.observability.base_observer import _build_session_info
 
-    ctx = SimpleNamespace(
-        job=SimpleNamespace(metadata=None, id="j"),
-        room=SimpleNamespace(metadata=None, name="r"),
+    view = for_livekit(
+        SimpleNamespace(
+            job=SimpleNamespace(metadata=None, id="j"),
+            room=SimpleNamespace(metadata=None, name="r"),
+        )
     )
-    info = _build_session_info("a", ctx, "v2.0.0")
+    info = _build_session_info("a", view, "v2.0.0")
     assert info.deployment_version == "v2.0.0"
     # Default (untagged worker): None.
-    assert _build_session_info("a", ctx).deployment_version is None
+    assert _build_session_info("a", view).deployment_version is None

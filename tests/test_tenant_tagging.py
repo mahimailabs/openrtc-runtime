@@ -6,14 +6,17 @@ from types import SimpleNamespace
 from typing import Any
 
 from openrtc.cli.top_cli import build_top_table, filter_and_sort
+from openrtc.core.session_view import for_livekit
 from openrtc.observability.base_observer import _build_session_info
 from openrtc.observability.metrics import RuntimeMetricsStore
 
 
 def _ctx(job_metadata: Any = None) -> Any:
-    return SimpleNamespace(
-        job=SimpleNamespace(metadata=job_metadata, id="j1", room=None),
-        room=SimpleNamespace(metadata=None, name="r"),
+    return for_livekit(
+        SimpleNamespace(
+            job=SimpleNamespace(metadata=job_metadata, id="j1", room=None),
+            room=SimpleNamespace(metadata=None, name="r"),
+        )
     )
 
 

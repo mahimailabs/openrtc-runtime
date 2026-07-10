@@ -9,6 +9,7 @@ import pytest
 from livekit.agents import Agent
 
 from openrtc import AgentPool
+from openrtc.core.session_view import for_livekit
 from openrtc.core.wiring import run_session
 from openrtc.observability.base_observer import (
     SessionInfo,
@@ -107,7 +108,7 @@ def test_build_session_info_parses_and_merges_metadata() -> None:
         room_name="restaurant-1",
         job_id="job-9",
     )
-    info = _build_session_info("restaurant", ctx)
+    info = _build_session_info("restaurant", for_livekit(ctx))
     assert info.agent_name == "restaurant"
     assert info.room_name == "restaurant-1"
     assert info.job_id == "job-9"
@@ -118,7 +119,7 @@ def test_build_session_info_parses_and_merges_metadata() -> None:
 def test_build_session_info_defends_missing_attrs() -> None:
     # FakeJob in the repo has no ``id``; a missing room name or job id must not raise.
     ctx = _fake_ctx(job_metadata="not-json", room_name="")
-    info = _build_session_info("agent", ctx)
+    info = _build_session_info("agent", for_livekit(ctx))
     assert info.room_name == ""
     assert info.job_id == ""
     # The resolved tenant is always injected (default when unset).
@@ -137,7 +138,7 @@ def test_build_session_info_uses_job_room_before_connect() -> None:
         job_room_metadata={"region": "eu"},
         job_metadata='{"agent": "restaurant"}',
     )
-    info = _build_session_info("restaurant", ctx)
+    info = _build_session_info("restaurant", for_livekit(ctx))
     assert info.room_name == "restaurant-1"
     assert info.metadata == {"agent": "restaurant", "region": "eu", "tenant": "default"}
 

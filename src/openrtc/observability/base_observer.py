@@ -22,11 +22,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from openrtc.core.session_view import SessionView, for_livekit
 from openrtc.utils.validation import DEFAULT_TENANT, require_tenant_id
 
 if TYPE_CHECKING:
     from livekit.agents import AgentSession
+
+    from openrtc.core.session_view import SessionView
 
 logger = logging.getLogger("openrtc")
 
@@ -141,20 +142,19 @@ def _resolve_tenant(metadata: Mapping[str, str]) -> str:
 
 
 def _build_session_info(
-    agent_name: str, ctx: Any, deployment_version: str | None = None
+    agent_name: str, view: SessionView, deployment_version: str | None = None
 ) -> SessionInfo:
-    """Build a ``SessionInfo`` from the resolved agent and the job context.
+    """Build a ``SessionInfo`` from the resolved agent and the session view.
 
-    ``ctx`` is a livekit ``JobContext`` (or any object shaped like one); it is
-    adapted to the backend-neutral :class:`SessionView` so this reads only that
-    seam. The view uses defensive attribute access, so a missing room name or job
-    id can never turn a healthy session into a failed one, and it resolves the
-    pre-connect room name/metadata (job room preferred over the rtc room, which is
-    empty until connect) exactly as routing does. The tenant is the one validated
-    field (a malformed ``tenant`` in dispatch metadata rejects the session).
+    ``view`` is the backend-neutral :class:`SessionView`, so any backend (livekit
+    via ``for_livekit``, pipecat via its own adapter) reaches this the same way.
+    The view uses defensive attribute access, so a missing room name or job id can
+    never turn a healthy session into a failed one, and it resolves the pre-connect
+    room name/metadata (job room preferred over the rtc room, which is empty until
+    connect) exactly as routing does. The tenant is the one validated field (a
+    malformed ``tenant`` in dispatch metadata rejects the session).
     ``deployment_version`` tags which worker version handled the call (MAH-112).
     """
-    view = for_livekit(ctx)
     metadata = _merge_metadata(view)
     tenant = _resolve_tenant(metadata)
     # Ensure metadata["tenant"] always carries the resolved tenant (including the
