@@ -134,6 +134,36 @@ pool.add("support", support)
   </Tab>
 </Tabs>
 
+### Serving
+
+`pool.run()` serves calls over a transport via pipecat's runner (a FastAPI
+server). Install the serving extra and call `run()`:
+
+```bash
+pip install "openrtc[pipecat-serve]"
+```
+
+```python
+from openrtc import AgentPool
+from openrtc.backends.pipecat import PipecatCallView
+
+
+def support(view: PipecatCallView):
+    transport = make_transport(vad_analyzer=view.prewarmed.vad)
+    return [transport.input(), stt, view.prewarmed.turn, llm, tts, transport.output()]
+
+
+pool = AgentPool(backend="pipecat")
+pool.add("support", support)
+pool.run()  # serves until it exits
+```
+
+Each connection hits the runner's `/start` endpoint; OpenRTC routes it
+(`body["agent"]`), builds the observed session, and runs one pipeline per call
+with the shared prewarm. Host and port come from pipecat's environment
+(`RUNNER_HOST` / `RUNNER_PORT`). During a drain the worker declines new calls and
+lets in-flight ones finish.
+
 ## Status and boundaries
 
 The pipecat backend's **per-call path** (registration, routing, shared prewarm,
