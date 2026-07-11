@@ -164,6 +164,19 @@ with the shared prewarm. Host and port come from pipecat's environment
 (`RUNNER_HOST` / `RUNNER_PORT`). During a drain the worker declines new calls and
 lets in-flight ones finish.
 
+From a directory of `@agent_config`-marked builders, the CLI does the same:
+
+```bash
+openrtc serve ./agents
+```
+
+**Smoke test locally.** With a WebRTC transport builder, `openrtc serve ./agents`
+starts pipecat's runner (default `http://localhost:7860`), which serves a browser
+test client at that URL. Open it, start a call, and confirm the agent responds and
+that OpenRTC emits a session start / end for the call. This live check is the one
+step the automated suite cannot cover (the assembly is otherwise verified end to
+end in process); everything up to accepting a real transport connection is tested.
+
 ## Status and boundaries
 
 The pipecat backend's **per-call path** (registration, routing, shared prewarm,
