@@ -172,6 +172,18 @@ directory (for a valid worker entrypoint) plus connection settings (**no**
 openrtc download-files ./agents
 ```
 
+### `openrtc serve`
+
+Serve the **pipecat** backend: discover `@agent_config`-marked pipeline builders
+from a directory and serve them over a transport via pipecat's runner. Needs
+`openrtc[pipecat-serve]`; host and port come from pipecat's environment
+(`RUNNER_HOST` / `RUNNER_PORT`). See [Frameworks](/concepts/frameworks) for the
+pipecat builder shape.
+
+```bash
+openrtc serve ./agents
+```
+
 ## Runtime visibility and automation
 
 - **`--dashboard`**: Live Rich summary (RSS, sessions, routing, savings
