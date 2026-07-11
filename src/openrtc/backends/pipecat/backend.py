@@ -4,9 +4,9 @@ Pipecat has neither registration nor routing nor a shared session lifecycle;
 OpenRTC supplies them. Agents register as pipeline builders; each call is routed
 to one via the shared name resolver and built into an observed pipecat session
 (:func:`~openrtc.backends.pipecat.dispatch.dispatch_pipecat_call`). That per-call
-path is verified against real pipecat. Serving (accepting calls over a transport
-and running a session per connection) is the remaining transport-integration
-piece; ``run`` documents that boundary.
+path is verified against real pipecat. ``run`` serves calls over a transport via
+pipecat's runner (see :mod:`openrtc.backends.pipecat.serving`); starting the
+FastAPI server is the transport integration boundary.
 """
 
 from __future__ import annotations
@@ -158,12 +158,14 @@ class PipecatBackend:
         return self.dispatch(for_pipecat(runner_args), connection=runner_args)
 
     def run(self) -> None:
-        raise NotImplementedError(
-            "The pipecat serving front (accepting calls over a transport and "
-            "running PipecatBackend.dispatch per connection) is not yet wired. The "
-            "per-call session logic is complete and verified; wiring a transport "
-            "server is the remaining step."
-        )
+        """Serve calls over a transport via pipecat's runner (blocking).
+
+        Delegates to the serving front, which registers OpenRTC's per-connection
+        bot with pipecat's runner and starts it. Requires ``openrtc[pipecat-serve]``.
+        """
+        from openrtc.backends.pipecat.serving import serve
+
+        serve(self)
 
     def begin_drain(self) -> bool:
         """Begin draining; return whether this call started it (idempotent)."""
