@@ -1,19 +1,22 @@
 """The pipecat serving front: bot assembly and runner wiring.
 
-The blocking calls (pipecat's runner ``main`` -> uvicorn, and ``PipelineRunner.run``)
-are mocked, exactly as the livekit backend's ``run`` is tested by mocking
-``cli.run_app``. A genuinely live transport connection is the integration boundary
-(a manual / integration smoke), not exercised here.
+The blocking calls (pipecat's runner ``main`` -> uvicorn, and ``WorkerRunner.run``)
+are mocked in the wiring tests, exactly as the livekit backend's ``run`` is tested
+by mocking ``cli.run_app``. One end-to-end test drives the real worker/runner to
+completion with a self-terminating pipeline (no mocks, no network); a genuinely
+live transport connection is the remaining integration boundary.
 """
 
 from __future__ import annotations
 
+import asyncio
 import builtins
 import sys
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from pipecat.frames.frames import EndFrame, StartFrame
 from pipecat.processors.frame_processor import Frame, FrameDirection, FrameProcessor
 
 from openrtc.backends.pipecat import serving
@@ -21,6 +24,7 @@ from openrtc.backends.pipecat.backend import PipecatBackend
 from openrtc.backends.pipecat.call_view import PipecatCallView
 from openrtc.backends.pipecat.serving import build_bot, serve
 from openrtc.core.wiring import _PoolRuntimeState
+from openrtc.observability.base_observer import SessionStatus
 from openrtc.runtime.registry import ServerParams
 
 _PARAMS = ServerParams(
@@ -37,12 +41,23 @@ class _Passthrough(FrameProcessor):
 class _Recorder:
     def __init__(self) -> None:
         self.starts: list[Any] = []
+        self.ends: list[Any] = []
 
     async def on_session_start(self, info: Any, session: Any) -> None:
         self.starts.append(info)
 
     async def on_session_end(self, info: Any, outcome: Any) -> None:
-        pass
+        self.ends.append(outcome)
+
+
+class _EndOnStart(FrameProcessor):
+    """A processor that ends the pipeline as soon as it starts (self-terminating)."""
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
+        await super().process_frame(frame, direction)
+        await self.push_frame(frame, direction)
+        if isinstance(frame, StartFrame):
+            await self.push_frame(EndFrame(), direction)
 
 
 def _wired_backend(builder: Any) -> PipecatBackend:
@@ -62,7 +77,7 @@ async def test_build_bot_routes_assembles_and_runs_the_task(
 ) -> None:
     captured: dict[str, Any] = {}
 
-    class _FakeTask:
+    class _FakeWorker:
         def __init__(self, pipeline: Any, *, observers: Any = None, **_: Any) -> None:
             captured["observers"] = observers
 
@@ -70,12 +85,15 @@ async def test_build_bot_routes_assembles_and_runs_the_task(
         def __init__(self, **kwargs: Any) -> None:
             captured["runner_kwargs"] = kwargs
 
-        async def run(self, task: Any) -> None:
-            captured["ran"] = task
+        async def add_workers(self, workers: Any) -> None:
+            captured["registered"] = workers
+
+        async def run(self) -> None:
+            captured["ran"] = True
 
     monkeypatch.setattr(serving, "Pipeline", lambda processors: processors)
-    monkeypatch.setattr(serving, "PipelineTask", _FakeTask)
-    monkeypatch.setattr(serving, "PipelineRunner", _FakeRunner)
+    monkeypatch.setattr(serving, "PipelineWorker", _FakeWorker)
+    monkeypatch.setattr(serving, "WorkerRunner", _FakeRunner)
 
     seen: list[Any] = []
 
@@ -92,7 +110,8 @@ async def test_build_bot_routes_assembles_and_runs_the_task(
     await bot(runner_args)
 
     assert seen == [runner_args]  # routed via body["agent"], connection threaded
-    assert isinstance(captured["ran"], _FakeTask)  # a task was run
+    assert isinstance(captured["registered"], _FakeWorker)  # worker was registered
+    assert captured["ran"] is True  # and run
     assert len(captured["observers"]) == 1  # lifecycle observer attached
     assert captured["runner_kwargs"]["handle_sigint"] is True  # forwarded from args
 
@@ -104,7 +123,7 @@ async def test_build_bot_declines_new_calls_while_draining(
     ran: list[Any] = []
     seen: list[Any] = []
 
-    class _FakeTask:
+    class _FakeWorker:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
@@ -112,12 +131,15 @@ async def test_build_bot_declines_new_calls_while_draining(
         def __init__(self, **kwargs: Any) -> None:
             pass
 
-        async def run(self, task: Any) -> None:
-            ran.append(task)
+        async def add_workers(self, workers: Any) -> None:
+            ran.append(workers)
+
+        async def run(self) -> None:
+            ran.append("run")
 
     monkeypatch.setattr(serving, "Pipeline", lambda processors: processors)
-    monkeypatch.setattr(serving, "PipelineTask", _FakeTask)
-    monkeypatch.setattr(serving, "PipelineRunner", _FakeRunner)
+    monkeypatch.setattr(serving, "PipelineWorker", _FakeWorker)
+    monkeypatch.setattr(serving, "WorkerRunner", _FakeRunner)
 
     def builder(view: PipecatCallView) -> list[FrameProcessor]:
         seen.append(view.connection)
@@ -131,6 +153,35 @@ async def test_build_bot_declines_new_calls_while_draining(
 
     assert seen == []  # the builder is never invoked (no session started)
     assert ran == []  # nothing runs while draining
+
+
+@pytest.mark.asyncio
+async def test_build_bot_runs_a_real_pipeline_end_to_end() -> None:
+    # Drive the real bot (real PipelineWorker + WorkerRunner) to completion with a
+    # self-terminating pipeline: no mocks, no network. This proves the serving
+    # assembly (route -> build_call -> worker -> runner -> lifecycle observer) works
+    # against real pipecat. Only the FastAPI accept + live transport I/O remains
+    # the infra boundary.
+    recorder = _Recorder()
+    backend = PipecatBackend(_PARAMS)
+    backend.wire(
+        _PoolRuntimeState(agents={}, observers=[recorder], observer_timeout=5.0),
+        None,
+        agent_name=None,
+    )
+    backend.register("support", lambda view: [_EndOnStart()])
+
+    bot = build_bot(backend)
+    runner_args = SimpleNamespace(
+        session_id="s1", body={"agent": "support"}, handle_sigint=False
+    )
+    await asyncio.wait_for(bot(runner_args), timeout=10.0)
+
+    assert len(recorder.starts) == 1  # observer fired from real frame flow
+    assert recorder.starts[0].agent_name == "support"  # routed via body["agent"]
+    assert recorder.starts[0].job_id == "s1"  # for_pipecat mapped session_id
+    assert len(recorder.ends) == 1
+    assert recorder.ends[0].status is SessionStatus.SUCCESS
 
 
 def test_serve_registers_the_bot_on_main_and_starts_the_runner(

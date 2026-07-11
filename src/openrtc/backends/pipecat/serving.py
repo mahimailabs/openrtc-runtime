@@ -21,8 +21,8 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 from pipecat.pipeline.pipeline import Pipeline
-from pipecat.pipeline.runner import PipelineRunner
-from pipecat.pipeline.task import PipelineTask
+from pipecat.pipeline.worker import PipelineWorker
+from pipecat.workers.runner import WorkerRunner
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -38,9 +38,9 @@ def build_bot(backend: PipecatBackend) -> Callable[[Any], Awaitable[None]]:
     """Return the async ``bot(runner_args)`` pipecat's runner calls per connection.
 
     It routes and builds the observed session (``build_call``), assembles the
-    processors into a ``PipelineTask`` with the lifecycle observer attached, and
-    runs it. The transport lives in the builder's processors, so this stays
-    transport-agnostic.
+    processors into a ``PipelineWorker`` with the lifecycle observer attached, and
+    runs it on a ``WorkerRunner``. The transport lives in the builder's processors,
+    so this stays transport-agnostic.
 
     While the backend is draining it declines new calls so in-flight sessions can
     finish. Pipecat's runner owns the ``/start`` route, so the refusal is at the
@@ -52,11 +52,12 @@ def build_bot(backend: PipecatBackend) -> Callable[[Any], Awaitable[None]]:
             logger.info("Declining a new call: the pipecat backend is draining.")
             return
         processors, observer = backend.build_call(runner_args)
-        task = PipelineTask(Pipeline(processors), observers=[observer])
-        runner = PipelineRunner(
+        worker = PipelineWorker(Pipeline(processors), observers=[observer])
+        runner = WorkerRunner(
             handle_sigint=getattr(runner_args, "handle_sigint", False)
         )
-        await runner.run(task)
+        await runner.add_workers(worker)
+        await runner.run()
 
     return bot
 
