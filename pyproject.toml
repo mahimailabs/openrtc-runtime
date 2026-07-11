@@ -41,6 +41,11 @@ livekit = [
 pipecat = [
   "pipecat-ai>=1.5,<2",
 ]
+# The pipecat serving front (run()): pipecat's FastAPI dev runner (adds FastAPI +
+# uvicorn). Install `openrtc[pipecat-serve]` to accept live calls over a transport.
+pipecat-serve = [
+  "pipecat-ai[runner]>=1.5,<2",
+]
 cli = [
   "rich>=13",
   "typer>=0.12",
@@ -49,8 +54,9 @@ cli = [
 [dependency-groups]
 dev = [
   # The dev/test suite exercises both backends, so pull their extras in.
+  # pipecat-serve is a superset of pipecat (adds the FastAPI runner for run()).
   "openrtc[livekit]",
-  "openrtc[pipecat]",
+  "openrtc[pipecat-serve]",
   "mypy>=1.19.1",
   "pre-commit>=4.5.1",
   "psutil>=7",
