@@ -26,7 +26,8 @@ extra and is imported only when you select it:
 | `pipecat` | `openrtc[pipecat]` | pipeline builder callable |
 
 Selecting a backend whose framework is not installed raises a clear error with
-the `pip install openrtc[...]` hint.
+the `pip install openrtc[...]` hint. Serving the pipecat backend (`run()`) also
+needs `openrtc[pipecat-serve]`, which adds pipecat's FastAPI runner.
 
 ## What every backend shares
 
@@ -137,10 +138,14 @@ pool.add("support", support)
 
 The pipecat backend's **per-call path** (registration, routing, shared prewarm,
 dispatch, and observability) is complete and verified against real pipecat
-pipelines. The **transport-serving front** (accepting live calls over a transport
-and running a session per connection) is not yet wired:
-`AgentPool(backend="pipecat").run()` raises `NotImplementedError` documenting that
-boundary. The livekit backend is complete and is the default.
+pipelines. `AgentPool(backend="pipecat").run()` **serves** calls over a transport
+via pipecat's runner (behind `openrtc[pipecat-serve]`): it registers a
+per-connection bot that routes the call and runs the observed session, so one
+worker serves many calls under OpenRTC's routing, prewarm, and observability. The
+one remaining boundary is a genuinely live transport connection (WebRTC / Daily /
+telephony), covered by a manual / integration smoke rather than the unit suite,
+the same way the livekit backend does not re-test its live network front in
+process. The livekit backend is complete and is the default.
 
 Hot reload requires the livekit backend (requesting it on pipecat raises a clear
 error). Session introspection is a livekit-backend feature as well; see
