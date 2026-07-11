@@ -265,6 +265,38 @@ async def test_pipecat_backend_wires_registers_and_dispatches() -> None:
     assert recorder.start_infos[0].agent_name == "support"  # observers came from wire
 
 
+@pytest.mark.asyncio
+async def test_backend_build_call_maps_runner_args_and_runs_the_lifecycle() -> None:
+    # build_call is the seam pipecat's bot(runner_args) calls: adapt the
+    # RunnerArguments to the neutral view, route, and return the observed session.
+    recorder = _RecordingObserver()
+    backend = PipecatBackend(_PARAMS)
+    backend.wire(
+        _PoolRuntimeState(agents={}, observers=[recorder], observer_timeout=5.0),
+        None,
+        agent_name=None,
+    )
+    seen: list[Any] = []
+
+    def builder(view: PipecatCallView) -> list[FrameProcessor]:
+        seen.append(view.connection)  # the builder builds its transport from this
+        return [_Passthrough()]
+
+    backend.register("support", builder)
+    runner_args = SimpleNamespace(session_id="s1", body={"agent": "support"})
+
+    processors, observer = backend.build_call(runner_args)
+    assert seen == [runner_args]  # connection is the RunnerArguments itself
+
+    # The assembled session runs a genuine lifecycle against real pipecat frames.
+    captured = await simulate_call(
+        processors, user_frames=[TextFrame("hi")], observers=[observer]
+    )
+    assert any(isinstance(f, TextFrame) for f in captured)
+    assert recorder.start_infos[0].agent_name == "support"  # routed via body["agent"]
+    assert recorder.start_infos[0].job_id == "s1"  # session_id mapped through
+
+
 def test_pipecat_backend_run_documents_the_transport_boundary() -> None:
     with pytest.raises(NotImplementedError, match="serving front"):
         PipecatBackend(_PARAMS).run()
