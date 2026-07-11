@@ -16,6 +16,7 @@ mocks ``cli.run_app``.
 
 from __future__ import annotations
 
+import logging
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
 
 __all__ = ["build_bot", "serve"]
 
+logger = logging.getLogger("openrtc.backends.pipecat.serving")
+
 
 def build_bot(backend: PipecatBackend) -> Callable[[Any], Awaitable[None]]:
     """Return the async ``bot(runner_args)`` pipecat's runner calls per connection.
@@ -38,9 +41,16 @@ def build_bot(backend: PipecatBackend) -> Callable[[Any], Awaitable[None]]:
     processors into a ``PipelineTask`` with the lifecycle observer attached, and
     runs it. The transport lives in the builder's processors, so this stays
     transport-agnostic.
+
+    While the backend is draining it declines new calls so in-flight sessions can
+    finish. Pipecat's runner owns the ``/start`` route, so the refusal is at the
+    bot (after connection setup) rather than a ``/start`` rejection.
     """
 
     async def bot(runner_args: Any) -> None:
+        if backend.draining:
+            logger.info("Declining a new call: the pipecat backend is draining.")
+            return
         processors, observer = backend.build_call(runner_args)
         task = PipelineTask(Pipeline(processors), observers=[observer])
         runner = PipelineRunner(

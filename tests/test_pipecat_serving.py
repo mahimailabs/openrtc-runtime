@@ -97,6 +97,42 @@ async def test_build_bot_routes_assembles_and_runs_the_task(
     assert captured["runner_kwargs"]["handle_sigint"] is True  # forwarded from args
 
 
+@pytest.mark.asyncio
+async def test_build_bot_declines_new_calls_while_draining(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ran: list[Any] = []
+    seen: list[Any] = []
+
+    class _FakeTask:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+    class _FakeRunner:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        async def run(self, task: Any) -> None:
+            ran.append(task)
+
+    monkeypatch.setattr(serving, "Pipeline", lambda processors: processors)
+    monkeypatch.setattr(serving, "PipelineTask", _FakeTask)
+    monkeypatch.setattr(serving, "PipelineRunner", _FakeRunner)
+
+    def builder(view: PipecatCallView) -> list[FrameProcessor]:
+        seen.append(view.connection)
+        return [_Passthrough()]
+
+    backend = _wired_backend(builder)
+    backend.begin_drain()  # drain started: decline new calls
+
+    bot = build_bot(backend)
+    await bot(SimpleNamespace(session_id="s1", body={"agent": "support"}))
+
+    assert seen == []  # the builder is never invoked (no session started)
+    assert ran == []  # nothing runs while draining
+
+
 def test_serve_registers_the_bot_on_main_and_starts_the_runner(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
