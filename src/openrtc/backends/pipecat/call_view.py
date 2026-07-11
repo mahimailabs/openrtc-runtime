@@ -18,13 +18,26 @@ if TYPE_CHECKING:
 
 
 class PipecatCallView:
-    """A ``SessionView`` augmented with the worker's shared prewarm."""
+    """A ``SessionView`` augmented with the worker's shared prewarm.
 
-    __slots__ = ("_view", "prewarmed")
+    ``connection`` is the transport connection for a served call (a pipecat
+    ``RunnerArguments``); the builder builds its transport from it. It is ``None``
+    off the serving path (the dispatch-only path used in tests), so this stays
+    additive.
+    """
 
-    def __init__(self, view: SessionView, prewarmed: SharedPrewarm) -> None:
+    __slots__ = ("_view", "connection", "prewarmed")
+
+    def __init__(
+        self,
+        view: SessionView,
+        prewarmed: SharedPrewarm,
+        *,
+        connection: Any = None,
+    ) -> None:
         self._view: SessionView = view
         self.prewarmed = prewarmed
+        self.connection = connection
 
     @property
     def room_name(self) -> str:

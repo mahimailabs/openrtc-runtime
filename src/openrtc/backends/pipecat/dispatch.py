@@ -10,7 +10,7 @@ The result (processors plus lifecycle observer) is run by the dispatch server
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from openrtc.backends.pipecat.call_view import PipecatCallView
 from openrtc.backends.pipecat.prewarm import SharedPrewarm
@@ -41,6 +41,7 @@ def dispatch_pipecat_call(
     deployment_version: str | None = None,
     router: AgentRouter | None = None,
     prewarm: SharedPrewarm | None = None,
+    connection: Any = None,
 ) -> tuple[list[FrameProcessor], PipecatLifecycleObserver]:
     """Resolve which builder handles a call and build its observed session.
 
@@ -52,12 +53,16 @@ def dispatch_pipecat_call(
     ``prewarm`` is the worker's shared VAD/turn holder; the neutral view is wrapped
     as a :class:`~openrtc.backends.pipecat.call_view.PipecatCallView` carrying it,
     so the builder reaches the same analyzers on every call. When omitted (direct
-    callers that do not use prewarm) a fresh, unloaded holder is used.
+    callers that do not use prewarm) a fresh, unloaded holder is used. ``connection``
+    is the served call's transport connection (a pipecat ``RunnerArguments``), which
+    the builder builds its transport from; it is ``None`` off the serving path.
     """
     if not builders:
         raise RuntimeError("No agents are registered in the pool.")
     call_view = PipecatCallView(
-        view, prewarm if prewarm is not None else SharedPrewarm()
+        view,
+        prewarm if prewarm is not None else SharedPrewarm(),
+        connection=connection,
     )
     name = _resolve_agent_name(builders.keys(), call_view, router=router)
     info = _build_session_info(name, call_view, deployment_version)

@@ -123,9 +123,14 @@ class PipecatBackend:
         return PipecatAgentConfig(name=name, builder=builder)
 
     def dispatch(
-        self, view: SessionView
+        self, view: SessionView, *, connection: Any = None
     ) -> tuple[list[FrameProcessor], PipecatLifecycleObserver]:
-        """Route one call to its builder and build its observed session."""
+        """Route one call to its builder and build its observed session.
+
+        ``connection`` is the served call's transport connection (a pipecat
+        ``RunnerArguments``), passed through to the builder via the call view; it
+        is ``None`` for the dispatch-only path.
+        """
         return dispatch_pipecat_call(
             view,
             self._builders,
@@ -134,6 +139,7 @@ class PipecatBackend:
             deployment_version=self._deployment_version,
             router=self._router,
             prewarm=self._prewarm,
+            connection=connection,
         )
 
     def run(self) -> None:
