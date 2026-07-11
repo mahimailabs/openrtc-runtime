@@ -297,9 +297,17 @@ async def test_backend_build_call_maps_runner_args_and_runs_the_lifecycle() -> N
     assert recorder.start_infos[0].job_id == "s1"  # session_id mapped through
 
 
-def test_pipecat_backend_run_documents_the_transport_boundary() -> None:
-    with pytest.raises(NotImplementedError, match="serving front"):
-        PipecatBackend(_PARAMS).run()
+def test_pipecat_backend_run_delegates_to_the_serving_front(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called: list[Any] = []
+    monkeypatch.setattr(
+        "openrtc.backends.pipecat.serving.serve",
+        lambda backend: called.append(backend),
+    )
+    backend = PipecatBackend(_PARAMS)
+    backend.run()
+    assert called == [backend]  # run() hands off to the serving front
 
 
 def test_pipecat_backend_drain_is_idempotent() -> None:
