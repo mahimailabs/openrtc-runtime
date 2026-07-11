@@ -356,6 +356,36 @@ def test_dispatch_hands_the_shared_prewarm_to_the_builder() -> None:
     assert calls == 1
 
 
+def test_dispatch_threads_the_connection_to_the_builder() -> None:
+    seen: list[Any] = []
+
+    def builder(view: PipecatCallView) -> list[FrameProcessor]:
+        seen.append(view.connection)  # the builder builds its transport from this
+        return [_Passthrough()]
+
+    dispatch_pipecat_call(
+        _view_routing_to("support"),
+        {"support": builder},
+        observers=[],
+        timeout=5.0,
+        connection="RUNNER_ARGS",
+    )
+    assert seen == ["RUNNER_ARGS"]
+
+
+def test_pipecat_backend_dispatch_threads_the_connection() -> None:
+    backend = PipecatBackend(_PARAMS)
+    seen: list[Any] = []
+
+    def builder(view: PipecatCallView) -> list[FrameProcessor]:
+        seen.append(view.connection)
+        return [_Passthrough()]
+
+    backend.register("support", builder)
+    backend.dispatch(_view_routing_to("support"), connection="RUNNER_ARGS")
+    assert seen == ["RUNNER_ARGS"]  # backend threads the connection through dispatch
+
+
 def test_pipecat_backend_shares_one_prewarm_across_dispatches() -> None:
     calls = 0
 

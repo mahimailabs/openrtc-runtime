@@ -164,6 +164,15 @@ def test_pipecat_call_view_satisfies_the_session_view_protocol() -> None:
     assert isinstance(view, SessionView)
 
 
+def test_pipecat_call_view_carries_an_optional_connection() -> None:
+    prewarm = SharedPrewarm(vad_factory=object, turn_factory=object)
+    default = PipecatCallView(_FakeView(), prewarm)
+    assert default.connection is None  # off the serving path, no connection
+    served = PipecatCallView(_FakeView(), prewarm, connection="RUNNER_ARGS")
+    # serving attaches the RunnerArguments so the builder builds its transport.
+    assert served.connection == "RUNNER_ARGS"
+
+
 @pytest.mark.asyncio
 async def test_pipecat_call_view_delegates_connect() -> None:
     base = _FakeView()
