@@ -19,7 +19,10 @@ from openrtc.utils.types import ProviderValue
 if TYPE_CHECKING:
     from livekit.agents import Agent
 
-_AgentType = TypeVar("_AgentType", bound="type[Agent]")
+# Unbounded so ``@agent_config`` type-checks on both a livekit ``Agent`` class and
+# a pipecat builder callable (its body is a bare ``setattr``, so it always worked
+# on either at runtime).
+_AgentType = TypeVar("_AgentType")
 _AGENT_METADATA_ATTR = "__openrtc_agent_config__"
 
 
@@ -132,7 +135,11 @@ def agent_config(
     tts: ProviderValue | None = None,
     greeting: str | None = None,
 ) -> Callable[[_AgentType], _AgentType]:
-    """Attach OpenRTC discovery metadata to a standard LiveKit ``Agent`` class.
+    """Attach OpenRTC discovery metadata to a livekit ``Agent`` class or a pipecat
+    pipeline-builder callable.
+
+    On the pipecat backend only ``name`` applies (the builder owns its providers);
+    the provider fields are livekit-only, as with ``pool.add``.
 
     Args:
         name: Optional explicit agent name used during discovery.

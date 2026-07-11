@@ -10,7 +10,7 @@ import sys
 from hashlib import sha1
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from livekit.agents import Agent
@@ -81,3 +81,28 @@ def _find_local_agent_subclass(module: ModuleType) -> type[Agent]:
     raise RuntimeError(
         f"Module '{module.__name__}' does not define a local Agent subclass."
     )
+
+
+def _find_marked_builders(module: ModuleType) -> list[tuple[str, Any]]:
+    """Return the module's locally-defined callables marked with ``@agent_config``.
+
+    Each entry is ``(name, builder)``: the marker's ``name`` or, when omitted, the
+    callable's ``__name__`` (so one file can hold several builders). Imported marked
+    callables (defined in another module) are skipped, so a re-exported builder is
+    discovered once, at its definition. This is the pipecat counterpart of
+    :func:`_find_local_agent_subclass`.
+    """
+    # Local import: config -> serialization -> discovery already forms a chain, so
+    # importing config at module top would be circular.
+    from openrtc.core.config import _AGENT_METADATA_ATTR
+
+    found: list[tuple[str, Any]] = []
+    for value in vars(module).values():
+        if (
+            callable(value)
+            and hasattr(value, _AGENT_METADATA_ATTR)
+            and getattr(value, "__module__", None) == module.__name__
+        ):
+            metadata = getattr(value, _AGENT_METADATA_ATTR)
+            found.append((metadata.name or value.__name__, value))
+    return found

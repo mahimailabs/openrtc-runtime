@@ -16,6 +16,7 @@ from openrtc.core.config import (
 )
 from openrtc.core.discovery import (
     _find_local_agent_subclass,
+    _find_marked_builders,
     _load_agent_module,
 )
 from openrtc.core.tenant_config import TenantConfigResolver, TenantConfigSource
@@ -608,13 +609,22 @@ class AgentPool:
         logger.debug("Registered pipecat agent '%s'.", name)
         return PipecatAgentConfig(name=name, builder=builder)
 
-    def discover(self, agents_dir: str | Path) -> list[AgentConfig]:
-        """Discover and register agent modules from a directory; return registered configs."""
+    def discover(
+        self, agents_dir: str | Path
+    ) -> list[AgentConfig] | list[PipecatAgentConfig]:
+        """Discover and register agent modules from a directory; return registered configs.
+
+        On the livekit backend this finds ``Agent`` subclasses; on the pipecat
+        backend it finds ``@agent_config``-marked builder callables.
+        """
         directory = Path(agents_dir).expanduser().resolve()
         if not directory.exists():
             raise FileNotFoundError(f"Agents directory does not exist: {directory}")
         if not directory.is_dir():
             raise NotADirectoryError(f"Agents path is not a directory: {directory}")
+
+        if self._backend_name != "livekit":
+            return self._discover_pipecat_builders(directory)
 
         discovered_configs: list[AgentConfig] = []
         for module_path in sorted(directory.glob("*.py")):
@@ -649,6 +659,22 @@ class AgentPool:
             discovered_configs.append(config)
 
         return discovered_configs
+
+    def _discover_pipecat_builders(self, directory: Path) -> list[PipecatAgentConfig]:
+        """Discover ``@agent_config``-marked builders in a directory (pipecat)."""
+        discovered: list[PipecatAgentConfig] = []
+        for module_path in sorted(directory.glob("*.py")):
+            if module_path.name == "__init__.py" or module_path.stem.startswith("_"):
+                logger.debug("Skipping agent module '%s'.", module_path.name)
+                continue
+            module = _load_agent_module(module_path)
+            for name, builder in _find_marked_builders(module):
+                config = cast("PipecatAgentConfig", self.add(name, builder))
+                logger.info(
+                    "Discovered pipecat agent '%s' from %s.", config.name, module_path
+                )
+                discovered.append(config)
+        return discovered
 
     def list_agents(self) -> list[str]:
         """Return registered agent names in registration order."""
