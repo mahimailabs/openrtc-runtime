@@ -142,6 +142,21 @@ class PipecatBackend:
             connection=connection,
         )
 
+    def build_call(
+        self, runner_args: Any
+    ) -> tuple[list[FrameProcessor], PipecatLifecycleObserver]:
+        """Build the observed session for one served connection (the ``bot`` seam).
+
+        Adapts a pipecat ``RunnerArguments`` to the neutral view (routing reads
+        ``body["agent"]``), routes to the builder, and passes the ``RunnerArguments``
+        through as the call's ``connection`` so the builder builds its transport.
+        Returns the processors and lifecycle observer; the serving front assembles
+        them into a ``PipelineTask`` and runs one per connection.
+        """
+        from openrtc.core.session_view import for_pipecat
+
+        return self.dispatch(for_pipecat(runner_args), connection=runner_args)
+
     def run(self) -> None:
         raise NotImplementedError(
             "The pipecat serving front (accepting calls over a transport and "
