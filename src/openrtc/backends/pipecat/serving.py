@@ -66,4 +66,12 @@ def serve(backend: PipecatBackend) -> None:
             "Install it with: pip install openrtc[pipecat-serve]"
         ) from exc
     sys.modules["__main__"].bot = build_bot(backend)  # type: ignore[attr-defined]
-    main()
+    # The runner parses sys.argv; a caller's args would make its argparse reject
+    # them. Hand it a clean argv (host / port come from pipecat's env vars) and
+    # restore the original once serving exits.
+    saved_argv = sys.argv
+    sys.argv = [saved_argv[0]]
+    try:
+        main()
+    finally:
+        sys.argv = saved_argv

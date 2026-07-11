@@ -117,6 +117,33 @@ def test_serve_registers_the_bot_on_main_and_starts_the_runner(
             delattr(main_module, "bot")
 
 
+def test_serve_gives_the_runner_a_clean_argv_and_restores_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # pipecat's runner parses sys.argv; a caller's args (a script's, or a CLI's)
+    # would make its argparse reject "unrecognized arguments". serve() must hand it
+    # a clean argv and restore the original afterwards.
+    seen_argv: list[list[str]] = []
+    monkeypatch.setattr(
+        "pipecat.runner.run.main", lambda: seen_argv.append(list(sys.argv))
+    )
+    monkeypatch.setattr(sys, "argv", ["openrtc", "serve", "./agents", "--foo"])
+
+    main_module = sys.modules["__main__"]
+    had_bot = hasattr(main_module, "bot")
+    original = getattr(main_module, "bot", None)
+    try:
+        serve(_wired_backend(lambda view: [_Passthrough()]))
+    finally:
+        if had_bot:
+            main_module.bot = original
+        else:
+            delattr(main_module, "bot")
+
+    assert seen_argv == [["openrtc"]]  # the runner sees only the program name
+    assert sys.argv == ["openrtc", "serve", "./agents", "--foo"]  # restored after
+
+
 def test_serve_raises_the_install_hint_when_the_runner_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
