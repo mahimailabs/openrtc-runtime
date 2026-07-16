@@ -11,7 +11,7 @@ jobs:
     name: Validate docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate docs structure and house style
         # Stdlib-only validator: docs.json shape, page/link resolution, no orphans,
         # required frontmatter, and the no-em-dash house-style rule. No deps to install.
