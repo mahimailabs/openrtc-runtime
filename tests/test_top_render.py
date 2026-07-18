@@ -9,10 +9,38 @@ from rich.console import Console
 
 from openrtc.cli.top_cli import (
     SORT_KEYS,
+    bar_gauge,
     build_top_table,
+    cpu_area,
     filter_and_sort,
+    fmt_gb,
     next_sort_key,
 )
+
+
+def test_bar_gauge_fills_proportion_of_width() -> None:
+    assert bar_gauge(50.0, width=10, max_value=100.0) == "█████░░░░░"
+    assert bar_gauge(0.0, width=4) == "░░░░"
+    assert bar_gauge(200.0, width=4, max_value=100.0) == "████"  # clamped to full
+    assert bar_gauge(5.0, width=4, max_value=0.0) == "░░░░"  # max 0 -> empty, no crash
+
+
+def test_cpu_area_renders_filled_rows() -> None:
+    assert cpu_area([100.0, 100.0], width=2, height=2) == ["██", "██"]  # full
+    assert cpu_area([0.0, 0.0], width=2, height=2) == ["  ", "  "]  # empty
+    # 50% of a 2-row chart fills the bottom row only.
+    assert cpu_area([50.0], width=1, height=2, max_value=100.0) == [" ", "█"]
+
+
+def test_cpu_area_left_pads_short_history() -> None:
+    # Fewer samples than width: pad the left with empty columns.
+    assert cpu_area([100.0], width=3, height=1) == ["  █"]
+
+
+def test_fmt_gb_formats_bytes_and_handles_none() -> None:
+    assert fmt_gb(31_200_000_000) == "31.2G"
+    assert fmt_gb(0) == "0.0G"
+    assert fmt_gb(None) == "n/a"
 
 
 def _rows() -> list[dict[str, Any]]:
