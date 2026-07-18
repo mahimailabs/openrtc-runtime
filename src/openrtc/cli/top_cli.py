@@ -13,8 +13,10 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
-from rich.console import Console
+from rich.console import Console, Group, RenderableType
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from openrtc.observability.introspection_ipc import fetch_snapshot
 
@@ -25,11 +27,13 @@ __all__ = [
     "STATUS_FILTERS",
     "apply_key",
     "bar_gauge",
+    "build_header_panel",
     "build_top_table",
     "cpu_area",
-    "fetch_rows",
+    "fetch_top",
     "filter_and_sort",
     "fmt_gb",
+    "fmt_uptime",
     "next_sort_key",
     "next_status_filter",
     "run_live",
@@ -82,6 +86,85 @@ def fmt_gb(num_bytes: int | None) -> str:
     if num_bytes is None:
         return "n/a"
     return f"{num_bytes / 1e9:.1f}G"
+
+
+def fmt_uptime(seconds: float) -> str:
+    """Format an uptime as ``<days>d <hours>h`` or, under a day, ``Hh MMm``."""
+    total = int(max(0.0, seconds))
+    days, rem = divmod(total, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes = rem // 60
+    return f"{days}d {hours}h" if days > 0 else f"{hours}h {minutes:02d}m"
+
+
+def _pct(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.1f}%"
+
+
+def build_header_panel(worker: dict[str, Any] | None) -> RenderableType:
+    """Build the ``openrtc top`` worker header: vitals stat block + CPU% area chart.
+
+    ``worker`` is the ``{...}`` block from the socket snapshot. A missing worker
+    (stale / empty snapshot) renders as nothing; host vitals show ``n/a`` when the
+    worker was built without psutil.
+    """
+    if worker is None:
+        return Text("")
+    system: dict[str, Any] = worker.get("system") or {}
+    cpu = system.get("cpu_pct")
+    mem_used, mem_total = system.get("mem_used_bytes"), system.get("mem_total_bytes")
+    vcpus, net, load1 = (
+        system.get("vcpus"),
+        system.get("net_rate_bps"),
+        system.get("load1"),
+    )
+
+    cpu_cell = _pct(cpu)
+    if cpu is not None:
+        cpu_cell += "  " + bar_gauge(cpu, width=14)
+    mem_pct = (mem_used / mem_total * 100.0) if mem_used and mem_total else 0.0
+    mem_cell = f"{fmt_gb(mem_used)} / {fmt_gb(mem_total)}"
+    if mem_used is not None:
+        mem_cell = f"{bar_gauge(mem_pct, width=10)}  " + mem_cell
+    net_cell = "n/a" if net is None else f"{net * 8 / 1e9:.1f}Gb/s"
+    load_cell = "n/a" if load1 is None else f"{load1:.2f}"
+
+    grid = Table.grid(padding=(0, 3))
+    for _ in range(4):
+        grid.add_column()
+    grid.add_row(
+        "[dim]CPU[/dim]",
+        cpu_cell,
+        "[dim]vCPUs[/dim]",
+        "n/a" if vcpus is None else str(vcpus),
+    )
+    grid.add_row(
+        "[dim]MEM[/dim]",
+        mem_cell,
+        "[dim]SWAP[/dim]",
+        f"{fmt_gb(system.get('swap_used_bytes'))} / {fmt_gb(system.get('swap_total_bytes'))}",
+    )
+    grid.add_row(
+        "[dim]NET[/dim]",
+        net_cell,
+        "[dim]SESSIONS[/dim]",
+        f"[bold]{worker.get('active_sessions', 0)}[/bold] / {worker.get('max_sessions', 0)}",
+    )
+    grid.add_row(
+        "[dim]LOAD[/dim]",
+        load_cell,
+        "[dim]SAVED[/dim]",
+        fmt_gb(worker.get("saved_bytes")),
+    )
+
+    chart_lines = cpu_area(worker.get("cpu_history") or [], width=44, height=3)
+    chart = Text("\n".join(chart_lines), style="cyan")
+    body = Group(grid, Text(""), Text("CPU% (60s)", style="dim"), chart)
+    title = (
+        f"[bold]openrtc top[/bold]  ·  {worker.get('name', 'worker')}"
+        f"  ·  up {fmt_uptime(worker.get('uptime_s', 0.0))}"
+    )
+    return Panel(body, title=title, title_align="left", border_style="blue")
 
 
 # Cycle order for the 's' key. Numeric columns sort descending (biggest first,
@@ -221,10 +304,10 @@ def build_top_table(
     return table
 
 
-async def fetch_rows(
+async def fetch_top(
     socket_path: Path, *, timeout: float = 2.0
-) -> list[dict[str, Any]] | None:
-    """Fetch one snapshot's session rows; ``None`` when no worker serves the socket.
+) -> dict[str, Any] | None:
+    """Fetch the full ``{worker, sessions}`` snapshot; ``None`` when no worker serves.
 
     A missing / refused socket or a read timeout means "no running pool" rather
     than an error, so the caller can print a friendly hint instead of a traceback.
@@ -232,11 +315,9 @@ async def fetch_rows(
     and consumed by the header renderer.
     """
     try:
-        snapshot = await fetch_snapshot(socket_path, timeout=timeout)
+        return await fetch_snapshot(socket_path, timeout=timeout)
     except (OSError, TimeoutError):
         return None
-    sessions: list[dict[str, Any]] = snapshot["sessions"]
-    return sessions
 
 
 async def run_once(
@@ -249,21 +330,24 @@ async def run_once(
     console: Console,
     timeout: float = 2.0,
 ) -> int:
-    """Print one snapshot table; return an exit code (0 ok, 1 no pool)."""
-    rows = await fetch_rows(socket_path, timeout=timeout)
-    if rows is None:
+    """Print one snapshot (worker header + session table); exit code (0 ok, 1 no pool)."""
+    snapshot = await fetch_top(socket_path, timeout=timeout)
+    if snapshot is None:
         console.print(
             f"[red]No running openrtc pool found at[/red] {socket_path}\n"
             "Start a worker in coroutine mode, then run [bold]openrtc top[/bold]."
         )
         return 1
     console.print(
-        build_top_table(
-            rows,
-            sort_key=sort_key,
-            status_filter=status_filter,
-            agent_filter=agent_filter,
-            tenant_filter=tenant_filter,
+        Group(
+            build_header_panel(snapshot["worker"]),
+            build_top_table(
+                snapshot["sessions"],
+                sort_key=sort_key,
+                status_filter=status_filter,
+                agent_filter=agent_filter,
+                tenant_filter=tenant_filter,
+            ),
         )
     )
     return 0
@@ -309,14 +393,20 @@ async def run_live(  # pragma: no cover - interactive TTY loop
     try:
         with Live(console=console, auto_refresh=False, screen=True) as live:
             while True:
-                rows = await fetch_rows(socket_path) or []
+                snapshot = await fetch_top(socket_path) or {
+                    "worker": None,
+                    "sessions": [],
+                }
                 live.update(
-                    build_top_table(
-                        rows,
-                        sort_key=state["sort"],
-                        status_filter=state["status"],
-                        agent_filter=agent_filter,
-                        tenant_filter=tenant_filter,
+                    Group(
+                        build_header_panel(snapshot["worker"]),
+                        build_top_table(
+                            snapshot["sessions"],
+                            sort_key=state["sort"],
+                            status_filter=state["status"],
+                            agent_filter=agent_filter,
+                            tenant_filter=tenant_filter,
+                        ),
                     )
                 )
                 live.refresh()

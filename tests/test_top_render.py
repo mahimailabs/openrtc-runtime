@@ -10,12 +10,74 @@ from rich.console import Console
 from openrtc.cli.top_cli import (
     SORT_KEYS,
     bar_gauge,
+    build_header_panel,
     build_top_table,
     cpu_area,
     filter_and_sort,
     fmt_gb,
+    fmt_uptime,
     next_sort_key,
 )
+
+
+def _worker(*, available: bool = True) -> dict[str, Any]:
+    return {
+        "name": "wrk-01",
+        "uptime_s": 7 * 86400 + 14 * 3600 + 32 * 60,
+        "active_sessions": 162,
+        "max_sessions": 1000,
+        "started": 4218,
+        "failed": 0,
+        "saved_bytes": 248_000_000_000,
+        "draining": False,
+        "system": {
+            "available": available,
+            "cpu_pct": 17.6 if available else None,
+            "vcpus": 16 if available else None,
+            "mem_used_bytes": 31_200_000_000 if available else None,
+            "mem_total_bytes": 68_700_000_000 if available else None,
+            "swap_used_bytes": 0 if available else None,
+            "swap_total_bytes": 8_000_000_000 if available else None,
+            "load1": 0.74 if available else None,
+            "load5": 0.68 if available else None,
+            "load15": 0.59 if available else None,
+            "net_rate_bps": 150_000_000.0 if available else None,
+        },
+        "cpu_history": [10.0, 20.0, 40.0, 30.0, 60.0, 80.0, 50.0],
+    }
+
+
+def _render(renderable: Any) -> str:
+    console = Console(file=io.StringIO(), width=120)
+    console.print(renderable)
+    return console.file.getvalue()  # type: ignore[attr-defined]
+
+
+def test_fmt_uptime_formats_days_hours() -> None:
+    assert fmt_uptime(7 * 86400 + 14 * 3600 + 32 * 60) == "7d 14h"
+    assert fmt_uptime(4 * 3600 + 12 * 60) == "4h 12m"
+    assert fmt_uptime(45) == "0h 00m"
+
+
+def test_build_header_panel_shows_worker_and_vitals() -> None:
+    text = _render(build_header_panel(_worker()))
+    assert "wrk-01" in text
+    assert "17.6" in text  # CPU%
+    assert "162" in text  # SESSIONS active
+    assert "1000" in text  # SESSIONS max
+    assert "16" in text  # vCPUs
+    assert "7d 14h" in text  # uptime
+
+
+def test_build_header_panel_degrades_without_psutil() -> None:
+    text = _render(build_header_panel(_worker(available=False)))
+    assert "n/a" in text  # system vitals unavailable
+    assert "162" in text  # pool-derived sessions still shown
+
+
+def test_build_header_panel_handles_missing_worker() -> None:
+    # A stale/empty snapshot (no worker block) renders without crashing.
+    _render(build_header_panel(None))
 
 
 def test_bar_gauge_fills_proportion_of_width() -> None:

@@ -15,7 +15,7 @@ from openrtc.cli import app
 from openrtc.cli.top_cli import (
     STATUS_FILTERS,
     apply_key,
-    fetch_rows,
+    fetch_top,
     next_status_filter,
     run_once,
     validate_refresh_hz,
@@ -102,8 +102,8 @@ def test_apply_key_quit_sort_filter_and_refresh() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_rows_returns_none_when_no_pool() -> None:
-    assert await fetch_rows(_short_socket(), timeout=0.5) is None
+async def test_fetch_top_returns_none_when_no_pool() -> None:
+    assert await fetch_top(_short_socket(), timeout=0.5) is None
 
 
 @pytest.mark.asyncio
