@@ -163,6 +163,55 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.19.0] - 2026-07-18
+
+## What's Changed
+* feat(backend): neutral SessionView seam (framework-agnostic, step 1) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/73
+* feat(backend): route on the neutral SessionView seam by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/74
+* feat(backend): build SessionInfo from the neutral SessionView seam by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/75
+* docs: tabbed docs.json + house-style validator + Validate docs CI by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/76
+* feat(backend): drive AgentPool through a neutral Backend seam by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/77
+* feat(backend): move run and drain onto the Backend seam by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/78
+* feat(backend): move AgentServer construction into the livekit backend by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/79
+* feat(backend): select the backend via AgentPool(backend=...) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/80
+* refactor(backend): make import openrtc pull no voice framework by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/81
+* feat(backend)!: move livekit-agents to the [livekit] extra (BREAKING) by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/82
+* test(pipecat): add the [pipecat] extra and a frame-driven test harness by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/83
+* feat(pipecat): lifecycle observer mapping frames to OpenRTC session signals by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/84
+* test(pipecat): a call-simulation harness for end-to-end backend verification by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/85
+* feat(pipecat): session builder from a registered builder callable by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/86
+* refactor(routing): strategies resolve an agent name, resolver looks up by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/87
+* feat(pipecat): dispatch a call to its registered builder by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/88
+* feat(pipecat): PipecatBackend implementing the Backend seam by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/89
+* feat(pipecat): AgentPool(backend="pipecat") constructs and registers builders by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/90
+* feat(pipecat): pool.get/remove parity for registered builders by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/91
+* feat(pipecat): SharedPrewarm and PipecatCallView primitives by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/92
+* feat(pipecat): thread shared prewarm through dispatch to the builder by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/93
+* docs: add a Frameworks page for the livekit and pipecat backends by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/94
+* feat(pipecat): for_pipecat neutral view adapter by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/95
+* feat(pipecat): thread a served call's connection to the builder by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/96
+* feat(pipecat): build_call, the runner-args to observed-session seam by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/97
+* build(pipecat): add openrtc[pipecat-serve] extra for the serving front by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/98
+* feat(pipecat): wire run() to serve calls via pipecat's runner by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/99
+* docs: the pipecat backend now serves calls via run() by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/100
+* fix(pipecat): hand pipecat's runner a clean argv when serving by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/101
+* feat(pipecat): decline new calls while the backend is draining by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/102
+* docs: add a Serving snippet for the pipecat backend by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/103
+* feat(pipecat): file-based builder discovery via @agent_config by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/104
+* feat(pipecat): openrtc serve command by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/105
+* docs: document the openrtc serve command by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/106
+* test(pipecat): end-to-end serving test; migrate off deprecated PipelineTask/PipelineRunner by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/107
+* docs: local smoke-test note for the pipecat serving front by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/108
+* examples: runnable pipecat agents + a live-tryout guide for both backends by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/109
+* docs(brand): animated density banner in the README by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/110
+* feat(brand): refined logo mark + rebranded banner/wordmark by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/111
+* docs(brand): new logo, blue palette, fix GitHub links by @mahimairaja in https://github.com/mahimailabs/openrtc-runtime/pull/112
+
+
+**Full Changelog**: https://github.com/mahimailabs/openrtc-runtime/compare/v0.18.0...v0.19.0
+
+---
+
 ## [0.18.0] - 2026-07-06
 
 ## What's Changed
