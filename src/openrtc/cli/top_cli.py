@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -24,15 +24,65 @@ __all__ = [
     "SORT_KEYS",
     "STATUS_FILTERS",
     "apply_key",
+    "bar_gauge",
     "build_top_table",
+    "cpu_area",
     "fetch_rows",
     "filter_and_sort",
+    "fmt_gb",
     "next_sort_key",
     "next_status_filter",
     "run_live",
     "run_once",
     "validate_refresh_hz",
 ]
+
+# Eighths for partial cells, index 0..8 (empty -> full block).
+_EIGHTHS = " ▁▂▃▄▅▆▇█"
+
+
+def bar_gauge(value: float, *, width: int = 20, max_value: float = 100.0) -> str:
+    """A horizontal bar: the filled proportion of ``width`` as blocks, rest as track."""
+    fraction = 0.0 if max_value <= 0 else max(0.0, min(1.0, value / max_value))
+    filled = round(fraction * width)
+    return "█" * filled + "░" * (width - filled)
+
+
+def cpu_area(
+    history: Sequence[float],
+    *,
+    width: int = 40,
+    height: int = 4,
+    max_value: float = 100.0,
+) -> list[str]:
+    """Render a filled area chart of ``history`` as ``height`` rows of ``width`` chars.
+
+    The most recent ``width`` samples fill from the bottom up; a short history is
+    left-padded with empty columns. The top cell of each column uses a partial
+    block so the surface reads as a smooth curve, htop-style.
+    """
+    recent = list(history)[-width:]
+    values = [0.0] * (width - len(recent)) + recent
+    denom = max_value if max_value > 0 else 1.0
+    rows: list[str] = []
+    for row_index in range(height):
+        row_from_bottom = height - 1 - row_index
+        cells = []
+        for value in values:
+            filled_rows = max(0.0, min(1.0, value / denom)) * height
+            cell = filled_rows - row_from_bottom  # portion of THIS row filled (0..1)
+            level = max(0, min(8, round(cell * 8)))
+            cells.append(_EIGHTHS[level])
+        rows.append("".join(cells))
+    return rows
+
+
+def fmt_gb(num_bytes: int | None) -> str:
+    """Format a byte count as ``N.NG``; ``n/a`` when unavailable (no psutil)."""
+    if num_bytes is None:
+        return "n/a"
+    return f"{num_bytes / 1e9:.1f}G"
+
 
 # Cycle order for the 's' key. Numeric columns sort descending (biggest first,
 # htop-style); text columns ascending.
