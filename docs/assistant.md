@@ -15,4 +15,4 @@ OpenRTC is a Python library that lets a single worker process host multiple Live
 - `isolation="coroutine"` (default) runs all sessions as asyncio tasks in one process. `isolation="process"` spawns one subprocess per session (legacy behavior).
 - Shared prewarm loads Silero VAD and the multilingual turn detector once per worker.
 - CLI commands: `openrtc dev`, `openrtc start`, `openrtc list`, `openrtc console`, `openrtc connect`.
-- Docs live in the `docs/` directory. Source is at https://github.com/mahimailabs/openrtc.
+- Docs live in the `docs/` directory. Source is at https://github.com/mahimailabs/openrtc-runtime.

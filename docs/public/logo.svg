@@ -1,6 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="OpenRTC logo">
-  <rect width="128" height="128" rx="24" fill="#111827"/>
-  <circle cx="64" cy="64" r="34" fill="none" stroke="#22c55e" stroke-width="10"/>
-  <path d="M38 64h52" stroke="#38bdf8" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="64" cy="64" r="8" fill="#f8fafc"/>
+<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <path d="M13 5h22a8 8 0 0 1 8 8v22a8 8 0 0 1-8 8H13a8 8 0 0 1-8-8V13a8 8 0 0 1 8-8Zm0 5a3 3 0 0 0-3 3v22a3 3 0 0 0 3 3h22a3 3 0 0 0 3-3V13a3 3 0 0 0-3-3H13Z" fill="#2A508C"/>
+  <circle cx="18.6" cy="18.6" r="4.6" fill="#EB5F36"/>
+  <circle cx="29.4" cy="18.6" r="4.6" fill="#7694C4"/>
+  <circle cx="18.6" cy="29.4" r="4.6" fill="#7694C4"/>
+  <circle cx="29.4" cy="29.4" r="4.6" fill="#7694C4"/>
 </svg>
