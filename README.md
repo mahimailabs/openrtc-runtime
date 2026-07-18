@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://github.com/mahimailabs/openrtc-runtime">
-  <img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/wordings.png" alt="OpenRTC" width="480" />
+  <img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/banner.gif" alt="OpenRTC: run many voice agents in one worker" width="100%" />
 </a>
 
 <p>
