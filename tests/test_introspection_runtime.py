@@ -72,6 +72,35 @@ def test_snapshot_joins_registry_and_memory_before_start() -> None:
     assert row.pinned is False
 
 
+def test_top_snapshot_combines_worker_context_and_sessions() -> None:
+    from openrtc.observability.worker_stats import WorkerContext, WorkerStatsSampler
+
+    runtime = IntrospectionRuntime(
+        socket_path=_short_socket(),
+        rss_reader=lambda: 100 * 1024 * 1024,
+        time_source=_Clock(10.0),
+        worker_context_provider=lambda: WorkerContext(
+            name="wrk-9",
+            max_sessions=200,
+            uptime_s=3600.0,
+            started=42,
+            failed=1,
+            saved_bytes=248_000_000_000,
+            draining=True,
+        ),
+        worker_stats_sampler=WorkerStatsSampler(psutil_module=None),
+    )
+    asyncio.run(_register(runtime, _info("s1", "sales", started_at=4.0)))
+
+    snap = runtime.top_snapshot()
+    assert [row.session_id for row in snap.sessions] == ["s1"]
+    assert snap.worker.name == "wrk-9"
+    assert snap.worker.max_sessions == 200
+    assert snap.worker.active_sessions == 1  # from the registry
+    assert snap.worker.draining is True
+    assert snap.worker.system.available is False  # no psutil injected
+
+
 def test_recent_block_marks_session_slow_then_expires() -> None:
     clock = _Clock(100.0)
     runtime = IntrospectionRuntime(
@@ -129,9 +158,10 @@ async def test_start_serves_socket_and_aclose_restores_and_cleans_up() -> None:
     await runtime.start(loop)  # idempotent: second start is a no-op
     try:
         assert loop.get_task_factory() is not factory_before  # task factory installed
-        rows = await fetch_snapshot(socket_path)
-        assert [r["session_id"] for r in rows] == ["s1"]
-        assert rows[0]["duration_s"] == 40.0  # now(50) - started_at(10)
+        snap = await fetch_snapshot(socket_path)
+        assert [r["session_id"] for r in snap["sessions"]] == ["s1"]
+        assert snap["sessions"][0]["duration_s"] == 40.0  # now(50) - started_at(10)
+        assert snap["worker"]["active_sessions"] == 1  # worker block served too
     finally:
         await runtime.aclose()
 

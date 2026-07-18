@@ -17,9 +17,65 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-__all__ = ["SystemStats", "WorkerStatsSampler"]
+__all__ = [
+    "SystemStats",
+    "WorkerContext",
+    "WorkerStats",
+    "WorkerStatsSampler",
+    "build_worker_stats",
+]
 
 _UNSET: Any = object()
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerContext:
+    """Pool-derived worker facts for the header (not from psutil)."""
+
+    name: str
+    max_sessions: int
+    uptime_s: float
+    started: int
+    failed: int
+    saved_bytes: int | None
+    draining: bool
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerStats:
+    """The full worker-header payload: pool facts + host vitals + CPU history."""
+
+    name: str
+    uptime_s: float
+    active_sessions: int
+    max_sessions: int
+    started: int
+    failed: int
+    saved_bytes: int | None
+    draining: bool
+    system: SystemStats
+    cpu_history: tuple[float, ...]
+
+
+def build_worker_stats(
+    context: WorkerContext,
+    system: SystemStats,
+    cpu_history: tuple[float, ...],
+    active_sessions: int,
+) -> WorkerStats:
+    """Combine pool context, a host-vitals sample, and CPU history into ``WorkerStats``."""
+    return WorkerStats(
+        name=context.name,
+        uptime_s=context.uptime_s,
+        active_sessions=active_sessions,
+        max_sessions=context.max_sessions,
+        started=context.started,
+        failed=context.failed,
+        saved_bytes=context.saved_bytes,
+        draining=context.draining,
+        system=system,
+        cpu_history=cpu_history,
+    )
 
 
 @dataclass(frozen=True, slots=True)

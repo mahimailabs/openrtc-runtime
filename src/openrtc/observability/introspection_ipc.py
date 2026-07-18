@@ -1,8 +1,8 @@
 """Local IPC for ``openrtc top``: a Unix-socket server + client (MAH-92).
 
-The worker serves its current introspection snapshot (a ``SessionRow`` list) as
-one JSON line over a local Unix domain socket; ``openrtc top`` connects and reads
-it each refresh. A Unix socket keeps this **local-only** with no network exposure
+The worker serves its current introspection snapshot (``{worker, sessions}``: the
+host vitals plus the ``SessionRow`` list) as one JSON line over a local Unix domain
+socket; ``openrtc top`` connects and reads it each refresh. A Unix socket keeps this **local-only** with no network exposure
 (the safe default); ``openrtc top`` is POSIX-only in v0.3 (a Windows named-pipe
 transport is deferred). Local pool only — remote/cluster inspection is out of
 scope for v0.3, so a single default socket path is assumed unless overridden.
@@ -20,17 +20,17 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from openrtc.observability.introspection import SessionRow
+from openrtc.observability.introspection import TopSnapshot
 
 __all__ = [
     "IntrospectionServer",
     "default_socket_path",
     "fetch_snapshot",
-    "rows_from_json",
-    "rows_to_json",
+    "snapshot_from_json",
+    "snapshot_to_json",
 ]
 
-SnapshotProvider = Callable[[], list[SessionRow]]
+SnapshotProvider = Callable[[], TopSnapshot]
 
 
 def _private_runtime_dir() -> Path:
@@ -61,18 +61,34 @@ def default_socket_path() -> Path:
     return _private_runtime_dir() / "top.sock"
 
 
-def rows_to_json(rows: list[SessionRow]) -> str:
-    """Serialize ``SessionRow`` list to one JSON line."""
-    return json.dumps([asdict(row) for row in rows])
+def snapshot_to_json(snapshot: TopSnapshot) -> str:
+    """Serialize a ``TopSnapshot`` to one JSON line: ``{worker, sessions}``."""
+    return json.dumps(
+        {
+            "worker": asdict(snapshot.worker),
+            "sessions": [asdict(row) for row in snapshot.sessions],
+        }
+    )
 
 
-def rows_from_json(payload: str) -> list[dict[str, Any]]:
-    """Parse a JSON snapshot line into row dicts; tolerate a non-list payload."""
+def snapshot_from_json(payload: str) -> dict[str, Any]:
+    """Parse a snapshot line into ``{"worker": dict|None, "sessions": [dict]}``.
+
+    Tolerates a malformed or legacy (bare-list) payload, returning an empty
+    snapshot rather than raising, so a stale client never crashes on garbage.
+    """
     with contextlib.suppress(json.JSONDecodeError):
         data = json.loads(payload)
-        if isinstance(data, list):
-            return [row for row in data if isinstance(row, dict)]
-    return []
+        if isinstance(data, dict):
+            worker = data.get("worker")
+            sessions = data.get("sessions")
+            return {
+                "worker": worker if isinstance(worker, dict) else None,
+                "sessions": [row for row in sessions if isinstance(row, dict)]
+                if isinstance(sessions, list)
+                else [],
+            }
+    return {"worker": None, "sessions": []}
 
 
 class IntrospectionServer:
@@ -105,7 +121,7 @@ class IntrospectionServer:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         try:
-            payload = rows_to_json(self._snapshot_provider())
+            payload = snapshot_to_json(self._snapshot_provider())
             writer.write(payload.encode() + b"\n")
             await writer.drain()
         finally:
@@ -124,16 +140,14 @@ class IntrospectionServer:
             self._socket_path.unlink()
 
 
-async def fetch_snapshot(
-    socket_path: Path, *, timeout: float = 2.0
-) -> list[dict[str, Any]]:
-    """Connect to a worker's socket and return one snapshot of row dicts."""
+async def fetch_snapshot(socket_path: Path, *, timeout: float = 2.0) -> dict[str, Any]:
+    """Connect to a worker's socket and return one ``{worker, sessions}`` snapshot."""
     reader, writer = await asyncio.wait_for(
         asyncio.open_unix_connection(path=str(socket_path)), timeout
     )
     try:
         line = await asyncio.wait_for(reader.readline(), timeout)
-        return rows_from_json(line.decode())
+        return snapshot_from_json(line.decode())
     finally:
         writer.close()
         with contextlib.suppress(Exception):

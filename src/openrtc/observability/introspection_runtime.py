@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 from openrtc.observability.introspection import (
     SessionIntrospectionRegistry,
     SessionRow,
+    TopSnapshot,
     build_session_rows,
 )
 from openrtc.observability.introspection_ipc import (
@@ -46,6 +47,11 @@ from openrtc.observability.slow_session import (
     SlowSessionDetector,
 )
 from openrtc.observability.task_attribution import install_session_task_factory
+from openrtc.observability.worker_stats import (
+    WorkerContext,
+    WorkerStatsSampler,
+    build_worker_stats,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -60,6 +66,20 @@ _DEFAULT_SLOW_WINDOW_S = 5.0
 IsPinned = Callable[["AgentSession[Any]"], bool]
 TimeSource = Callable[[], float]
 RssReader = Callable[[], "int | None"]
+WorkerContextProvider = Callable[[], WorkerContext]
+
+
+def _default_worker_context() -> WorkerContext:
+    """Zeroed worker context used when the pool wires no provider (e.g. in tests)."""
+    return WorkerContext(
+        name="worker",
+        max_sessions=0,
+        uptime_s=0.0,
+        started=0,
+        failed=0,
+        saved_bytes=None,
+        draining=False,
+    )
 
 
 def _never_pinned(_session: AgentSession[Any]) -> bool:
@@ -93,6 +113,8 @@ class IntrospectionRuntime:
         is_pinned: IsPinned = _never_pinned,
         time_source: TimeSource = time.time,
         rss_reader: RssReader = process_resident_set_bytes,
+        worker_context_provider: WorkerContextProvider | None = None,
+        worker_stats_sampler: WorkerStatsSampler | None = None,
     ) -> None:
         self.registry = SessionIntrospectionRegistry()
         self._socket_path = socket_path or default_socket_path()
@@ -100,6 +122,8 @@ class IntrospectionRuntime:
         self._slow_window_s = slow_window_s
         self._is_pinned = is_pinned
         self._time_source = time_source
+        self._worker_context = worker_context_provider or _default_worker_context
+        self._worker_sampler = worker_stats_sampler or WorkerStatsSampler()
         # session_id -> last block time (in _time_source units); a session is
         # "slow" while it stays within slow_window_s of its last block.
         self._recent_blocks: dict[str, float] = {}
@@ -108,7 +132,7 @@ class IntrospectionRuntime:
             rss_reader=rss_reader,
         )
         self._server = IntrospectionServer(
-            snapshot_provider=self.snapshot,
+            snapshot_provider=self.top_snapshot,
             socket_path=self._socket_path,
         )
         # Populated on start() because they need the worker's running loop.
@@ -151,6 +175,21 @@ class IntrospectionRuntime:
             is_pinned=self._is_pinned,
             now=now,
         )
+
+    def top_snapshot(self) -> TopSnapshot:
+        """Join worker vitals and the session rows into the full ``openrtc top`` snapshot.
+
+        Sampling here (once per socket connect, i.e. per refresh) reads the host's
+        CPU/MEM/etc and advances the CPU-history ring buffer feeding the header graph.
+        """
+        sessions = self.snapshot()
+        worker = build_worker_stats(
+            context=self._worker_context(),
+            system=self._worker_sampler.sample(),
+            cpu_history=self._worker_sampler.cpu_history,
+            active_sessions=self.registry.active_count(),
+        )
+        return TopSnapshot(worker=worker, sessions=sessions)
 
     async def start(self, loop: asyncio.AbstractEventLoop) -> None:
         """Install the task factory, start the samplers, and serve the socket."""

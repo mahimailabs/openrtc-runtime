@@ -26,6 +26,18 @@ def _short_socket() -> Path:
     return Path(tempfile.gettempdir()) / f"ortc-wire-{uuid.uuid4().hex[:8]}.sock"
 
 
+def test_agent_pool_worker_context_maps_the_runtime_snapshot() -> None:
+    pool = AgentPool(max_concurrent_sessions=200)
+    ctx = pool._worker_context()
+    assert ctx.max_sessions == 200  # from the pool's concurrency cap
+    assert ctx.uptime_s >= 0.0
+    assert ctx.started == 0  # fresh pool, nothing started yet
+    assert ctx.failed == 0
+    assert ctx.draining is False
+    assert isinstance(ctx.name, str) and ctx.name  # hostname, non-empty
+    assert ctx.saved_bytes is None or isinstance(ctx.saved_bytes, int)
+
+
 def _make_pool(introspection: IntrospectionRuntime | None) -> CoroutinePool:
     return CoroutinePool(
         initialize_process_fnc=lambda _proc: None,
@@ -58,7 +70,7 @@ async def test_coroutine_pool_serves_and_tears_down_introspection() -> None:
     try:
         # The pool brought the socket up; a client can read a (empty) snapshot.
         assert socket_path.exists()
-        assert await fetch_snapshot(socket_path) == []
+        assert (await fetch_snapshot(socket_path))["sessions"] == []
     finally:
         await pool.aclose()
     assert not socket_path.exists()  # torn down with the pool
