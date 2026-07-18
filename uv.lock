@@ -1732,6 +1732,9 @@ pipecat = [
 pipecat-serve = [
     { name = "pipecat-ai", extra = ["runner"] },
 ]
+top = [
+    { name = "psutil" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1753,11 +1756,12 @@ requires-dist = [
     { name = "livekit-agents", extras = ["openai", "silero", "turn-detector"], marker = "extra == 'livekit'", specifier = ">=1.5,<1.7" },
     { name = "pipecat-ai", marker = "extra == 'pipecat'", specifier = ">=1.5,<2" },
     { name = "pipecat-ai", extras = ["runner"], marker = "extra == 'pipecat-serve'", specifier = ">=1.5,<2" },
+    { name = "psutil", marker = "extra == 'top'", specifier = ">=7" },
     { name = "rich", marker = "extra == 'cli'", specifier = ">=13" },
     { name = "typer", marker = "extra == 'cli'", specifier = ">=0.12" },
     { name = "watchfiles", specifier = ">=0.21,<2" },
 ]
-provides-extras = ["cli", "livekit", "pipecat", "pipecat-serve"]
+provides-extras = ["cli", "livekit", "pipecat", "pipecat-serve", "top"]
 
 [package.metadata.requires-dev]
 dev = [
