@@ -12,7 +12,7 @@ contains `mint.json` (navigation and branding) and all content pages as `.md` / 
 ## One-time setup
 
 1. Go to [dashboard.mintlify.com](https://dashboard.mintlify.com) and sign in.
-2. Click **New Docs** and connect the `mahimailabs/openrtc` GitHub repository.
+2. Click **New Docs** and connect the `mahimailabs/openrtc-runtime` GitHub repository.
 3. Set the **docs directory** to `docs/`.
 4. Mintlify reads `docs/mint.json` as the entry point and syncs all content pages automatically.
 5. Confirm the published URL (typically `openrtc.mintlify.app` or a custom domain).

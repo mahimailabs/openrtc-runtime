@@ -3,14 +3,14 @@
   "theme": "mint",
   "name": "OpenRTC",
   "colors": {
-    "primary": "#006f94",
-    "light": "#5ae4ff",
-    "dark": "#006f94"
+    "primary": "#2a508c",
+    "light": "#7694c4",
+    "dark": "#2a508c"
   },
   "favicon": "/public/logo.svg",
   "logo": {
-    "light": "/public/logo.png",
-    "dark": "/public/logo.png"
+    "light": "/public/logo-light.png",
+    "dark": "/public/logo-dark.png"
   },
   "navigation": {
     "tabs": [
@@ -93,7 +93,7 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/mahimailabs/openrtc"
+        "href": "https://github.com/mahimailabs/openrtc-runtime"
       }
     ],
     "primary": {
@@ -104,7 +104,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/mahimailabs/openrtc"
+      "github": "https://github.com/mahimailabs/openrtc-runtime"
     }
   }
 }
