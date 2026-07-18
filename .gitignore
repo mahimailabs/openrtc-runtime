@@ -233,3 +233,4 @@ docs/.vitepress/cache/
 
 # Throwaway uv venv used by the wheel-smoke-install CI step (build.yml).
 .smoke/
+.gstack/
