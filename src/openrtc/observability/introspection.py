@@ -15,6 +15,8 @@ from collections.abc import Callable, Container, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from openrtc.observability.worker_stats import WorkerStats
+
 if TYPE_CHECKING:
     from livekit.agents import AgentSession
 
@@ -26,6 +28,7 @@ __all__ = [
     "LiveSession",
     "SessionIntrospectionRegistry",
     "SessionRow",
+    "TopSnapshot",
     "build_session_rows",
 ]
 
@@ -53,6 +56,14 @@ class SessionRow:
     cpu_pct: float
     status: str
     pinned: bool
+
+
+@dataclass(frozen=True, slots=True)
+class TopSnapshot:
+    """The full ``openrtc top`` snapshot served over the socket: worker + sessions."""
+
+    worker: WorkerStats
+    sessions: list[SessionRow]
 
 
 class SessionIntrospectionRegistry:

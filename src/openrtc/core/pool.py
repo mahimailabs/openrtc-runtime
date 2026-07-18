@@ -58,6 +58,7 @@ if TYPE_CHECKING:
     from openrtc.backends.pipecat.backend import PipecatAgentConfig
     from openrtc.core.backend import Backend
     from openrtc.observability.introspection_runtime import IntrospectionRuntime
+    from openrtc.observability.worker_stats import WorkerContext
 
 IsolationMode = Literal["coroutine", "process"]
 
@@ -386,11 +387,29 @@ class AgentPool:
         runtime = IntrospectionRuntime(
             socket_path=socket_path,
             slow_session_threshold_ms=slow_session_threshold_ms,
+            worker_context_provider=self._worker_context,
         )
         self.add_observer(runtime.registry)
         assert isinstance(self._server, _CoroutineAgentServer)
         self._server.attach_introspection(runtime)
         self._introspection = runtime
+
+    def _worker_context(self) -> WorkerContext:
+        """Pool-derived facts for the ``openrtc top`` header (uptime, caps, savings)."""
+        import socket
+
+        from openrtc.observability.worker_stats import WorkerContext
+
+        snap = self.runtime_snapshot()
+        return WorkerContext(
+            name=socket.gethostname(),
+            max_sessions=self._max_concurrent_sessions,
+            uptime_s=snap.uptime_seconds,
+            started=snap.total_sessions_started,
+            failed=snap.total_session_failures,
+            saved_bytes=snap.savings_estimate.estimated_saved_bytes,
+            draining=snap.draining,
+        )
 
     def _setup_hot_reload(self, watch_paths: list[Path] | None) -> None:
         """Wire live-session tracking and the reload coordinator onto the worker.

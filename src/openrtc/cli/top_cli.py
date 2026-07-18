@@ -174,15 +174,19 @@ def build_top_table(
 async def fetch_rows(
     socket_path: Path, *, timeout: float = 2.0
 ) -> list[dict[str, Any]] | None:
-    """Fetch one snapshot; return ``None`` when no worker is serving the socket.
+    """Fetch one snapshot's session rows; ``None`` when no worker serves the socket.
 
     A missing / refused socket or a read timeout means "no running pool" rather
     than an error, so the caller can print a friendly hint instead of a traceback.
+    The worker header block is served alongside the rows (``{worker, sessions}``)
+    and consumed by the header renderer.
     """
     try:
-        return await fetch_snapshot(socket_path, timeout=timeout)
+        snapshot = await fetch_snapshot(socket_path, timeout=timeout)
     except (OSError, TimeoutError):
         return None
+    sessions: list[dict[str, Any]] = snapshot["sessions"]
+    return sessions
 
 
 async def run_once(

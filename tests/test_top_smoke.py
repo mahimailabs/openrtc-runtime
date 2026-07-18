@@ -65,7 +65,7 @@ async def test_ten_sessions_render_through_top() -> None:
     loop = asyncio.get_running_loop()
     await runtime.start(loop)
     try:
-        rows = await fetch_snapshot(socket_path)
+        rows = (await fetch_snapshot(socket_path))["sessions"]
         assert len(rows) == 10
         # Every session carries identity + attributed memory (2048 MB / 10).
         assert {r["agent_name"] for r in rows} == set(agents)

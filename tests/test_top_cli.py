@@ -20,8 +20,9 @@ from openrtc.cli.top_cli import (
     run_once,
     validate_refresh_hz,
 )
-from openrtc.observability.introspection import SessionRow
+from openrtc.observability.introspection import SessionRow, TopSnapshot
 from openrtc.observability.introspection_ipc import IntrospectionServer
+from openrtc.observability.worker_stats import SystemStats, WorkerStats
 
 
 def _rows() -> list[SessionRow]:
@@ -29,6 +30,24 @@ def _rows() -> list[SessionRow]:
         SessionRow("s1", "sales", "acme", 5.0, 120.0, 150.0, 42.0, "active", False),
         SessionRow("s2", "support", None, 3.0, 80.0, 90.0, 10.0, "slow", False),
     ]
+
+
+def _snapshot() -> TopSnapshot:
+    return TopSnapshot(
+        worker=WorkerStats(
+            name="wrk-01",
+            uptime_s=0.0,
+            active_sessions=2,
+            max_sessions=200,
+            started=0,
+            failed=0,
+            saved_bytes=None,
+            draining=False,
+            system=SystemStats(),
+            cpu_history=(),
+        ),
+        sessions=_rows(),
+    )
 
 
 def _short_socket() -> Path:
@@ -90,7 +109,7 @@ async def test_fetch_rows_returns_none_when_no_pool() -> None:
 @pytest.mark.asyncio
 async def test_run_once_renders_live_server_rows() -> None:
     socket_path = _short_socket()
-    server = IntrospectionServer(snapshot_provider=_rows, socket_path=socket_path)
+    server = IntrospectionServer(snapshot_provider=_snapshot, socket_path=socket_path)
     await server.start()
     console = Console(file=io.StringIO(), width=200)
     try:
@@ -108,7 +127,7 @@ async def test_run_once_renders_live_server_rows() -> None:
 @pytest.mark.asyncio
 async def test_run_once_agent_filter_narrows_rows() -> None:
     socket_path = _short_socket()
-    server = IntrospectionServer(snapshot_provider=_rows, socket_path=socket_path)
+    server = IntrospectionServer(snapshot_provider=_snapshot, socket_path=socket_path)
     await server.start()
     console = Console(file=io.StringIO(), width=200)
     try:
