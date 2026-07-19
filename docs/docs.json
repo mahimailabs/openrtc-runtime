@@ -12,6 +12,18 @@
     "light": "/public/logo-light.png",
     "dark": "/public/logo-dark.png"
   },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
+  },
   "navigation": {
     "tabs": [
       {
