@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import tempfile
+import uuid
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -503,6 +506,31 @@ def test_agent_pool_pipecat_run_requires_an_agent() -> None:
 def test_agent_pool_pipecat_rejects_hot_reload() -> None:
     with pytest.raises(ValueError, match="requires the livekit backend"):
         AgentPool(backend="pipecat", enable_hot_reload=True)
+
+
+def _short_socket() -> Path:
+    return Path(tempfile.gettempdir()) / f"ortc-pc-{uuid.uuid4().hex[:8]}.sock"
+
+
+def test_agent_pool_pipecat_enables_introspection_and_wires_the_registry() -> None:
+    pool = AgentPool(backend="pipecat", introspection_socket_path=_short_socket())
+    runtime = pool.introspection
+    assert runtime is not None  # the gate now allows coroutine + pipecat
+    assert runtime.registry in pool._runtime_state.observers
+    assert isinstance(pool._backend, PipecatBackend)
+    # Observers are copied in wire(); the registry made it into that copy, which
+    # proves the introspection setup ran before wire (the ordering fix) so pipecat
+    # sessions are tracked.
+    assert runtime.registry in pool._backend._observers
+    # The backend holds the stack for its serving loop to start.
+    assert pool._backend.introspection is runtime
+
+
+def test_agent_pool_pipecat_can_disable_introspection() -> None:
+    pool = AgentPool(backend="pipecat", enable_introspection=False)
+    assert pool.introspection is None
+    assert isinstance(pool._backend, PipecatBackend)
+    assert pool._backend.introspection is None
 
 
 def test_agent_pool_pipecat_get_returns_the_registered_config() -> None:

@@ -342,21 +342,20 @@ class AgentPool:
                 should_reject=self._circuit_breaker.should_reject,
                 base_filter=self._request_fnc,
             )
+        self._introspection: IntrospectionRuntime | None = None
+        # openrtc top runs the shared-process inspector, so it applies to any
+        # backend in coroutine isolation (livekit and pipecat), not process mode.
+        # Set up before wire() so the registry is registered as a session observer
+        # the backend captures when it copies the observer list.
+        if enable_introspection and isolation == "coroutine":
+            self._setup_introspection(
+                slow_session_threshold_ms, introspection_socket_path
+            )
         self._backend.wire(
             self._runtime_state,
             self._request_fnc,
             agent_name=self._agent_name,
         )
-        self._introspection: IntrospectionRuntime | None = None
-        # openrtc top attaches to the coroutine AgentServer, so it is livekit-only.
-        if (
-            enable_introspection
-            and isolation == "coroutine"
-            and self._backend_name == "livekit"
-        ):
-            self._setup_introspection(
-                slow_session_threshold_ms, introspection_socket_path
-            )
         self._enable_hot_reload = enable_hot_reload
         if enable_hot_reload:
             self._setup_hot_reload(watch_paths)
@@ -378,20 +377,19 @@ class AgentPool:
 
         The registry is registered as a session observer so it tracks live
         sessions; the stack itself (samplers, detector, IPC socket) is handed to
-        the server, which shares it with the ``CoroutinePool`` it builds so the
-        socket follows the pool's start/close lifecycle.
+        the backend via ``attach_introspection``, which shares it with the runtime
+        that follows the worker's start/close lifecycle (the coroutine pool for
+        livekit, the serving loop for pipecat).
         """
         from openrtc.observability.introspection_runtime import IntrospectionRuntime
-        from openrtc.runtime.coroutine_server import _CoroutineAgentServer
 
         runtime = IntrospectionRuntime(
             socket_path=socket_path,
             slow_session_threshold_ms=slow_session_threshold_ms,
             worker_context_provider=self._worker_context,
         )
+        self._backend.attach_introspection(runtime)
         self.add_observer(runtime.registry)
-        assert isinstance(self._server, _CoroutineAgentServer)
-        self._server.attach_introspection(runtime)
         self._introspection = runtime
 
     def _worker_context(self) -> WorkerContext:

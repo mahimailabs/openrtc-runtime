@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from openrtc.core.wiring import _PoolRuntimeState
+    from openrtc.observability.introspection_runtime import IntrospectionRuntime
     from openrtc.utils.types import RequestFilter
 
 __all__ = ["Backend"]
@@ -44,6 +45,16 @@ class Backend(Protocol):
         agent_name: str | None,
     ) -> None:
         """Bind shared prewarm and the universal session entrypoint onto the server."""
+        ...
+
+    def attach_introspection(self, runtime: IntrospectionRuntime) -> None:
+        """Bind the ``openrtc top`` introspection stack to the substrate.
+
+        Called only in coroutine isolation (the pool gates on it). The livekit
+        backend hands the stack to its coroutine ``AgentServer`` (shared with the
+        ``CoroutinePool`` it builds); the pipecat backend holds it for its serving
+        loop to start inside pipecat's event loop.
+        """
         ...
 
     def run(self) -> None:

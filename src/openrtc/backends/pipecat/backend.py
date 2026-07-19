@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from openrtc.core.session_view import SessionView
     from openrtc.core.wiring import _PoolRuntimeState
     from openrtc.observability.base_observer import SessionObserver
+    from openrtc.observability.introspection_runtime import IntrospectionRuntime
     from openrtc.runtime.registry import ServerParams
     from openrtc.utils.types import AgentRouter, RequestFilter
 
@@ -54,6 +55,7 @@ class PipecatBackend:
         "_builders",
         "_deployment_version",
         "_draining",
+        "_introspection",
         "_observer_timeout",
         "_observers",
         "_prewarm",
@@ -69,6 +71,7 @@ class PipecatBackend:
         self._router: AgentRouter | None = None
         self._deployment_version: str | None = None
         self._draining = False
+        self._introspection: IntrospectionRuntime | None = None
         # One shared VAD/turn holder, handed to every call so N sessions share
         # one analyzer instead of pipecat's per-bot construction.
         self._prewarm = prewarm if prewarm is not None else SharedPrewarm()
@@ -95,6 +98,21 @@ class PipecatBackend:
         self._observer_timeout = runtime_state.observer_timeout
         self._router = runtime_state.router
         self._deployment_version = runtime_state.deployment_version
+
+    def attach_introspection(self, runtime: IntrospectionRuntime) -> None:
+        """Hold the introspection stack for the serving front to start (``openrtc top``).
+
+        Pipecat runs in-process, so the same shared-process inspector applies. The
+        stack's socket and samplers cannot start here (there is no running loop at
+        pool build time); the serving front starts them inside pipecat's event loop
+        via a lifespan hook (see :mod:`openrtc.backends.pipecat.serving`).
+        """
+        self._introspection = runtime
+
+    @property
+    def introspection(self) -> IntrospectionRuntime | None:
+        """The introspection stack the serving loop starts, or ``None`` when off."""
+        return self._introspection
 
     def register(self, name: str, builder: PipelineBuilder) -> None:
         """Register a pipeline builder under an agent name (``pool.add`` on pipecat)."""
