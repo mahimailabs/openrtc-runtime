@@ -26,6 +26,8 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineWorker
 from pipecat.workers.runner import WorkerRunner
 
+from openrtc.observability.session_context import session_scope
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable
 
@@ -54,12 +56,18 @@ def build_bot(backend: PipecatBackend) -> Callable[[Any], Awaitable[None]]:
             logger.info("Declining a new call: the pipecat backend is draining.")
             return
         processors, observer = backend.build_call(runner_args)
-        worker = PipelineWorker(Pipeline(processors), observers=[observer])
-        runner = WorkerRunner(
-            handle_sigint=getattr(runner_args, "handle_sigint", False)
-        )
-        await runner.add_workers(worker)
-        await runner.run()
+        # Bind the session id for the pipeline's lifetime so the introspection
+        # task factory tags every task pipecat spawns for it; that is what lets
+        # openrtc top attribute CPU to this session (memory is already attributed
+        # via the session observer). Scoping the whole worker/runner build + run
+        # covers task creation wherever pipecat does it.
+        with session_scope(observer.session_info.job_id):
+            worker = PipelineWorker(Pipeline(processors), observers=[observer])
+            runner = WorkerRunner(
+                handle_sigint=getattr(runner_args, "handle_sigint", False)
+            )
+            await runner.add_workers(worker)
+            await runner.run()
 
     return bot
 
