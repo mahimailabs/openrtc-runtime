@@ -60,6 +60,11 @@ class PipecatLifecycleObserver(BaseObserver):
         self._started = False
         self._ended = False
 
+    @property
+    def session_info(self) -> SessionInfo:
+        """The neutral session identity this observer reports (for context scoping)."""
+        return self._info
+
     async def on_push_frame(self, data: FramePushed) -> None:
         frame = data.frame
         if isinstance(frame, StartFrame):

@@ -26,6 +26,7 @@ from openrtc.backends.pipecat.call_view import PipecatCallView
 from openrtc.backends.pipecat.serving import build_bot, serve
 from openrtc.core.wiring import _PoolRuntimeState
 from openrtc.observability.base_observer import SessionStatus
+from openrtc.observability.session_context import current_session_id
 from openrtc.runtime.registry import ServerParams
 
 _PARAMS = ServerParams(
@@ -154,6 +155,47 @@ async def test_build_bot_declines_new_calls_while_draining(
 
     assert seen == []  # the builder is never invoked (no session started)
     assert ran == []  # nothing runs while draining
+
+
+@pytest.mark.asyncio
+async def test_bot_runs_the_pipeline_under_the_session_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The worker/runner build + run must happen with the session_id contextvar
+    # bound, so the globally-installed task factory tags every task pipecat spawns
+    # for the session and openrtc top can attribute CPU to it. Mock the runner so
+    # the scope is observable without driving a real (10s) pipeline.
+    seen: dict[str, str | None] = {}
+
+    class _FakeWorker:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            seen["at_build"] = current_session_id()
+
+    class _FakeRunner:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        async def add_workers(self, workers: Any) -> None:
+            seen["at_add"] = current_session_id()
+
+        async def run(self) -> None:
+            seen["at_run"] = current_session_id()
+
+    monkeypatch.setattr(serving, "Pipeline", lambda processors: processors)
+    monkeypatch.setattr(serving, "PipelineWorker", _FakeWorker)
+    monkeypatch.setattr(serving, "WorkerRunner", _FakeRunner)
+
+    backend = _wired_backend(lambda view: [_Passthrough()])
+    bot = build_bot(backend)
+    await bot(SimpleNamespace(session_id="sess-xyz", body={"agent": "support"}))
+
+    # The scope is active across build, add_workers, and run (job_id == session_id).
+    assert seen == {
+        "at_build": "sess-xyz",
+        "at_add": "sess-xyz",
+        "at_run": "sess-xyz",
+    }
+    assert current_session_id() is None  # and restored after the run
 
 
 @pytest.mark.asyncio
