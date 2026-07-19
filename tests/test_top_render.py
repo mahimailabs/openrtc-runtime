@@ -77,8 +77,8 @@ def test_build_header_panel_degrades_without_psutil() -> None:
 
 
 def test_build_header_panel_handles_missing_worker() -> None:
-    # A stale/empty snapshot (no worker block) renders without crashing.
-    _render(build_header_panel(None))
+    # A stale/empty snapshot (no worker block) renders as nothing, no crash.
+    assert _render(build_header_panel(None)).strip() == ""
 
 
 def test_bar_gauge_fills_proportion_of_width() -> None:

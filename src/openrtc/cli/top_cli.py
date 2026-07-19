@@ -123,9 +123,11 @@ def build_header_panel(worker: dict[str, Any] | None) -> RenderableType:
     cpu_cell = _pct(cpu)
     if cpu is not None:
         cpu_cell += "  " + bar_gauge(cpu, width=14)
-    mem_pct = (mem_used / mem_total * 100.0) if mem_used and mem_total else 0.0
     mem_cell = f"{fmt_gb(mem_used)} / {fmt_gb(mem_total)}"
-    if mem_used is not None:
+    # Only prepend the usage bar when both figures are present (psutil samples
+    # them together); a bar over a missing total would misread as "used / n/a".
+    if mem_used is not None and mem_total:
+        mem_pct = mem_used / mem_total * 100.0
         mem_cell = f"{bar_gauge(mem_pct, width=10)}  " + mem_cell
     net_cell = "n/a" if net is None else f"{net * 8 / 1e9:.1f}Gb/s"
     load_cell = "n/a" if load1 is None else f"{load1:.2f}"

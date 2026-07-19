@@ -27,6 +27,10 @@ from openrtc.backends.pipecat.serving import build_bot, serve
 from openrtc.core.wiring import _PoolRuntimeState
 from openrtc.observability.base_observer import SessionStatus
 from openrtc.observability.session_context import current_session_id
+from openrtc.observability.task_attribution import (
+    install_session_task_factory,
+    task_session_id,
+)
 from openrtc.runtime.registry import ServerParams
 
 _PARAMS = ServerParams(
@@ -162,13 +166,21 @@ async def test_bot_runs_the_pipeline_under_the_session_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # The worker/runner build + run must happen with the session_id contextvar
-    # bound, so the globally-installed task factory tags every task pipecat spawns
-    # for the session and openrtc top can attribute CPU to it. Mock the runner so
-    # the scope is observable without driving a real (10s) pipeline.
+    # bound so the introspection task factory tags every task pipecat spawns for
+    # the session; that tag is what lets openrtc top attribute CPU to it. Install
+    # the real factory and prove a task created during the run carries the job_id
+    # tag (no 10s real pipeline needed to exercise the attribution link).
+    loop = asyncio.get_running_loop()
+    restore = install_session_task_factory(loop)
     seen: dict[str, str | None] = {}
+
+    async def _noop() -> None:
+        return None
 
     class _FakeWorker:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
+            # Construction is inside the scope too, so tasks pipecat spawns in
+            # __init__ would be tagged, not just those from run().
             seen["at_build"] = current_session_id()
 
     class _FakeRunner:
@@ -176,10 +188,12 @@ async def test_bot_runs_the_pipeline_under_the_session_scope(
             pass
 
         async def add_workers(self, workers: Any) -> None:
-            seen["at_add"] = current_session_id()
+            pass
 
         async def run(self) -> None:
-            seen["at_run"] = current_session_id()
+            task = loop.create_task(_noop())
+            seen["task_tag"] = task_session_id(task)  # factory tagged the task
+            await task
 
     monkeypatch.setattr(serving, "Pipeline", lambda processors: processors)
     monkeypatch.setattr(serving, "PipelineWorker", _FakeWorker)
@@ -187,14 +201,14 @@ async def test_bot_runs_the_pipeline_under_the_session_scope(
 
     backend = _wired_backend(lambda view: [_Passthrough()])
     bot = build_bot(backend)
-    await bot(SimpleNamespace(session_id="sess-xyz", body={"agent": "support"}))
+    try:
+        await bot(SimpleNamespace(session_id="sess-xyz", body={"agent": "support"}))
+    finally:
+        restore()
 
-    # The scope is active across build, add_workers, and run (job_id == session_id).
-    assert seen == {
-        "at_build": "sess-xyz",
-        "at_add": "sess-xyz",
-        "at_run": "sess-xyz",
-    }
+    # Scope covers construction, and a task spawned during the run is tagged with
+    # the job_id: the exact link CPU attribution walks.
+    assert seen == {"at_build": "sess-xyz", "task_tag": "sess-xyz"}
     assert current_session_id() is None  # and restored after the run
 
 
