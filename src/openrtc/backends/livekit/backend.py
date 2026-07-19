@@ -9,7 +9,7 @@ steps.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from livekit.agents import AgentServer, cli
 
@@ -18,6 +18,8 @@ from openrtc.runtime.registry import ServerParams, resolve_server_builder
 
 if TYPE_CHECKING:
     from openrtc.core.wiring import _PoolRuntimeState
+    from openrtc.observability.introspection_runtime import IntrospectionRuntime
+    from openrtc.runtime.coroutine_server import _CoroutineAgentServer
     from openrtc.utils.types import RequestFilter
 
 __all__ = ["LiveKitBackend", "build_backend"]
@@ -45,6 +47,14 @@ class LiveKitBackend:
     ) -> None:
         """Bind shared prewarm and the universal session entrypoint onto the server."""
         wire_pool(self._server, runtime_state, request_fnc, agent_name=agent_name)
+
+    def attach_introspection(self, runtime: IntrospectionRuntime) -> None:
+        """Hand the stack to the coroutine ``AgentServer`` (shared with its pool).
+
+        The pool gates on coroutine isolation before calling this, so the wrapped
+        server is always the ``_CoroutineAgentServer`` that exposes the hook.
+        """
+        cast("_CoroutineAgentServer", self._server).attach_introspection(runtime)
 
     def run(self) -> None:
         """Hand the worker to livekit's CLI runtime (blocking until it exits)."""

@@ -16,6 +16,8 @@ mocks ``cli.run_app``.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import sys
 from typing import TYPE_CHECKING, Any
@@ -25,7 +27,7 @@ from pipecat.pipeline.worker import PipelineWorker
 from pipecat.workers.runner import WorkerRunner
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import AsyncIterator, Awaitable, Callable
 
     from openrtc.backends.pipecat.backend import PipecatBackend
 
@@ -77,6 +79,7 @@ def serve(backend: PipecatBackend) -> None:
             "Install it with: pip install openrtc[pipecat-serve]"
         ) from exc
     sys.modules["__main__"].bot = build_bot(backend)  # type: ignore[attr-defined]
+    _install_introspection_lifespan(backend)
     # The runner parses sys.argv; a caller's args would make its argparse reject
     # them. Hand it a clean argv (host / port come from pipecat's env vars) and
     # restore the original once serving exits.
@@ -86,3 +89,27 @@ def serve(backend: PipecatBackend) -> None:
         main()
     finally:
         sys.argv = saved_argv
+
+
+def _install_introspection_lifespan(backend: PipecatBackend) -> None:
+    """Bind ``openrtc top`` to pipecat's server lifespan when introspection is on.
+
+    The introspection socket and samplers need the serving event loop, which does
+    not exist until the runner starts. Attaching a FastAPI lifespan to pipecat's
+    app starts the stack at server startup (so an idle worker is monitorable) and
+    tears it down on shutdown. A no-op when introspection is disabled.
+    """
+    runtime = backend.introspection
+    if runtime is None:
+        return
+    from pipecat.runner.run import _add_lifespan_to_app, app
+
+    @contextlib.asynccontextmanager
+    async def _introspection_lifespan(_app: Any) -> AsyncIterator[None]:
+        await runtime.start(asyncio.get_running_loop())
+        try:
+            yield
+        finally:
+            await runtime.aclose()
+
+    _add_lifespan_to_app(app, _introspection_lifespan)

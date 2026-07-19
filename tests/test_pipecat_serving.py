@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import builtins
+import contextlib
 import sys
 from types import SimpleNamespace
 from typing import Any
@@ -229,6 +230,71 @@ def test_serve_gives_the_runner_a_clean_argv_and_restores_it(
 
     assert seen_argv == [["openrtc"]]  # the runner sees only the program name
     assert sys.argv == ["openrtc", "serve", "./agents", "--foo"]  # restored after
+
+
+class _FakeRuntime:
+    """Records the lifespan's start/stop so the socket wiring can be asserted."""
+
+    def __init__(self) -> None:
+        self.events: list[str] = []
+
+    async def start(self, _loop: Any) -> None:
+        self.events.append("start")
+
+    async def aclose(self) -> None:
+        self.events.append("aclose")
+
+
+@pytest.fixture
+def _restore_main_bot() -> Any:
+    """Save and restore ``__main__.bot`` around a serve() call."""
+    main_module = sys.modules["__main__"]
+    had_bot = hasattr(main_module, "bot")
+    original = getattr(main_module, "bot", None)
+    yield
+    if had_bot:
+        main_module.bot = original
+    else:
+        with contextlib.suppress(AttributeError):
+            delattr(main_module, "bot")
+
+
+@pytest.mark.usefixtures("_restore_main_bot")
+@pytest.mark.asyncio
+async def test_serve_installs_a_lifespan_that_starts_and_stops_introspection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("pipecat.runner.run.main", lambda: None)
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        "pipecat.runner.run._add_lifespan_to_app",
+        lambda app, lifespan: captured.__setitem__("lifespan", lifespan),
+    )
+    runtime = _FakeRuntime()
+    backend = _wired_backend(lambda view: [_Passthrough()])
+    backend.attach_introspection(runtime)  # type: ignore[arg-type]
+
+    serve(backend)
+
+    lifespan = captured["lifespan"]  # serve installed one
+    async with lifespan(None):
+        assert runtime.events == ["start"]  # socket started at server startup
+    assert runtime.events == ["start", "aclose"]  # and torn down on shutdown
+
+
+@pytest.mark.usefixtures("_restore_main_bot")
+def test_serve_skips_the_lifespan_when_introspection_is_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("pipecat.runner.run.main", lambda: None)
+    installed: list[Any] = []
+    monkeypatch.setattr(
+        "pipecat.runner.run._add_lifespan_to_app",
+        lambda app, lifespan: installed.append(lifespan),
+    )
+    # A backend with no introspection attached (the default).
+    serve(_wired_backend(lambda view: [_Passthrough()]))
+    assert installed == []  # nothing to serve, no lifespan installed
 
 
 def test_serve_raises_the_install_hint_when_the_runner_is_missing(
