@@ -17,6 +17,7 @@ from openrtc.cli.top_cli import (
     fmt_gb,
     fmt_uptime,
     next_sort_key,
+    paginate,
 )
 
 
@@ -208,3 +209,72 @@ def test_build_table_respects_agent_filter() -> None:
     console = Console(file=io.StringIO(), width=200)
     console.print(table)
     assert "agent:billing" in console.file.getvalue()  # type: ignore[attr-defined]
+
+
+def _paged_rows(n: int) -> list[dict[str, Any]]:
+    return [{"session_id": f"s{i}", "mem_mb": float(n - i)} for i in range(n)]
+
+
+def test_paginate_slices_and_reports_total_pages() -> None:
+    rows = _paged_rows(6)
+    first, page, total = paginate(rows, page=1, page_size=2)
+    assert [r["session_id"] for r in first] == ["s0", "s1"]
+    assert (page, total) == (1, 3)
+    third, page, total = paginate(rows, page=3, page_size=2)
+    assert [r["session_id"] for r in third] == ["s4", "s5"]
+    assert (page, total) == (3, 3)
+
+
+def test_paginate_clamps_out_of_range_and_handles_no_size() -> None:
+    rows = _paged_rows(3)
+    last, page, total = paginate(rows, page=99, page_size=2)  # clamps to last page
+    assert [r["session_id"] for r in last] == ["s2"]
+    assert (page, total) == (2, 2)
+    # No page size disables paging: one page holding every row.
+    everything, page, total = paginate(rows, page=1, page_size=None)
+    assert len(everything) == 3
+    assert (page, total) == (1, 1)
+
+
+def test_build_table_shows_slot_index_column() -> None:
+    text = _render(build_top_table(_rows(), sort_key="mem_mb", status_filter="all"))
+    assert "#" in text  # the leading slot column header
+    # Sorted by mem desc (s2, s1, s3), slots are 1..3 in view order.
+    assert "1" in text
+    assert "2" in text
+    assert "3" in text
+
+
+def test_build_table_cpu_and_mem_have_inline_bars() -> None:
+    text = _render(build_top_table(_rows()))
+    assert "CPU%" in text
+    assert "MEM~" in text  # tilde flags the equal-share approximation
+    assert "█" in text or "░" in text  # inline gauge glyphs
+
+
+def test_build_table_status_labels_uppercased_and_styled() -> None:
+    rows = [
+        {"session_id": "a", "status": "active"},
+        {"session_id": "b", "status": "slow"},
+        {"session_id": "c", "status": "idle"},
+        {"session_id": "d", "status": "ghost"},  # unknown -> plain, no style
+    ]
+    text = _render(build_top_table(rows, status_filter="all"))
+    assert "ACTIVE" in text
+    assert "SLOW" in text
+    assert "IDLE" in text
+    assert "GHOST" in text
+
+
+def test_build_table_footer_has_keybinds_and_page() -> None:
+    text = _render(build_top_table(_rows()))
+    assert "quit" in text  # footer keybind hints
+    assert "PAGE 1/1" in text
+
+
+def test_build_table_paginates_when_page_size_given() -> None:
+    table = build_top_table(_rows(), sort_key="mem_mb", page_size=2)
+    assert table.row_count == 2  # only the first page renders
+    text = _render(table)
+    assert "PAGE 1/2" in text
+    assert "3 session(s)" in text  # title still reports the full match count

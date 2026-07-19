@@ -36,6 +36,7 @@ __all__ = [
     "fmt_uptime",
     "next_sort_key",
     "next_status_filter",
+    "paginate",
     "run_live",
     "run_once",
     "validate_refresh_hz",
@@ -254,6 +255,40 @@ def filter_and_sort(
     )
 
 
+def paginate(
+    rows: list[dict[str, Any]], *, page: int, page_size: int | None
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Slice ``rows`` to one page; return ``(page_rows, page, total_pages)``.
+
+    A ``page_size`` of ``None`` (or non-positive) disables paging: one page holds
+    every row. The page is clamped into ``[1, total_pages]`` so an out-of-range
+    request lands on the nearest real page instead of an empty view.
+    """
+    if page_size is None or page_size <= 0:
+        return rows, 1, 1
+    total_pages = max(1, (len(rows) + page_size - 1) // page_size)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * page_size
+    return rows[start : start + page_size], page, total_pages
+
+
+# Status label -> Rich style. Unknown statuses render plain (no style).
+_STATUS_STYLE: dict[str, str] = {
+    "active": "green",
+    "idle": "dim",
+    "slow": "yellow",
+    "draining": "cyan",
+    "errored": "red",
+}
+
+
+def _status_cell(status: str) -> str:
+    """Uppercase the status label and color it by state (plain when unknown)."""
+    label = status.upper()
+    style = _STATUS_STYLE.get(status)
+    return f"[{style}]{label}[/{style}]" if style else label
+
+
 def build_top_table(
     rows: Iterable[dict[str, Any]],
     *,
@@ -261,8 +296,17 @@ def build_top_table(
     status_filter: str = "all",
     agent_filter: str | None = None,
     tenant_filter: str | None = None,
+    page: int = 1,
+    page_size: int | None = None,
 ) -> Table:
-    """Build the ``openrtc top`` table (filtered + sorted)."""
+    """Build the ``openrtc top`` session table (filtered, sorted, paginated).
+
+    Each row carries inline CPU% and MEM~ bars and a colored status. The leading
+    ``#`` is a view-local slot index, not a PID: ``openrtc top`` serves coroutine
+    mode only, where every session shares one worker process, so there is no
+    per-session PID to show. MEM~ is an equal-share approximation (hence the
+    tilde); its bar reads current draw against the session's own peak.
+    """
     ordered = filter_and_sort(
         rows,
         sort_key=sort_key,
@@ -270,35 +314,47 @@ def build_top_table(
         agent_filter=agent_filter,
         tenant_filter=tenant_filter,
     )
+    total = len(ordered)
+    page_rows, page, total_pages = paginate(ordered, page=page, page_size=page_size)
     agent_label = agent_filter if agent_filter is not None else "all"
     tenant_label = tenant_filter if tenant_filter is not None else "all"
     table = Table(
         title=(
-            f"openrtc top: {len(ordered)} session(s) "
+            f"openrtc top: {total} session(s) "
             f"(sort:{sort_key} status:{status_filter} "
             f"agent:{agent_label} tenant:{tenant_label})"
         ),
         title_style="bold cyan",
+        caption=(
+            "[dim]q[/dim] quit  [dim]s[/dim] sort  [dim]f[/dim] filter  "
+            f"[dim]r[/dim] refresh   ·   PAGE {page}/{total_pages}"
+        ),
     )
+    table.add_column("#", justify="right", style="dim", no_wrap=True)
     table.add_column("session", style="dim", no_wrap=True)
     table.add_column("agent", no_wrap=True)
     table.add_column("tenant", no_wrap=True)
     table.add_column("dur(s)", justify="right")
-    table.add_column("mem(MB)", justify="right")
-    table.add_column("peak", justify="right")
-    table.add_column("cpu%", justify="right")
+    table.add_column("CPU%", no_wrap=True)
+    table.add_column("MEM~", no_wrap=True)
     table.add_column("status", no_wrap=True)
     table.add_column("pin", justify="center")
-    for row in ordered:
+    start_slot = (page - 1) * (page_size or 0)
+    for offset, row in enumerate(page_rows, start=1):
+        cpu = float(row.get("cpu_pct", 0.0))
+        mem = float(row.get("mem_mb", 0.0))
+        peak = float(row.get("peak_mb", 0.0))
+        cpu_cell = f"{bar_gauge(cpu, width=8, max_value=100.0)} {cpu:>3.0f}%"
+        mem_cell = f"{bar_gauge(mem, width=8, max_value=peak)} {mem:>4.0f}"
         table.add_row(
+            str(start_slot + offset),
             str(row.get("session_id", ""))[:12],
             str(row.get("agent_name", "")),
             str(row.get("tenant") or "-"),
             f"{float(row.get('duration_s', 0.0)):.0f}",
-            f"{float(row.get('mem_mb', 0.0)):.0f}",
-            f"{float(row.get('peak_mb', 0.0)):.0f}",
-            f"{float(row.get('cpu_pct', 0.0)):.0f}",
-            str(row.get("status", "")),
+            cpu_cell,
+            mem_cell,
+            _status_cell(str(row.get("status", ""))),
             "*" if row.get("pinned") else "",
         )
     return table
