@@ -19,52 +19,60 @@ All workflows go through `uv` (preferred over pip). The Makefile wraps the most-
 | Smoke-check discovery without LiveKit | `make dev` (or `uv run openrtc list ./examples/agents --default-stt … --default-llm … --default-tts …`) |
 | Build wheel | `uv build` |
 
-`mypy src/` (in `strict = true` mode) and `ruff check` both run in CI (`.github/workflows/lint.yml`). The combined line + branch coverage gate is enforced at 99% (project sits at 100.00%; the 1pp cushion is for legitimate `# pragma: no cover` defensive code).
+`mypy src/` (in `strict = true` mode), `ruff check` and `ruff format --check` run in CI (`.github/workflows/lint.yml`). The combined line + branch coverage gate is enforced at 99% (project sits around 99.4%).
 
 Python 3.11+ is required; 3.10 will fail because the LiveKit Silero / turn-detector plugins pull `onnxruntime`, which has no 3.10 wheels.
 
 ## High-level architecture
 
-OpenRTC is a thin layer on top of `livekit-agents` that lets one worker process host many agent classes, with shared prewarm (Silero VAD, turn detector) loaded once instead of once per worker. User agents stay as standard `livekit.agents.Agent` subclasses; OpenRTC never introduces a custom base class.
+OpenRTC is a thin layer on top of `livekit-agents` (and, optionally, `pipecat-ai`) that lets one worker process host many agent classes, with shared prewarm (Silero VAD, turn detector) loaded once instead of once per worker. User agents stay as standard `livekit.agents.Agent` subclasses; OpenRTC never introduces a custom base class. `import openrtc` pulls no voice framework: livekit and pipecat are opt-in extras (`openrtc[livekit]`, `openrtc[pipecat]`).
 
-### The single load-bearing module: `src/openrtc/core/pool.py`
+### Package layout (`src/openrtc/`)
 
-Almost everything that matters happens here:
+- `core/pool.py`: `AgentPool`, the public facade (`add`, `discover`, `remove`, `run`, drain, observers, tenant/backpressure options). It builds a backend, wires routing + request filters, and owns the runtime state.
+- `core/wiring.py`: the universal session entrypoint (`run_session`, `build_session`). Per job: resolve the agent, instantiate it, build an `AgentSession` from pool defaults + per-agent + per-tenant overrides, attach the prewarmed VAD from `proc.userdata`, start.
+- `core/backend.py`: the framework-neutral `Backend` protocol. `backends/registry.py` resolves `AgentPool(backend="livekit"|"pipecat")` lazily; implementations live in `backends/livekit/` and `backends/pipecat/`.
+- `core/config.py`, `core/discovery.py`, `core/serialization.py`: registration data, `@agent_config` discovery, and spawn-safe provider serialization.
+- `core/tenant_config.py`, `core/circuit_breaker.py`, `core/audit.py`: multi-tenancy (per-tenant providers, caps, blast-radius breaker) and the audit log.
+- `runtime/`: isolation modes. `coroutine_runtime.py` + `coroutine_server.py` (default, `isolation="coroutine"`) run every session as an `asyncio.Task` in one process by swapping livekit's `ProcPool` for a `CoroutinePool`; `process_runtime.py` (`isolation="process"`) is livekit's stock process-per-job server. `prewarm.py` holds `_prewarm_worker` — add new shared resources there.
+- `routing/`: strategy chain (`resolver.py`, `metadata_routing.py`, `room_prefix_routing.py`, `default_routing.py`) and per-job accept/reject filters (`request_filter.py`).
+- `observability/`: session observers, JSONL metrics stream, per-session memory/CPU/slow-callback attribution, and the introspection IPC behind `openrtc top`.
+- `reload/`: hot reload for `openrtc dev` (module reload, rebind live sessions on next turn, rollback on bad save).
+- `cli/`: Typer app (see below).
 
-- `AgentPool` — the public facade. Wraps `livekit.agents.AgentServer` and registers a single universal entrypoint with it.
-- `AgentConfig` / `AgentDiscoveryConfig` / `agent_config` decorator — registration data + per-file discovery metadata.
-- `_prewarm_worker` — the function passed to `AgentServer` as `prewarm_fnc`. Loads shared resources (VAD, turn detector) once into `proc.userdata`. Adding new shared resources means adding them here.
-- `_run_universal_session` — the `entrypoint_fnc`. For every incoming job, it runs the routing chain, instantiates the chosen `Agent` subclass, builds an `AgentSession` from cached defaults plus per-agent overrides, pulls the prewarmed VAD from `proc.userdata`, and starts the session.
-- Routing chain (priority order, implemented around `pool.py:781-853`):
-  1. `ctx.job.metadata["agent"]`
-  2. `ctx.job.metadata["demo"]`
-  3. `ctx.room.metadata["agent"]`
-  4. `ctx.room.metadata["demo"]`
-  5. Room name prefix match (e.g. `restaurant-call-123` → `restaurant`)
-  6. First registered agent (fallback)
+### Routing chain
 
-  A metadata value naming an unregistered agent raises `ValueError`. Do not silently fall back.
+Priority order (`routing/`):
 
-- `AgentPool.run()` — calls `cli.run_app(self._server)`, handing control to LiveKit's CLI parser.
+1. `ctx.job.metadata["agent"]` / `["demo"]`
+2. `ctx.room.metadata["agent"]` / `["demo"]`
+3. Room name prefix match (e.g. `restaurant-call-123` → `restaurant`)
+4. First registered agent (fallback)
+
+A custom `router=` on `AgentPool` can override this. A metadata value naming an unregistered agent raises `ValueError`. Do not silently fall back.
+
+### Coroutine mode depends on livekit-agents internals
+
+`runtime/coroutine_runtime.py` imports private livekit-agents surfaces (`ipc.job_executor`, `job._JobContextVar`, `ipc.proc_pool`). The pin (`>=1.5,<1.9`) is deliberately tight; an unsupported version fails import with a message pointing to `isolation="process"`. `.github/workflows/canary.yml` runs the suite against the latest livekit-agents release. When bumping the pin: relock with `uv lock --upgrade-package livekit-agents`, run the full suite against the real SDK, and update the range in `pyproject.toml`, `README.md`, `docs/getting-started.md`, `AGENTS.md` and the error message in `coroutine_runtime.py`.
 
 ### Provider passthrough contract
 
-`ProviderValue = str | object` (see `types.py`). Anything passed to `stt=`, `llm=`, `tts=` on `pool.add()` or as pool defaults is forwarded to `AgentSession` unchanged: instantiated plugin objects (`openai.STT(...)`) work, and so do shorthand strings (`"openai/gpt-4o-mini-transcribe"`) — the LiveKit runtime resolves the strings at session construction time. OpenRTC does not interpret or validate them.
+`ProviderValue = str | object` (see `utils/types.py`). Anything passed to `stt=`, `llm=`, `tts=` on `pool.add()` or as pool defaults is forwarded to `AgentSession` unchanged: instantiated plugin objects (`openai.STT(...)`) work, and so do shorthand strings (`"openai/gpt-4o-mini-transcribe"`) — the LiveKit runtime resolves the strings at session construction time. OpenRTC does not interpret or validate them.
 
 ### Spawn-safe configuration
 
-Worker processes can be spawned (LiveKit's default on macOS), so anything captured by `entrypoint_fnc` must survive serialization across the process boundary. Provider configs live in the registration data, not in closures, and are reconstructed from a serialization-safe representation in the worker. When adding new fields to `AgentConfig` or related dataclasses, keep them serialization-safe (no live sockets, no open files, no `lambda`/local closures). Live plugin instances are also supported but rely on the underlying objects being well-behaved across spawn.
+Worker processes can be spawned (LiveKit's default on macOS, and always in `isolation="process"`), so anything captured by the entrypoint must survive serialization across the process boundary. `core/serialization.py` captures `livekit.plugins.*` provider instances as `_ProviderRef(module, qualname, kwargs-from-_opts)` and rebuilds them in the worker. This relies on a plugin's `_opts` mirroring its constructor kwargs; when upstream drifts (e.g. openai STT 1.8 stores `language=` as `_opts.languages`), patch `_extract_provider_kwargs`. When adding new fields to `AgentConfig` or related dataclasses, keep them serialization-safe (no live sockets, no open files, no `lambda`/local closures).
 
 ### Test conftest shim
 
 `tests/conftest.py` contains a hand-maintained stub of `livekit.agents` that activates **only when `livekit.agents` cannot be imported**. With `uv sync --group dev`, the real wheel is installed and the shim is bypassed. Two consequences:
 
-- When you upgrade the `livekit-agents` pin (`~=1.4` today) or use a new symbol from `livekit.agents` in `src/`, run the suite locally against the real SDK and extend the shim if a CI environment without LiveKit would break.
+- When you upgrade the `livekit-agents` pin or use a new symbol from `livekit.agents` in `src/`, run the suite locally against the real SDK and extend the shim if a CI environment without LiveKit would break. Tests that fake `RunningJobInfo` with `SimpleNamespace` must carry any field upstream now reads (e.g. `job.enable_redaction` since 1.8).
 - If imports behave oddly in tests, check whether the shim path is active — the symbol you expect from upstream may not be implemented in the stub.
 
 ### CLI architecture
 
-`cli/__init__.py` re-exports `main` and `app`. `cli/entry.py` is the lazy entrypoint that prints a friendly message if the `cli` extra isn't installed, then defers to `cli/commands.py` (the Typer app, named `commands.py` rather than `app.py` to avoid a Python collision with the package-level `app` re-export). Subcommands (`list`, `start`, `dev`, `console`, `connect`, `download-files`) mirror the LiveKit Agents CLI shape; OpenRTC-only flags (`--agents-dir`, `--metrics-jsonl`, etc.) are stripped before handoff. The handoff itself happens in `cli/livekit.py`, which rewrites `sys.argv` and applies env overrides before calling `pool.run()`.
+`cli/__init__.py` re-exports `main` and `app`. `cli/entry_cli.py` is the lazy entrypoint that prints a friendly message if the `cli` extra isn't installed, then defers to `cli/main_cli.py` (the Typer app). Worker subcommands (`start`, `dev`, `console`, `connect`, `download-files`) mirror the LiveKit Agents CLI shape; OpenRTC-only commands are `list`, `serve` (pipecat), `logs`, and `top` (live session inspector, `openrtc[top]` adds psutil host vitals). OpenRTC-only flags (`--agents-dir`, `--metrics-jsonl`, etc.) are stripped before handoff in `cli/livekit_cli.py`, which rewrites `sys.argv` and applies env overrides before calling `pool.run()`. `cli/pipecat_cli.py`, `cli/top_cli.py`, `cli/dashboard_cli.py`, `cli/reporter_cli.py` hold the rest; shared helpers live in `cli/base_cli.py`.
 
 ### Versioning and release
 
@@ -84,4 +92,4 @@ The full coding-style guide lives in `AGENTS.md` (typing rules, async patterns, 
 
 ## Strategic context
 
-`docs/audit-2026-05-02.md` is a deep audit of OpenRTC's current architecture against the goal of running 50+ sessions per worker (vs livekit-agents' ~1 session per process at ~3 GB each). The key finding: `pool.py:284` (`self._server = AgentServer()`) currently inherits livekit-agents' process-per-job model unchanged. The recommended next step (Option B in the doc) is a custom `JobExecutor` that runs jobs as `asyncio.Task`s in the main loop instead of spawning a subprocess per job. Read the audit before proposing architectural changes in this direction.
+OpenRTC's purpose is to make self-hosted LiveKit agents cheap to run: 50+ concurrent sessions per worker instead of livekit-agents' ~1 session per process. `docs/audit-2026-05-02.md` is the original audit that motivated this; its recommended Option B (a custom `JobExecutor` running jobs as `asyncio.Task`s) is now implemented as coroutine isolation (`runtime/coroutine_runtime.py`), the default. Design notes for the livekit internals it hooks live in `docs/design/` (pinned to 1.5.0 source; re-derive when the pin moves).
