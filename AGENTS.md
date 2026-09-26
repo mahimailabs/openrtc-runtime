@@ -444,7 +444,7 @@ All commands are documented in `CONTRIBUTING.md`. Quick reference:
 
 ### Non-obvious notes
 
-- The `tests/conftest.py` shim targets the `livekit-agents` pin in `pyproject.toml` (~1.4.x today) and only implements APIs OpenRTC uses. When upgrading LiveKit or adding new `livekit.agents` usage, extend the shim or confirm tests pass with the real SDK (`uv sync` + `uv run pytest`). If imports behave oddly, check whether the shim path is active vs. the real package.
+- The `tests/conftest.py` shim targets the `livekit-agents` pin in `pyproject.toml` (`>=1.5,<1.9` today) and only implements APIs OpenRTC uses. When upgrading LiveKit or adding new `livekit.agents` usage, extend the shim or confirm tests pass with the real SDK (`uv sync` + `uv run pytest`). If imports behave oddly, check whether the shim path is active vs. the real package.
 - Version is derived from git tags via `hatch-vcs`. In a dev checkout the version will be something like `0.0.9.dev0+g<hash>`.
 - `mypy` is enforced in CI alongside Ruff; run `uv run mypy src/` before pushing type-sensitive changes.
 - Running `openrtc start` or `openrtc dev` requires a running LiveKit server and provider API keys. For development validation, use `openrtc list` which exercises discovery and routing without network dependencies. Pass `--metrics-jsonl` on the worker to emit per-session metrics to a JSONL file (default `./openrtc-metrics.jsonl`); tail or script that file (for example `tail -f openrtc-metrics.jsonl` or pipe it through `jq`) to inspect throughput.

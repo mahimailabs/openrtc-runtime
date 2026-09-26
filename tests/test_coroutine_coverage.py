@@ -102,7 +102,11 @@ def test_build_job_context_real_path_uses_mock_room_for_fake_job() -> None:
     async def _scenario() -> tuple[Any, Any]:
         await pool.start()
         info_obj = SimpleNamespace(
-            job=SimpleNamespace(id="ctx-build-test", room=SimpleNamespace(name="r")),
+            job=SimpleNamespace(
+                id="ctx-build-test",
+                room=SimpleNamespace(name="r"),
+                enable_redaction=False,
+            ),
             fake_job=True,
             worker_id="bench",
             accept_arguments=SimpleNamespace(identity="i", name="", metadata=""),
@@ -232,7 +236,11 @@ def test_build_job_context_real_room_branch_runs_when_fake_job_is_false() -> Non
     async def _scenario() -> object:
         await pool.start()
         info = SimpleNamespace(
-            job=SimpleNamespace(id="real-room-test", room=SimpleNamespace(name="r")),
+            job=SimpleNamespace(
+                id="real-room-test",
+                room=SimpleNamespace(name="r"),
+                enable_redaction=False,
+            ),
             fake_job=False,
             worker_id="w",
             accept_arguments=SimpleNamespace(identity="i", name="", metadata=""),
