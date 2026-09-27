@@ -4,7 +4,8 @@
 # usage: K=2 ./multi.sh <worker command...>   (run.sh appends "start")
 set -u
 K=${K:-2}
-trap 'kill -INT $(jobs -p) 2>/dev/null; wait' INT TERM
+# Background jobs of a script ignore SIGINT, so forward SIGTERM (livekit drains on it too).
+trap 'kill -TERM $(jobs -p) 2>/dev/null; wait' INT TERM
 for i in $(seq 0 $((K - 1))); do
   if [ "${PIN:-1}" = 1 ]; then pin=(taskset -c "$i"); else pin=(); fi
   BENCH_PORT=$((8090 + i)) "${pin[@]}" "$@" &
