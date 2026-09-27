@@ -279,7 +279,7 @@ Hot reload is coroutine-mode only (process mode runs one subprocess per session)
 
 Because coroutine mode runs many sessions in one process, OpenRTC attributes memory, CPU, and event-loop blocks back to individual sessions and surfaces them live. Run `openrtc top` next to a worker for an htop-style view:
 
-![openrtc top](site/public/openrtc-top.svg)
+![openrtc top](web/docs/public/openrtc-top.svg)
 
 ```bash
 openrtc dev ./agents      # coroutine mode, introspection on by default

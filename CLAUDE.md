@@ -18,8 +18,8 @@ All workflows go through `uv` (preferred over pip). The Makefile wraps the most-
 | Type check | `uv run mypy src/` |
 | Smoke-check discovery without LiveKit | `make dev` (or `uv run openrtc list ./examples/agents --default-stt … --default-llm … --default-tts …`) |
 | Build wheel | `uv build` |
-| Docs site (preview) | `npm ci --prefix site && npm run dev --prefix site` |
-| Docs check (CI parity) | `python3 docs/_check_docs.py` and `npm run build --prefix site` |
+| Docs site (preview) | `npm ci --prefix web/docs && npm run dev --prefix web/docs` |
+| Docs check (CI parity) | `python3 docs/_check_docs.py` and `npm run build --prefix web/docs` |
 
 `mypy src/` (in `strict = true` mode), `ruff check` and `ruff format --check` run in CI (`.github/workflows/lint.yml`). The combined line + branch coverage gate is enforced at 99% (project sits around 99.4%).
 
@@ -78,7 +78,7 @@ Worker processes can be spawned (LiveKit's default on macOS, and always in `isol
 
 ### Docs site
 
-docs.openrtc.tech is `site/`: an Astro static site on Cloudflare Workers (`site/wrangler.jsonc`), the same pattern as voice-prices' prices.mahimai.ca. It renders five files from `docs/` and nothing else: `index.mdx`, `how-it-works.mdx`, `cli.mdx`, `benchmark.mdx`, `changelog.md`. The page list lives in `site/src/lib/site.ts`; `docs/_check_docs.py` fails CI on a missing page, an orphan file, a broken internal link, or an em dash. Keep it to few pages, each complete. `docs/design/` and `docs/audit-2026-05-02.md` are internal notes, not published. Product truth for design work is `PRODUCT.md`; the visual system is `DESIGN.md`.
+The web lives in `web/`: `web/docs/` is docs.openrtc.tech, an Astro static site on Cloudflare Workers (`web/docs/wrangler.jsonc`), the same pattern as voice-prices' prices.mahimai.ca; `web/shared/` holds the theme (tokens, base styles, the mark) shared with the landing page. It renders five files from `docs/` and nothing else: `index.mdx`, `how-it-works.mdx`, `cli.mdx`, `benchmark.mdx`, `changelog.md`. The page list lives in `web/docs/src/lib/site.ts`; `docs/_check_docs.py` fails CI on a missing page, an orphan file, a broken internal link, or an em dash. Keep it to few pages, each complete. `docs/design/` and `docs/audit-2026-05-02.md` are internal notes, not published. Product truth for design work is `PRODUCT.md`; the visual system is `DESIGN.md`.
 
 ### Versioning and release
 

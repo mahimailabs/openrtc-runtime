@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
       - 'docs/**'
-      - 'site/**'
+      - 'web/docs/**'
+      - 'web/shared/**'
       - '.github/workflows/docs.yml'
 
 jobs:
@@ -14,11 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate docs structure and house style
-        # Stdlib-only validator: every page in site/src/lib/site.ts has its file,
+        # Stdlib-only validator: every page in web/docs/src/lib/site.ts has its file,
         # no orphans, internal links resolve, required frontmatter, no em dashes.
         run: python3 docs/_check_docs.py
 
-  # docs.openrtc.tech builds from docs/ through site/. A page that fails to render
+  # docs.openrtc.tech builds from docs/ through web/docs/. A page that fails to render
   # would otherwise only surface as a failed Cloudflare deploy after merge.
   site-build:
     name: Build docs site
@@ -28,5 +29,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm ci --prefix site
-      - run: npm run build --prefix site
+      - run: npm ci --prefix web/docs
+      - run: npm run build --prefix web/docs

@@ -144,7 +144,7 @@ If your change affects public behavior, update the relevant docs:
 - `docs/`: the five pages of docs.openrtc.tech (`index.mdx`, `how-it-works.mdx`,
   `cli.mdx`, `benchmark.mdx`, `changelog.md`). Keep them in sync when you change
   the public CLI, install extras, or `AgentPool` / discovery behavior. Preview
-  with `npm ci --prefix site && npm run dev --prefix site`; `python3 docs/_check_docs.py`
+  with `npm ci --prefix web/docs && npm run dev --prefix web/docs`; `python3 docs/_check_docs.py`
   checks links and house style
 - docstrings in `src/openrtc/`
 - examples, when new behavior should be demonstrated

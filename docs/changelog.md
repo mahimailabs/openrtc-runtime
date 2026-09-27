@@ -12,7 +12,7 @@ Changes that have landed on `main` but have not yet been tagged for release.
 **Documentation**
 
 - The docs leave Mintlify for a static site on Cloudflare Workers at
-  `docs.openrtc.tech`, built from `site/` and rendering five pages from `docs/`:
+  `docs.openrtc.tech`, built from `web/docs/` and rendering five pages from `docs/`:
   Why OpenRTC, How it works, CLI, Benchmark, and this changelog. The concept
   guides, runbooks, operations and compliance pages were folded into those
   pages or retired; they remain in git history.

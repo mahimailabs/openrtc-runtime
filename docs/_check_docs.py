@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Docs structure + house-style validator for OpenRTC.
 
-The docs site (``site/``) renders the pages listed in ``site/src/lib/site.ts``
+The docs site (``web/docs/``) renders the pages listed in ``web/docs/src/lib/site.ts``
 from the files in this directory. Six rules, stdlib-only so the CI job needs no
 dependency install:
 
@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 DOCS_DIR = Path(__file__).resolve().parent
-SITE_PAGES = DOCS_DIR.parent / "site" / "src" / "lib" / "site.ts"
+SITE_PAGES = DOCS_DIR.parent / "web" / "docs" / "src" / "lib" / "site.ts"
 
 EM_DASH = "—"
 PAGE_SUFFIXES = (".md", ".mdx")

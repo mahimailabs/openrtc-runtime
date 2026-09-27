@@ -2,10 +2,10 @@
 version: 1
 slug: "docs"
 primary_target: "docs"
-related_targets: ["site"]
+related_targets: ["web/docs"]
 ---
 
-Scope: the OpenRTC docs site (site/, rendering docs/*.mdx). Visitor mode: Read.
+Scope: the OpenRTC docs site (web/docs/, rendering docs/*.mdx). Visitor mode: Read.
 
 Audience and job: an engineer who already runs livekit-agents, deciding in minutes whether OpenRTC changes their agent code (no) and what it gives them to run the worker. Proof: the real `openrtc top` output, measured PSS/CPU numbers against livekit-agents 1.8.3, and code that runs unchanged.
 

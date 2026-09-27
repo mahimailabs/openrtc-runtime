@@ -27,7 +27,7 @@ It is not a density product. A measured head-to-head against livekit-agents 1.8.
 - Install: `pip install "openrtc[livekit]"` (Python 3.11 to 3.13, livekit-agents `>=1.5,<1.9`).
 - Daily loop: `openrtc dev ./agents` with hot reload, `openrtc top` beside it.
 - Production: `openrtc start ./agents`, one worker per core, SIGTERM or `pool.begin_drain()` on deploy.
-- Docs site: `site/` (Astro, static) rendering `docs/*.mdx`, deployed to Cloudflare Workers at `docs.openrtc.tech`. Five pages: Why OpenRTC, How it works, CLI, Benchmark, Changelog.
+- Web: `web/docs/` (Astro, static) renders `docs/*.mdx` to `docs.openrtc.tech`; `web/landing/` is the marketing page at `openrtc.tech`; `web/shared/` holds the theme both use. Both deploy to Cloudflare Workers. Five pages: Why OpenRTC, How it works, CLI, Benchmark, Changelog.
 
 ## Capabilities and Constraints
 
@@ -49,7 +49,7 @@ It is not a density product. A measured head-to-head against livekit-agents 1.8.
 - Head-to-head benchmark, livekit-agents 1.8.3, full voice pipeline, 2 pinned cores, PSS (README "Throughput and density").
 - Loop-lag load signal run: 24 calls, one every 3 s, 2 cores.
 - Throughput harness `tests/benchmarks/throughput.py`, density gate `tests/benchmarks/density.py`.
-- `openrtc top` rendered with sample sessions (demo tenants acme, globex, initech): `site/public/openrtc-top.svg`.
+- `openrtc top` rendered with sample sessions (demo tenants acme, globex, initech): `web/docs/public/openrtc-top.svg`.
 - Absent, do not fabricate: users, testimonials, production deployments, company logos.
 
 ## Product Principles

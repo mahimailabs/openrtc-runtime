@@ -172,7 +172,7 @@ venv.bak/
 node_modules/
 
 # mkdocs documentation
-# (mkdocs /site removed: site/ is the docs site source)
+# (mkdocs /site removed: this repo keeps no mkdocs output)
 
 # mypy
 .mypy_cache/
@@ -237,9 +237,9 @@ docs/.vitepress/cache/
 .smoke/
 .gstack/
 
-# docs site (site/)
+# web (web/docs, web/landing)
 .astro/
 .wrangler/
 .impeccable/review/
-site/dist/
-!site/src/lib/
+web/*/dist/
+!web/*/src/lib/
