@@ -11,11 +11,11 @@ flowchart TB
         W --> PP
     end
 
-    subgraph SUB1 ["Subprocess 1 approx 3 GB RAM"]
+    subgraph SUB1 ["Subprocess 1 approx 60 MB PSS"]
         direction TB
         VAD1["Silero VAD model<br>DUPLICATED"]
-        TD1["Turn detector weights<br>DUPLICATED"]
-        HEAP1["Python interpreter and SDK<br>DUPLICATED"]
+        TD1["Turn detector client<br>model runs once in shared inference process"]
+        HEAP1["Python interpreter and SDK<br>shared copy-on-write on Linux"]
         HTTP1["aiohttp ClientSession<br>DUPLICATED"]
         LOOP1["asyncio event loop<br>DUPLICATED"]
         JOB1["Job 1<br>rtc.Room and AgentSession<br>STT LLM TTS tasks"]
@@ -26,11 +26,11 @@ flowchart TB
         LOOP1 --- JOB1
     end
 
-    subgraph SUB2 ["Subprocess 2 approx 3 GB RAM"]
+    subgraph SUB2 ["Subprocess 2 approx 60 MB PSS"]
         direction TB
         VAD2["Silero VAD model<br>DUPLICATED"]
-        TD2["Turn detector weights<br>DUPLICATED"]
-        HEAP2["Python interpreter and SDK<br>DUPLICATED"]
+        TD2["Turn detector client<br>model runs once in shared inference process"]
+        HEAP2["Python interpreter and SDK<br>shared copy-on-write on Linux"]
         HTTP2["aiohttp ClientSession<br>DUPLICATED"]
         LOOP2["asyncio event loop<br>DUPLICATED"]
         JOB2["Job 2<br>rtc.Room and AgentSession<br>STT LLM TTS tasks"]
@@ -41,11 +41,11 @@ flowchart TB
         LOOP2 --- JOB2
     end
 
-    subgraph SUB3 ["Subprocess 3 approx 3 GB RAM"]
+    subgraph SUB3 ["Subprocess 3 approx 60 MB PSS"]
         direction TB
         VAD3["Silero VAD model<br>DUPLICATED"]
-        TD3["Turn detector weights<br>DUPLICATED"]
-        HEAP3["Python interpreter and SDK<br>DUPLICATED"]
+        TD3["Turn detector client<br>model runs once in shared inference process"]
+        HEAP3["Python interpreter and SDK<br>shared copy-on-write on Linux"]
         HTTP3["aiohttp ClientSession<br>DUPLICATED"]
         LOOP3["asyncio event loop<br>DUPLICATED"]
         JOB3["Job 3<br>rtc.Room and AgentSession<br>STT LLM TTS tasks"]
@@ -67,5 +67,5 @@ flowchart TB
     JOB2 -- "HTTP" --> PROV
     JOB3 -- "HTTP" --> PROV
 
-    NOTE["N calls equals N subprocesses<br>Each approx 3 GB RAM<br>Total approx N times 3 GB<br>Nothing shared across subprocesses"]
+    NOTE["N calls equals N subprocesses<br>Each approx 60 MB PSS on Linux<br>Imports shared copy-on-write via forkserver<br>VAD loaded per process, turn detector shared"]
     style NOTE fill:#fef3c7,stroke:#d97706,color:#000

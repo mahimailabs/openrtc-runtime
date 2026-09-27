@@ -26,10 +26,12 @@ which is why the per-job http context matters: see `03` below.
 
 Stock livekit-agents. The worker holds one WebSocket to the LiveKit server and, for
 **each** job, hands off to a **dedicated OS subprocess** from a warm pool. Every
-subprocess independently loads its own VAD + turn-detector weights, opens its own
+subprocess loads its own VAD in prewarm, opens its own
 WebRTC peer and its own aiohttp session, and runs the STT to LLM to TTS pipeline as
 concurrent asyncio tasks inside that one process. N concurrent calls means N
-subprocesses, each ~3 GB (per the audit), sharing nothing.
+subprocesses. On Linux they are forked from a forkserver that preloaded the imports, so
+they share those pages copy-on-write; the turn detector runs once in a shared inference
+process. Measured on livekit-agents 1.8.3: about 60 MB PSS per call.
 
 ### Lifecycle of one call
 
@@ -97,11 +99,11 @@ flowchart TB
         W --> PP
     end
 
-    subgraph SUB1 ["Subprocess 1 approx 3 GB RAM"]
+    subgraph SUB1 ["Subprocess 1 approx 60 MB PSS"]
         direction TB
         VAD1["Silero VAD model<br>DUPLICATED"]
-        TD1["Turn detector weights<br>DUPLICATED"]
-        HEAP1["Python interpreter and SDK<br>DUPLICATED"]
+        TD1["Turn detector client<br>model runs once in shared inference process"]
+        HEAP1["Python interpreter and SDK<br>shared copy-on-write on Linux"]
         HTTP1["aiohttp ClientSession<br>DUPLICATED"]
         LOOP1["asyncio event loop<br>DUPLICATED"]
         JOB1["Job 1<br>rtc.Room and AgentSession<br>STT LLM TTS tasks"]
@@ -112,11 +114,11 @@ flowchart TB
         LOOP1 --- JOB1
     end
 
-    subgraph SUB2 ["Subprocess 2 approx 3 GB RAM"]
+    subgraph SUB2 ["Subprocess 2 approx 60 MB PSS"]
         direction TB
         VAD2["Silero VAD model<br>DUPLICATED"]
-        TD2["Turn detector weights<br>DUPLICATED"]
-        HEAP2["Python interpreter and SDK<br>DUPLICATED"]
+        TD2["Turn detector client<br>model runs once in shared inference process"]
+        HEAP2["Python interpreter and SDK<br>shared copy-on-write on Linux"]
         HTTP2["aiohttp ClientSession<br>DUPLICATED"]
         LOOP2["asyncio event loop<br>DUPLICATED"]
         JOB2["Job 2<br>rtc.Room and AgentSession<br>STT LLM TTS tasks"]
@@ -127,11 +129,11 @@ flowchart TB
         LOOP2 --- JOB2
     end
 
-    subgraph SUB3 ["Subprocess 3 approx 3 GB RAM"]
+    subgraph SUB3 ["Subprocess 3 approx 60 MB PSS"]
         direction TB
         VAD3["Silero VAD model<br>DUPLICATED"]
-        TD3["Turn detector weights<br>DUPLICATED"]
-        HEAP3["Python interpreter and SDK<br>DUPLICATED"]
+        TD3["Turn detector client<br>model runs once in shared inference process"]
+        HEAP3["Python interpreter and SDK<br>shared copy-on-write on Linux"]
         HTTP3["aiohttp ClientSession<br>DUPLICATED"]
         LOOP3["asyncio event loop<br>DUPLICATED"]
         JOB3["Job 3<br>rtc.Room and AgentSession<br>STT LLM TTS tasks"]
@@ -153,7 +155,7 @@ flowchart TB
     JOB2 -- "HTTP" --> PROV
     JOB3 -- "HTTP" --> PROV
 
-    NOTE["N calls equals N subprocesses<br>Each approx 3 GB RAM<br>Total approx N times 3 GB<br>Nothing shared across subprocesses"]
+    NOTE["N calls equals N subprocesses<br>Each approx 60 MB PSS on Linux<br>Imports shared copy-on-write via forkserver<br>VAD loaded per process, turn detector shared"]
     style NOTE fill:#fef3c7,stroke:#d97706,color:#000
 ```
 
@@ -171,8 +173,9 @@ of a subprocess. The VAD and turn detector are prewarmed **once** into the singl
 `JobProcess.userdata` and shared by every session. Each task still sets its own
 `JobContextVar`, opens its **own per-job http context** (the in-flight fix), runs the
 routing chain to pick the user's `Agent` subclass, and builds an `AgentSession` that
-pulls the shared prewarmed VAD. Per-session cost drops to ~50-65 MB, so a single worker
-targets 50+ sessions instead of ~1.
+pulls the shared prewarmed VAD. Measured on livekit-agents 1.8.3, per-session memory drops
+from about 60 MB to about 20 MB (PSS). One worker is one Python process, so CPU (about one
+core of Python per worker) is usually the limit before memory is.
 
 ### Lifecycle of one call
 
@@ -258,7 +261,7 @@ flowchart TB
             PROC --> TURN
         end
 
-        subgraph task1["asyncio Task Session 1 ~50-65 MB"]
+        subgraph task1["asyncio Task Session 1 ~20 MB"]
             direction TB
             EX1["CoroutineJobExecutor 1"]
             CTX1["JobContext 1"]
@@ -267,7 +270,7 @@ flowchart TB
             EX1 --> CTX1 --> SESS1 --> ROOM1
         end
 
-        subgraph task2["asyncio Task Session 2 ~50-65 MB"]
+        subgraph task2["asyncio Task Session 2 ~20 MB"]
             direction TB
             EX2["CoroutineJobExecutor 2"]
             CTX2["JobContext 2"]
@@ -276,7 +279,7 @@ flowchart TB
             EX2 --> CTX2 --> SESS2 --> ROOM2
         end
 
-        subgraph task3["asyncio Task Session 3 ~50-65 MB"]
+        subgraph task3["asyncio Task Session 3 ~20 MB"]
             direction TB
             EX3["CoroutineJobExecutor 3"]
             CTX3["JobContext 3"]
@@ -307,7 +310,7 @@ flowchart TB
     SESS2 -->|"HTTP WebSocket"| PROV
     SESS3 -->|"HTTP WebSocket"| PROV
 
-    NOTE["Models paid ONCE per worker<br>vs once per process in vanilla<br>Target 50 sessions per worker<br>Vanilla 1 session at ~3 GB each"]
+    NOTE["VAD paid ONCE per worker<br>vs once per process in vanilla<br>About 20 MB per session vs about 60 MB<br>One process, about one core of Python"]
     style NOTE fill:#fffbcc,stroke:#ccc,color:#333
 ```
 
@@ -397,23 +400,23 @@ flowchart TB
     direction TB
     subgraph baseline_proc["Vanilla livekit-agents"]
       direction TB
-      F1["N x ~3 GB per OS process"]
-      F2["Models duplicated N times"]
-      F3["10 calls ~30 GB RAM"]
-      F4["50 calls ~150 GB RAM"]
+      F1["About 60 MB PSS per call process"]
+      F2["VAD loaded per process"]
+      F3["Imports shared via forkserver"]
+      F4["Uses every CPU core"]
       F1 --> F2 --> F3 --> F4
     end
     subgraph baseline_rtc["OpenRTC coroutine mode"]
       direction TB
       G1["Shared base once per worker"]
       G2["VAD plus turn detector paid once"]
-      G3["Per session 50-65 MB total"]
-      G4["50 calls target 60 MB each"]
-      G5["50 calls roughly 3 GB worker"]
+      G3["About 20 MB per call"]
+      G4["Same ~1.2 GB idle baseline"]
+      G5["About one core of Python per worker"]
       G1 --> G2 --> G3 --> G4 --> G5
     end
   end
-  baseline_proc -->|"30-50x more RAM"| baseline_rtc
+  baseline_proc -->|"about 3x more memory per call"| baseline_rtc
 ```
 
 ---
@@ -421,8 +424,8 @@ flowchart TB
 ## The change in one breath
 
 - **Runtime unit:** OS subprocess per job  ->  asyncio task per job (one process).
-- **Models:** loaded once per process  ->  prewarmed once per worker, shared.
-- **Memory:** ~3 GB x N  ->  shared baseline + ~50-65 MB x N.
-- **Density:** ~1 session per process  ->  50+ sessions per worker.
+- **Models:** VAD loaded once per process  ->  prewarmed once per worker, shared.
+- **Memory:** shared baseline + ~60 MB x N  ->  shared baseline + ~20 MB x N (PSS, livekit-agents 1.8.3).
+- **CPU:** every core  ->  about one core of Python per worker process (run one worker per core).
 - **Unchanged:** the connection cast (WebSocket signaling, WebRTC media, HTTP to
   providers) and the user's `Agent` subclass. OpenRTC swaps the *executor*, not the API.

@@ -16,7 +16,7 @@ flowchart TB
             PROC --> TURN
         end
 
-        subgraph task1["asyncio Task Session 1 ~50-65 MB"]
+        subgraph task1["asyncio Task Session 1 ~20 MB"]
             direction TB
             EX1["CoroutineJobExecutor 1"]
             CTX1["JobContext 1"]
@@ -25,7 +25,7 @@ flowchart TB
             EX1 --> CTX1 --> SESS1 --> ROOM1
         end
 
-        subgraph task2["asyncio Task Session 2 ~50-65 MB"]
+        subgraph task2["asyncio Task Session 2 ~20 MB"]
             direction TB
             EX2["CoroutineJobExecutor 2"]
             CTX2["JobContext 2"]
@@ -34,7 +34,7 @@ flowchart TB
             EX2 --> CTX2 --> SESS2 --> ROOM2
         end
 
-        subgraph task3["asyncio Task Session 3 ~50-65 MB"]
+        subgraph task3["asyncio Task Session 3 ~20 MB"]
             direction TB
             EX3["CoroutineJobExecutor 3"]
             CTX3["JobContext 3"]
@@ -65,5 +65,5 @@ flowchart TB
     SESS2 -->|"HTTP WebSocket"| PROV
     SESS3 -->|"HTTP WebSocket"| PROV
 
-    NOTE["Models paid ONCE per worker<br>vs once per process in vanilla<br>Target 50 sessions per worker<br>Vanilla 1 session at ~3 GB each"]
+    NOTE["VAD paid ONCE per worker<br>vs once per process in vanilla<br>About 20 MB per session vs about 60 MB<br>One process, about one core of Python"]
     style NOTE fill:#fffbcc,stroke:#ccc,color:#333

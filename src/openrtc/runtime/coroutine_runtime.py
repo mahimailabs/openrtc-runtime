@@ -40,6 +40,15 @@ _SESSION_ACLOSE_TIMEOUT = 60.0
 _MEMORY_CHECK_INTERVAL_SECONDS = 5.0
 _BYTES_PER_MB = 1024 * 1024
 
+# Event-loop lag feeds the load LiveKit dispatches on. Every session shares one
+# loop, so a saturated loop (CPU-bound, not session-count-bound) must report
+# "full" or LiveKit keeps sending calls the worker can no longer serve in real
+# time. Lag is sampled every interval and smoothed (EWMA); a smoothed lag of
+# ``_LOOP_LAG_FULL_MS`` reports load 1.0 (LiveKit's prod threshold 0.7 ~ 42 ms).
+_LOOP_LAG_SAMPLE_INTERVAL_SECONDS = 0.1
+_LOOP_LAG_FULL_MS = 60.0
+_LOOP_LAG_SMOOTHING = 0.2
+
 
 def _memory_watermark_action(
     rss_mb: float, warn_mb: float, limit_mb: float
@@ -434,6 +443,8 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         self._memory_check_interval = memory_check_interval
         self._memory_monitor_task: asyncio.Task[None] | None = None
         self._memory_warned = False
+        self._loop_lag_ms = 0.0
+        self._lag_monitor_task: asyncio.Task[None] | None = None
         # Optional htop-style introspection stack (MAH-92): registry + per-session
         # memory/CPU samplers + slow-session detector + the local IPC socket
         # ``openrtc top`` connects to. Started with the pool, torn down on close.
@@ -498,6 +509,7 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         # Start the worker-level RSS watermark monitor when either band is armed.
         if self._memory_warn_mb > 0 or self._memory_limit_mb > 0:
             self._memory_monitor_task = asyncio.create_task(self._monitor_memory())
+        self._lag_monitor_task = asyncio.create_task(self._monitor_loop_lag())
 
         # Bring up the introspection stack on the worker's running loop so
         # ``openrtc top`` can connect (the task->session factory must tag tasks
@@ -559,11 +571,29 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         return False
 
     def _cancel_memory_monitor(self) -> None:
-        """Cancel the RSS watermark monitor task if it is running."""
-        task = self._memory_monitor_task
-        if task is not None and not task.done():
-            task.cancel()
+        """Cancel the RSS watermark and loop-lag monitor tasks if they are running."""
+        for task in (self._memory_monitor_task, self._lag_monitor_task):
+            if task is not None and not task.done():
+                task.cancel()
         self._memory_monitor_task = None
+        self._lag_monitor_task = None
+
+    async def _monitor_loop_lag(self) -> None:
+        """Sample how late the loop wakes up after a fixed sleep; keep an EWMA."""
+        loop = asyncio.get_running_loop()
+        while True:
+            expected = loop.time() + _LOOP_LAG_SAMPLE_INTERVAL_SECONDS
+            await asyncio.sleep(_LOOP_LAG_SAMPLE_INTERVAL_SECONDS)
+            self.record_loop_lag(max(0.0, loop.time() - expected) * 1000.0)
+
+    def record_loop_lag(self, lag_ms: float) -> None:
+        """Fold one loop-lag sample (ms) into the smoothed lag behind :meth:`current_load`."""
+        self._loop_lag_ms += _LOOP_LAG_SMOOTHING * (lag_ms - self._loop_lag_ms)
+
+    @property
+    def loop_lag_ms(self) -> float:
+        """Smoothed event-loop lag in milliseconds."""
+        return self._loop_lag_ms
 
     def begin_drain(self) -> None:
         """Stop accepting new jobs without awaiting in-flight (non-blocking); idempotent.
@@ -777,5 +807,11 @@ class CoroutinePool(utils.EventEmitter[EventTypes]):
         return self._max_concurrent_sessions
 
     def current_load(self) -> float:
-        """Return active-session fraction (``active / max_concurrent_sessions``) for ``load_fnc``."""
-        return len(self._executors) / self._max_concurrent_sessions
+        """Return the load LiveKit dispatches on: the higher of session and loop pressure.
+
+        Session pressure is ``active / max_concurrent_sessions``; loop pressure is
+        the smoothed event-loop lag over ``_LOOP_LAG_FULL_MS``. Counting sessions
+        alone let a CPU-saturated worker keep accepting calls it could not serve.
+        """
+        sessions = len(self._executors) / self._max_concurrent_sessions
+        return max(sessions, min(1.0, self._loop_lag_ms / _LOOP_LAG_FULL_MS))
