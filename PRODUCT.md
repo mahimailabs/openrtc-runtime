@@ -20,7 +20,7 @@ OpenRTC is the operations layer for self-hosted LiveKit Agents. One `AgentPool` 
 
 Your `Agent` subclasses stay standard livekit-agents code: no base class, no wrapper around `@function_tool` or the node hooks. OpenRTC changes how you run agents, not how you write them.
 
-It is not a density product. A measured head-to-head against livekit-agents 1.8.3 showed coroutine mode uses about 3x less memory per call (~22 MB vs ~64 MB PSS) at about the same CPU on uvloop (the default), but one worker is one Python process, so it does not raise the calls one machine can serve.
+It is not a density product. A measured head-to-head against livekit-agents 1.8.3 showed coroutine mode uses about 3x less memory per call (~22 MB vs ~65 MB PSS) at about the same CPU on uvloop (the default), but one worker is one Python process, so it does not raise the calls one machine can serve.
 
 ## Operating Context
 

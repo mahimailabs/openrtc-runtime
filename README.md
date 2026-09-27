@@ -35,7 +35,7 @@ Running `livekit-agents` yourself usually means one deployment per agent and han
 
 - **How many agents per box?** One worker hosts every registered agent; each call is routed to the right one. You run one fleet instead of one deployment per agent.
 - **Do I rewrite my agents?** No. Your `Agent` subclasses, tools, and provider objects are unchanged; you delete per-worker boilerplate (`entrypoint`, `AgentSession` wiring, `cli.run_app`) and register classes on one pool.
-- **What does it cost?** In the default coroutine mode about 22 MB per call versus about 64 MB for stock `livekit-agents` 1.8 on the same machine, at about the same CPU on uvloop (measured, see [Throughput and density](#throughput-and-density)). CPU, not memory, is usually what limits calls per box.
+- **What does it cost?** In the default coroutine mode about 22 MB per call versus about 65 MB for stock `livekit-agents` 1.8 on the same machine, at about the same CPU on uvloop (measured, see [Throughput and density](#throughput-and-density)). CPU, not memory, is usually what limits calls per box.
 - **What if I need hard isolation?** Pass `isolation="process"` for the one-subprocess-per-session model with independent crashes, livekit's per-session memory caps, and all CPU cores.
 
 ## Features
@@ -165,7 +165,7 @@ Read that as an on-loop-CPU ceiling, not a full-pipeline guarantee: the harness 
 
 | Mode (8 calls, two runs each) | Agents that answered | Memory per call | CPU (2 cores = 200%) |
 | :--- | ---: | ---: | ---: |
-| stock `livekit-agents` (process per job) | 8/8 | ~64 MB | 120 / 121 |
+| stock `livekit-agents` (process per job) | 8/8 | ~65 MB | 120 / 121 |
 | stock `livekit-agents` (thread mode, one process) | 7/8 | ~28 MB | 140 / 142 |
 | OpenRTC coroutine, asyncio loop | 8/8 | ~22 MB | 141 / 139 |
 | OpenRTC coroutine, uvloop (default) | 8/8 | ~22 MB | 127 / 117 |

@@ -112,7 +112,7 @@ The full coding-style guide lives in `AGENTS.md` (typing rules, async patterns, 
 
 OpenRTC's original goal was density: many sessions per worker instead of livekit-agents' one process per job. `docs/audit-2026-05-02.md` motivated coroutine isolation (`runtime/coroutine_runtime.py`, the default). A head-to-head benchmark on livekit-agents 1.8.3 (full voice pipeline, 2 pinned cores, PSS) changed the picture:
 
-- Vanilla 1.8 forks jobs from a preloaded forkserver, so a job costs ~64 MB PSS, not ~3 GB. OpenRTC coroutine mode costs ~22 MB per session, with the same ~1.2 GB idle baseline.
+- Vanilla 1.8 forks jobs from a preloaded forkserver, so a job costs ~65 MB PSS, not ~3 GB. OpenRTC coroutine mode costs ~22 MB per session, with the same ~1.2 GB idle baseline.
 - CPU, not memory, is the binding constraint on typical hardware. One OpenRTC worker is one Python process (~1 core of Python). On the asyncio loop it used ~17% more CPU than vanilla process mode (livekit's own thread mode pays the same), because livekit's Rust runtime (`tokio-rt-worker`) waits on the GIL to hand audio frames to one busy interpreter; OpenRTC's own introspection costs ~0.5% of a core. uvloop (the coroutine-mode default, `runtime/event_loop.py`) brings CPU back to about process-mode levels. Per-thread numbers: `docs/benchmark.mdx`.
 - Coroutine mode's load signal used to be sessions/max only, so under CPU overload it kept accepting calls and degraded. It now reports the higher of that and smoothed event-loop lag (60 ms reads as full), so a saturated worker sheds load.
 

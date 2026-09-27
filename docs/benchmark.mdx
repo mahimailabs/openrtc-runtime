@@ -11,7 +11,7 @@ The same agent, 8 calls, run five ways on the same two pinned cores. Each config
 
 | Worker | CPU (of 200%), run 1 / run 2 | Memory per call |
 | --- | ---: | ---: |
-| livekit-agents, a process per call | 120 / 121 | ~64 MB |
+| livekit-agents, a process per call | 120 / 121 | ~65 MB |
 | livekit-agents, every call in one process (thread mode) | 140 / 142 | ~28 MB |
 | OpenRTC, asyncio loop | 141 / 139 | ~22 MB |
 | OpenRTC, asyncio loop, introspection off | 137 / 142 | ~22 MB |
@@ -84,6 +84,18 @@ uv run python tests/benchmarks/throughput.py --sessions 1,10,25,50,100
 make bench
 ```
 
+### Reproduce the head-to-head
+
+The harness is in [`benchmarks/headtohead/`](https://github.com/mahimailabs/openrtc-runtime/tree/main/benchmarks/headtohead), with the raw results this page quotes. It needs Linux with 4 cores.
+
+```bash
+cd benchmarks/headtohead
+./fetch.sh && ./server.sh
+./sweep.sh      # about 25 minutes
+./threads.sh
+python3 summarize.py
+```
+
 <Note>
-The head-to-head and overload runs above used a harness (load generator, sampler, stand-in providers) that is not in the repository yet, and their raw results are not committed either. Until they are, those numbers cannot be reproduced from a checkout.
+The overload run (24 calls, the 60 ms lag threshold) used an earlier version of the same harness; its raw results are not committed.
 </Note>
