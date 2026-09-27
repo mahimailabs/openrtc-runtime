@@ -27,6 +27,8 @@ from openrtc.observability.metrics import (
 )
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.routing.request_filter import (
+    _active_jobs_by_agent,
+    _active_jobs_by_tenant,
     _build_per_agent_backpressure_filter,
     _build_per_tenant_backpressure_filter,
     _build_registered_rooms_filter,
@@ -170,10 +172,11 @@ class AgentPool:
         recovering. This confines one tenant's bad code path so it cannot keep
         consuming slots or trip the worker supervisor for the healthy tenants.
 
-        The per-agent / per-tenant caps and the circuit breaker need
-        ``isolation="coroutine"``; combining them with ``"process"`` raises
-        ``ValueError`` (each process-mode call counts in its own process, so the
-        worker could never enforce them).
+        The per-agent / per-tenant caps work in both isolation modes: coroutine
+        mode counts its live sessions, process mode counts livekit's running jobs
+        (``AgentServer.active_jobs``). The circuit breaker needs
+        ``isolation="coroutine"``, where the worker sees each session's outcome;
+        combining it with ``"process"`` raises ``ValueError``.
 
         ``agent_name`` sets the worker's LiveKit dispatch name. The default
         (``None``) registers an *unnamed* worker for **automatic dispatch**:
@@ -225,17 +228,11 @@ class AgentPool:
         if agent is not None and agents is not None:
             raise ValueError("Pass either agent or agents, not both.")
         validate_isolation(isolation)
-        if isolation == "process" and (
-            max_sessions_per_agent
-            or max_sessions_per_tenant
-            or enable_tenant_circuit_breaker
-        ):
-            # Each call runs in its own process with its own copy of the metrics, so
-            # the admission filters in the worker would never see a session: the caps
-            # and breaker would silently do nothing.
+        if isolation == "process" and enable_tenant_circuit_breaker:
+            # The breaker counts session outcomes, which process mode records in
+            # each call's own process, out of the worker's sight: it would never trip.
             raise ValueError(
-                "max_sessions_per_agent, max_sessions_per_tenant and "
-                "enable_tenant_circuit_breaker require isolation='coroutine'."
+                "enable_tenant_circuit_breaker requires isolation='coroutine'."
             )
         # The voice framework this pool runs on (livekit). resolve_backend_builder
         # rejects an unknown name and imports the framework lazily.
@@ -339,7 +336,13 @@ class AgentPool:
             self._request_fnc = _build_per_agent_backpressure_filter(
                 agents=self._agents,
                 caps=self._max_sessions_per_agent,
-                active_counts=self._runtime_state.metrics.active_by_agent,
+                active_counts=(
+                    self._runtime_state.metrics.active_by_agent
+                    if isolation == "coroutine"
+                    else lambda: _active_jobs_by_agent(
+                        self._agents, self._server.active_jobs
+                    )
+                ),
                 base_filter=self._request_fnc,
             )
         # Per-tenant budgets (MAH-103): layer over the per-agent filter, so tenant
@@ -355,7 +358,11 @@ class AgentPool:
             }
             self._request_fnc = _build_per_tenant_backpressure_filter(
                 caps=self._max_sessions_per_tenant,
-                active_counts=self._runtime_state.metrics.active_by_tenant,
+                active_counts=(
+                    self._runtime_state.metrics.active_by_tenant
+                    if isolation == "coroutine"
+                    else lambda: _active_jobs_by_tenant(self._server.active_jobs)
+                ),
                 base_filter=self._request_fnc,
             )
         # Per-tenant circuit breaker (MAH-104): the outermost safety layer. A tenant

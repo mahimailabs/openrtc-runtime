@@ -14,7 +14,8 @@ default fallback, turning "which agent" into a yes/no "is this room mine".
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections import Counter
+from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from openrtc.observability.base_observer import _coerce_metadata
@@ -23,6 +24,7 @@ from openrtc.utils.validation import DEFAULT_TENANT
 
 if TYPE_CHECKING:
     from livekit.agents import JobRequest
+    from livekit.agents.job import RunningJobInfo
 
     from openrtc.utils.types import RequestFilter
 
@@ -166,6 +168,41 @@ def _resolve_request_tenant(*, job_metadata: object, room_metadata: object) -> s
     merged = _coerce_metadata(room_metadata)
     merged.update(_coerce_metadata(job_metadata))
     return merged.get("tenant") or DEFAULT_TENANT
+
+
+def _active_jobs_by_agent(
+    agents: Mapping[str, Any], jobs: Iterable[RunningJobInfo]
+) -> dict[str, int]:
+    """Count running jobs per agent, resolved the way an incoming job is.
+
+    Process mode runs each call in its own process, so the worker's session
+    metrics never see them; livekit's ``AgentServer.active_jobs`` does, in the
+    worker where the admission filters run.
+    """
+    counts: Counter[str] = Counter()
+    for info in jobs:
+        room = info.job.room
+        name = _resolve_request_agent_name(
+            agents,
+            room_name=room.name,
+            job_metadata=info.job.metadata,
+            room_metadata=room.metadata,
+        )
+        if name is not None:
+            counts[name] += 1
+    return dict(counts)
+
+
+def _active_jobs_by_tenant(jobs: Iterable[RunningJobInfo]) -> dict[str, int]:
+    """Count running jobs per tenant, resolved the way an incoming job is."""
+    return dict(
+        Counter(
+            _resolve_request_tenant(
+                job_metadata=info.job.metadata, room_metadata=info.job.room.metadata
+            )
+            for info in jobs
+        )
+    )
 
 
 def _build_per_tenant_backpressure_filter(

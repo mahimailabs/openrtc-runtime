@@ -28,7 +28,7 @@ What you delete is the per-worker wiring: the `entrypoint`, the `AgentSession(..
 | **One pool** | Register every agent class on one `AgentPool`. Each call is routed to one of them by job metadata, room metadata, or room-name prefix. | A metadata value naming an unknown agent raises. Routing never falls back silently. |
 | **Hot reload** | `openrtc dev` swaps live calls to your edited agent on their next turn, conversation intact. A bad save keeps the old code running. | Coroutine mode only. `openrtc start` never reloads. |
 | **`openrtc top`** | A live, htop-style table of every call in the worker: agent, tenant, memory share, CPU share, and whether it is blocking the others. | Same host, coroutine mode. Memory is an equal share of one process, not a per-call measurement. |
-| **Tenants** | Per-tenant providers and API keys, per-tenant and per-agent session caps, and a circuit breaker that confines a failing tenant. | Shared process, not a sandbox. Caps and the breaker need coroutine mode. |
+| **Tenants** | Per-tenant providers and API keys, per-tenant and per-agent session caps, and a circuit breaker that confines a failing tenant. | Shared process, not a sandbox. The breaker needs coroutine mode. |
 | **Deploys** | A `deployment_version` tag, `pool.begin_drain()`, and audit events around livekit's own drain. | No live call is moved. Calls finish on the old version. |
 
 [How it works](/how-it-works/) covers each of these in detail.

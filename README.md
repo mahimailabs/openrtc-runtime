@@ -311,7 +311,7 @@ pool = AgentPool(
 
 Provider keys are never shared across tenants; a tenant at its cap is rejected while siblings keep accepting; and a tenant whose calls start failing has its new sessions rejected for a cooldown (then auto-recovers) without touching the healthy tenants. The tenant is on every worker-internal signal (`openrtc top --tenant`, scoped logs, `runtime_snapshot().sessions_by_tenant`) and on the `SessionObserver` payload, so voicegateway attributes per-tenant cost with no extra config. Agent code reads it with `from openrtc.context import current_tenant_id`.
 
-Coroutine mode is shared-process isolation, not an OS sandbox: for a hard compliance wall run `isolation="process"` or a worker per tenant. The per-tenant caps and circuit breaker need coroutine mode (`isolation="process"` rejects them), so a process-mode deployment enforces tenant limits with a worker per tenant. Full model and limits: [tenants](https://docs.openrtc.tech/how-it-works/#tenants).
+Coroutine mode is shared-process isolation, not an OS sandbox: for a hard compliance wall run `isolation="process"` or a worker per tenant. The per-agent and per-tenant caps work in both modes; the circuit breaker needs coroutine mode (`isolation="process"` rejects it). Full model and limits: [tenants](https://docs.openrtc.tech/how-it-works/#tenants).
 
 ## Zero-downtime deploys
 

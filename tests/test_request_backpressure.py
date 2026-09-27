@@ -11,6 +11,8 @@ from livekit.agents import Agent
 from openrtc import AgentPool
 from openrtc.observability.metrics import RuntimeMetricsStore
 from openrtc.routing.request_filter import (
+    _active_jobs_by_agent,
+    _active_jobs_by_tenant,
     _build_per_agent_backpressure_filter,
     _resolve_request_agent_name,
 )
@@ -248,17 +250,73 @@ async def test_pool_installed_filter_rejects_over_cap_agent_against_live_store()
         assert not req.rejected
 
 
-@pytest.mark.parametrize(
-    "options",
-    [
-        {"max_sessions_per_agent": {"dental": 2}},
-        {"max_sessions_per_tenant": {"acme": 5}},
-        {"enable_tenant_circuit_breaker": True},
-    ],
-)
-def test_caps_and_breaker_are_rejected_in_process_isolation(
-    options: dict[str, Any],
+def test_circuit_breaker_is_rejected_in_process_isolation() -> None:
+    """Process mode records session outcomes in each call's process: it would never trip."""
+    with pytest.raises(ValueError, match="requires isolation='coroutine'"):
+        AgentPool(isolation="process", enable_tenant_circuit_breaker=True)
+
+
+def _running_job(
+    *, room_name: str = "", job_metadata: str = "", room_metadata: str = ""
+) -> SimpleNamespace:
+    """A livekit ``RunningJobInfo`` stand-in carrying what the counters read."""
+    room = SimpleNamespace(name=room_name, metadata=room_metadata)
+    return SimpleNamespace(job=SimpleNamespace(metadata=job_metadata, room=room))
+
+
+def test_active_jobs_by_agent_resolves_like_an_incoming_job() -> None:
+    jobs = [
+        _running_job(job_metadata='{"agent": "support"}'),
+        _running_job(room_metadata='{"agent": "support"}'),
+        _running_job(room_name="sales-call-1"),
+        _running_job(room_name="unclaimed"),  # first-registered fallback: sales
+    ]
+
+    assert _active_jobs_by_agent(_AGENTS, jobs) == {"support": 2, "sales": 2}  # type: ignore[arg-type]
+    assert _active_jobs_by_agent({}, jobs) == {}  # type: ignore[arg-type]
+
+
+def test_active_jobs_by_tenant_prefers_job_metadata() -> None:
+    jobs = [
+        _running_job(job_metadata='{"tenant": "acme"}'),
+        _running_job(
+            job_metadata='{"tenant": "acme"}', room_metadata='{"tenant": "globex"}'
+        ),
+        _running_job(room_metadata='{"tenant": "globex"}'),
+        _running_job(),
+    ]
+
+    assert _active_jobs_by_tenant(jobs) == {"acme": 2, "globex": 1, "default": 1}  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_process_mode_caps_count_livekit_running_jobs(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Process mode counts each call in its own process, so these would never trip."""
-    with pytest.raises(ValueError, match="require isolation='coroutine'"):
-        AgentPool(isolation="process", **options)
+    """Process mode enforces per-agent and per-tenant caps from AgentServer.active_jobs."""
+    pool = AgentPool(
+        isolation="process",
+        agents={"sales": _Sales, "support": _Support},
+        max_sessions_per_agent={"sales": 2},
+        max_sessions_per_tenant={"acme": 3},
+    )
+    jobs = [
+        _running_job(job_metadata='{"agent": "sales", "tenant": "acme"}'),
+        _running_job(job_metadata='{"agent": "sales", "tenant": "acme"}'),
+    ]
+    monkeypatch.setattr(type(pool.server), "active_jobs", property(lambda _s: jobs))
+    fnc = pool.request_fnc
+    assert fnc is not None
+
+    sales = _Req(job_metadata={"agent": "sales"})
+    await fnc(sales)
+    assert sales.rejected, "sales is at its cap of 2"
+
+    support = _Req(job_metadata={"agent": "support", "tenant": "acme"})
+    await fnc(support)
+    assert support.accepted, "acme has 2 of 3"
+
+    jobs.append(_running_job(job_metadata='{"agent": "support", "tenant": "acme"}'))
+    over_tenant = _Req(job_metadata={"agent": "support", "tenant": "acme"})
+    await fnc(over_tenant)
+    assert over_tenant.rejected, "acme is at its cap of 3"
