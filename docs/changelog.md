@@ -89,6 +89,9 @@ Changes that have landed on `main` but have not yet been tagged for release.
   Why OpenRTC, How it works, CLI, Benchmark, and this changelog. The concept
   guides, runbooks, operations and compliance pages were folded into those
   pages or retired; they remain in git history.
+- The site runs on Fumadocs: full-text search, `/llms.txt`, `/llms-full.txt`,
+  and a Markdown copy of every page for AI coding agents. Page URLs are
+  unchanged.
 - The Benchmark page states the head-to-head against livekit-agents 1.8.3 with
   its method and what it does not cover, and says plainly that its harness is
   not in the repository yet.

@@ -243,3 +243,4 @@ docs/.vitepress/cache/
 .impeccable/review/
 web/*/dist/
 !web/*/src/lib/
+!web/docs/lib/

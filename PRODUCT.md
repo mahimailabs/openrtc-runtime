@@ -27,7 +27,7 @@ It is not a density product. A measured head-to-head against livekit-agents 1.8.
 - Install: `pip install "openrtc[livekit]"` (Python 3.11 to 3.13, livekit-agents `>=1.5,<1.9`).
 - Daily loop: `openrtc dev ./agents` with hot reload, `openrtc top` beside it.
 - Production: `openrtc start ./agents`, one worker per core, SIGTERM or `pool.begin_drain()` on deploy.
-- Web: `web/docs/` (Astro, static) renders `docs/*.mdx` to `docs.openrtc.tech`; `web/landing/` is the marketing page at `openrtc.tech`; `web/shared/` holds the theme both use. Both deploy to Cloudflare Workers. Five pages: Why OpenRTC, How it works, CLI, Benchmark, Changelog.
+- Web: `web/docs/` (Fumadocs on Next.js, static) renders `docs/*.mdx` to `docs.openrtc.tech`, with search and `llms.txt`; `web/landing/` is the marketing page at `openrtc.tech`; `web/shared/` holds the theme both use. Both deploy to Cloudflare Workers. Five pages: Why OpenRTC, How it works, CLI, Benchmark, Changelog.
 
 ## Capabilities and Constraints
 

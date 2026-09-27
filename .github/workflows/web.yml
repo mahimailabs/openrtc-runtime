@@ -14,7 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate docs structure and house style
-        # Stdlib-only validator: every page in web/docs/src/lib/site.ts has its file,
+        # Stdlib-only validator: every page in docs/meta.json has its file (and is in
+        # web/docs/lib/source.ts),
         # no orphans, internal links resolve, required frontmatter, no em dashes.
         run: python3 docs/_check_docs.py
 

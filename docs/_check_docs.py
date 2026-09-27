@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Docs structure + house-style validator for OpenRTC.
 
-The docs site (``web/docs/``) renders the pages listed in ``web/docs/src/lib/site.ts``
-from the files in this directory. Six rules, stdlib-only so the CI job needs no
+The docs site (``web/docs/``, Fumadocs) renders the pages listed in ``meta.json``
+here, in that order, from the files in this directory; ``web/docs/lib/source.ts``
+names the same files for the build. Six rules, stdlib-only so the CI job needs no
 dependency install:
 
-1. Every page listed in ``site.ts`` has its file here.
+1. Every page listed in ``meta.json`` has its file here, and ``source.ts`` names
+   exactly those files.
 2. Every ``.md``/``.mdx`` file here is a listed page (no orphans), except the
    internal notes in ``design/`` and the archived files in ``EXCLUDED_FILES``.
 3. Every internal ``/...`` link points at a listed page.
@@ -21,12 +23,14 @@ a process exit code.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
 
 DOCS_DIR = Path(__file__).resolve().parent
-SITE_PAGES = DOCS_DIR.parent / "web" / "docs" / "src" / "lib" / "site.ts"
+META = DOCS_DIR / "meta.json"
+SOURCE_TS = DOCS_DIR.parent / "web" / "docs" / "lib" / "source.ts"
 
 EM_DASH = "—"
 PAGE_SUFFIXES = (".md", ".mdx")
@@ -37,7 +41,8 @@ EXCLUDED_FILES = frozenset({"audit-2026-05-02.md", "README.md"})
 # Leading characters that force a YAML value to be quoted (rule 5).
 _YAML_INDICATORS = "{[&*!|>%@`\"'#"
 
-_PAGE_RE = re.compile(r"href:\s*'([^']+)'.*?file:\s*'([^']+)'")
+_SOURCE_FILES_RE = re.compile(r"files:\s*\[([^\]]*\.mdx?'[^\]]*)\]")
+_QUOTED_RE = re.compile(r"'([^']+)'")
 _LINK_RE = re.compile(r"\]\(\s*(/[^)\s]*)")
 _HEADING_ANCHOR_RE = re.compile(r"^#{1,6}\s.*\{#[\w-]+\}")
 _INLINE_CODE_RE = re.compile(r"`[^`]*`")
@@ -45,9 +50,28 @@ _INLINE_CODE_RE = re.compile(r"`[^`]*`")
 Page = tuple[str, str]  # (href, file)
 
 
-def read_site_pages(path: Path = SITE_PAGES) -> list[Page]:
-    """Return the ``(href, file)`` pairs listed in ``site.ts``."""
-    return _PAGE_RE.findall(path.read_text(encoding="utf-8"))
+def read_meta_pages(path: Path = META) -> list[Page]:
+    """Return ``(href, file)`` for each page in ``meta.json``, in its order.
+
+    A page slug maps to ``<slug>.mdx`` or ``<slug>.md`` (whichever exists, ``.mdx``
+    when neither does, so rule 1 names the missing file); ``index`` is served at ``/``.
+    """
+    pages: list[Page] = []
+    for slug in json.loads(path.read_text(encoding="utf-8")).get("pages", []):
+        name = f"{slug}.mdx"
+        if (
+            not (path.parent / name).is_file()
+            and (path.parent / f"{slug}.md").is_file()
+        ):
+            name = f"{slug}.md"
+        pages.append(("/" if slug == "index" else f"/{slug}/", name))
+    return pages
+
+
+def read_source_files(path: Path = SOURCE_TS) -> list[str]:
+    """Return the page files ``source.ts`` hands the Fumadocs build."""
+    match = _SOURCE_FILES_RE.search(path.read_text(encoding="utf-8"))
+    return _QUOTED_RE.findall(match.group(1)) if match else []
 
 
 def _normalize(href: str) -> str:
@@ -69,14 +93,14 @@ def _check_files(docs_dir: Path, pages: list[Page], errors: list[str]) -> list[P
         if file.is_file():
             files.append(file)
         else:
-            errors.append(f"site.ts: page '{href}' points at missing docs/{name}")
+            errors.append(f"meta.json: page '{href}' points at missing docs/{name}")
     listed = set(files)
     for file in sorted(docs_dir.rglob("*")):
         if file.suffix not in PAGE_SUFFIXES or not file.is_file():
             continue
         rel = file.relative_to(docs_dir)
         if not _is_excluded(rel) and file not in listed:
-            errors.append(f"{rel.as_posix()}: not a page in site.ts (orphan)")
+            errors.append(f"{rel.as_posix()}: not a page in meta.json (orphan)")
     return files
 
 
@@ -151,11 +175,23 @@ def _check_line_rules(rel: str, text: str, errors: list[str]) -> None:
             errors.append(f"{rel}:{lineno}: heading has a custom anchor id")
 
 
-def check_docs(docs_dir: Path, pages: list[Page]) -> list[str]:
-    """Validate the docs in *docs_dir* against *pages*; return violations."""
+def check_docs(
+    docs_dir: Path, pages: list[Page], source_files: list[str] | None = None
+) -> list[str]:
+    """Validate the docs in *docs_dir* against *pages*; return violations.
+
+    *source_files*, when given, is the file list the site build reads; it must
+    name exactly the listed pages.
+    """
     errors: list[str] = []
     if not pages:
-        return ["site.ts: no pages found"]
+        return ["meta.json: no pages found"]
+    if source_files is not None and sorted(source_files) != sorted(
+        name for _, name in pages
+    ):
+        errors.append(
+            "web/docs/lib/source.ts: its files list does not match docs/meta.json"
+        )
     hrefs = {_normalize(href) for href, _ in pages}
     for file in _check_files(docs_dir, pages, errors):
         rel = file.relative_to(docs_dir).as_posix()
@@ -167,7 +203,7 @@ def check_docs(docs_dir: Path, pages: list[Page]) -> list[str]:
 
 
 def main() -> int:
-    errors = check_docs(DOCS_DIR, read_site_pages())
+    errors = check_docs(DOCS_DIR, read_meta_pages(), read_source_files())
     if errors:
         print(f"docs validation failed ({len(errors)} issue(s)):", file=sys.stderr)
         for error in errors:

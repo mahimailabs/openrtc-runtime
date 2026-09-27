@@ -219,3 +219,29 @@ async def test_process_server_runs_top_around_the_worker(
     server.attach_introspection(_Top())  # type: ignore[arg-type]
     await server.run()
     assert calls == ["start", "run", "close"]
+
+
+def test_psutil_process_uses_psutil_when_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = SimpleNamespace(Process=lambda pid: ("proc", pid))
+    monkeypatch.setitem(sys.modules, "psutil", fake)
+    assert process_top._psutil_process(7) == ("proc", 7)
+
+
+def test_read_process_usage_only_asks_psutil_for_what_proc_lacks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = SimpleNamespace(
+        memory_info=lambda: SimpleNamespace(rss=5 * _MB),
+        cpu_times=lambda: SimpleNamespace(user=1.0, system=1.0),
+    )
+    monkeypatch.setattr(process_top, "_psutil_process", lambda _pid: fake)
+
+    monkeypatch.setattr(process_top, "_linux_pss_bytes", lambda _pid: 9 * _MB)
+    monkeypatch.setattr(process_top, "_linux_cpu_seconds", lambda _pid: None)
+    assert read_process_usage(1) == (9 * _MB, 2.0)
+
+    monkeypatch.setattr(process_top, "_linux_pss_bytes", lambda _pid: None)
+    monkeypatch.setattr(process_top, "_linux_cpu_seconds", lambda _pid: 4.0)
+    assert read_process_usage(1) == (5 * _MB, 4.0)
