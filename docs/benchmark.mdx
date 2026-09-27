@@ -1,26 +1,42 @@
 ---
 title: "Benchmark"
-description: "OpenRTC against stock livekit-agents 1.8.3 on the same two cores: memory, CPU, and what happens under overload."
+description: "OpenRTC against stock livekit-agents 1.8.3 on the same two cores: memory, CPU, where the CPU goes, and what happens under overload."
 ---
 
-OpenRTC's default mode runs every call in one process. The obvious question is whether that lets one machine serve more calls than stock livekit-agents. On the hardware we measured, it does not. It does use about 3x less memory per call.
+OpenRTC's default mode runs every call in one process. On the hardware we measured, that uses about 3x less memory per call than stock livekit-agents, and, on uvloop (the default since this release), about the same CPU. It does not make one machine serve more calls than CPU allows.
 
 ## Head-to-head
 
-The same agent, run by stock livekit-agents 1.8.3 (a process per call) and by OpenRTC in coroutine mode, on the same machine.
+The same agent, 8 calls, run five ways on the same two pinned cores. Each configuration ran twice, interleaved, so drift over time could not favour one of them. Every agent answered in every run, except livekit-agents' thread mode, where one of eight did not speak in both runs.
 
-| Calls | Worker | Agent answered | Memory per call | CPU (of 200%) |
-| ---: | --- | ---: | ---: | ---: |
-| 8 | livekit-agents | 8/8 | ~63 MB | ~103% |
-| 8 | OpenRTC coroutine | 8/8 | ~22 MB | ~130% |
-| 16 | livekit-agents | 16/16 | ~56 MB | not recorded |
-| 16 | OpenRTC coroutine | 14/16 | ~18 MB | not recorded |
+| Worker | CPU (of 200%), run 1 / run 2 | Memory per call |
+| --- | ---: | ---: |
+| livekit-agents, a process per call | 120 / 121 | ~64 MB |
+| livekit-agents, every call in one process (thread mode) | 140 / 142 | ~28 MB |
+| OpenRTC, asyncio loop | 141 / 139 | ~22 MB |
+| OpenRTC, asyncio loop, introspection off | 137 / 142 | ~22 MB |
+| **OpenRTC on uvloop (default)** | **127 / 117** | **~22 MB** |
 
-Both workers idle at about 1.2 GB: the runtime, the models, and livekit's shared turn-detector process.
+All five idle at about 1.2 GB (1.45 GB for thread mode): the runtime, the models, and livekit's shared turn-detector process. Memory per call is peak minus idle, over 8 calls.
 
 - **Memory:** livekit-agents 1.8 forks each call from a preloaded process, so a call costs tens of MB, not the gigabytes older write-ups quote. OpenRTC's calls share one process and cost about a third of that.
-- **CPU:** one OpenRTC worker is one Python process, so it uses about one core, and it spent about 25% more CPU per call. At 16 calls on two cores it ran out first: two calls never got an answer.
-- **So:** coroutine mode helps when memory is what you pay for (small containers, memory-priced hosts). When CPU is the limit, which it usually is, run one worker per core or use `isolation="process"`.
+- **CPU:** running every call in one process costs about 20 points more CPU on asyncio, in livekit-agents' own thread mode as much as in OpenRTC. OpenRTC's own code is not the cost: turning introspection off changed nothing. On uvloop, OpenRTC is back to about process-per-call CPU. The two uvloop runs spread 10 points apart, so read it as parity, not a win.
+- **So:** coroutine mode saves memory at about the same CPU. It still does not raise the calls a machine can serve: one worker is one Python process, so run one worker per core.
+
+### Where the extra CPU goes
+
+CPU seconds per thread over 40 s in the middle of the 8 calls, read from `/proc` and named with `py-spy dump`:
+
+| Thread | A process per call | OpenRTC, asyncio | OpenRTC, uvloop |
+| --- | ---: | ---: | ---: |
+| Python event loop(s) | 16.8 s | 18.3 s | 16.5 s |
+| Voice-detection threads | ~9.2 s | 7.7 s | 7.1 s |
+| livekit's Rust runtime (`tokio-rt-worker`) | 4.5 s | 11.7 s | 8.0 s |
+| WebRTC network thread | 1.9 s | 3.8 s | 3.9 s |
+| OpenRTC's CPU sampler | none | 0.2 s | 0.2 s |
+| **All threads** | **46 s** | **50 s** | **44 s** |
+
+The Python event loop does about the same work whether calls are spread over 13 processes or share one. The difference is livekit's Rust runtime: it hands every audio frame and room event to Python, each hand-off needs the GIL, and with every room in one process two Rust threads keep waiting on one busy interpreter. A py-spy profile shows the same waits, in livekit's FFI `put`, the event-loop wake-up, onnx and numpy. uvloop holds the GIL for less time per pass, so the Rust threads wait less.
 
 ## Under overload
 
@@ -43,13 +59,14 @@ The worker now stops at the edge of what it can serve and leaves the remaining c
 | LiveKit | a local livekit-server 1.13, real rooms, WebRTC audio in both directions |
 | Pipeline | Silero VAD and the turn detector (real models); STT, LLM and TTS stand-ins with realistic latency, so no provider variance |
 | Memory | PSS, not RSS. Forked processes share memory pages, and RSS counts each shared page once per process. |
-| CPU | busy time of the two pinned cores, from `/proc/stat` |
-| Load threshold | livekit's production default, 0.7, for both. The stock worker's CPU load was measured on its own two cores, so the load generator could not skew it. |
+| CPU | busy time of the two pinned cores, from `/proc/stat`; per thread, `utime + stime` from `/proc/<pid>/task` |
+| Admission | head-to-head: every worker admits every call (load = active / 200), so only the execution model differs. Overload run: livekit's production threshold, 0.7. |
 
 ## What this does not cover
 
 - **Real providers.** STT, LLM and TTS were stand-ins. Real network calls are async and should not change the CPU picture much, but we have not measured them.
-- **More cores.** Two cores, one worker. We have not measured four coroutine workers against one stock worker on four cores.
+- **More cores.** Two cores. We have not measured several coroutine workers against one stock worker on four or more cores.
+- **Capacity on uvloop.** The 16-call runs that found OpenRTC answering 14 of 16 predate uvloop; they have not been rerun.
 - **Long calls.** Each run lasted minutes. Memory growth over hours is unmeasured.
 - **Your agent.** A tool that does synchronous work (a blocking HTTP client, a large parse) costs every other call in a coroutine worker. `openrtc top` shows it as `slow`.
 

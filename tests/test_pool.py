@@ -945,12 +945,35 @@ def test_run_invokes_cli_run_app_when_agents_are_registered(
         "openrtc.backends.livekit.backend.cli.run_app",
         lambda server: captured.append(server),
     )
+    monkeypatch.setattr("openrtc.core.pool.use_uvloop", lambda: True)
     pool = AgentPool()
     pool.add("a", DemoAgent)
 
     pool.run()
 
     assert captured == [pool._server]
+
+
+@pytest.mark.parametrize(
+    ("isolation", "enable_uvloop", "expected"),
+    [("coroutine", True, 1), ("coroutine", False, 0), ("process", True, 0)],
+)
+def test_run_uses_uvloop_only_for_coroutine_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    isolation: str,
+    enable_uvloop: bool,
+    expected: int,
+) -> None:
+    """Coroutine mode installs uvloop unless disabled; process mode never does."""
+    calls: list[None] = []
+    monkeypatch.setattr("openrtc.backends.livekit.backend.cli.run_app", lambda _s: None)
+    monkeypatch.setattr("openrtc.core.pool.use_uvloop", lambda: calls.append(None))
+    pool = AgentPool(isolation=isolation, enable_uvloop=enable_uvloop)  # type: ignore[arg-type]
+    pool.add("a", DemoAgent)
+
+    pool.run()
+
+    assert len(calls) == expected
 
 
 def test_prewarm_worker_raises_when_runtime_state_has_no_agents() -> None:

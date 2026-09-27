@@ -44,12 +44,12 @@ const features = [
 
 const bench = [
   { label: 'Memory per call', unit: 'MB PSS', max: 70, rows: [
-    { who: 'livekit-agents', value: 63 },
+    { who: 'livekit-agents', value: 64 },
     { who: 'OpenRTC', value: 22 },
   ] },
   { label: 'CPU at 8 calls', unit: '% of 2 cores', max: 200, rows: [
-    { who: 'livekit-agents', value: 103 },
-    { who: 'OpenRTC', value: 130 },
+    { who: 'livekit-agents', value: 120 },
+    { who: 'OpenRTC', value: 122 },
   ] },
 ];
 ---
@@ -133,12 +133,12 @@ const bench = [
 
   <section class="chapter shell bench">
     <div class="head">
-      <h2>Less memory per call. Not more calls per box.</h2>
+      <h2>A third of the memory per call. About the same CPU.</h2>
       <p>
         We measured OpenRTC against livekit-agents 1.8.3 on the same two cores, with a full voice pipeline. OpenRTC's calls
-        share one process and use about a third of the memory. They also use more CPU, and CPU runs out first, so run one
-        worker per core. When it is saturated the worker stops taking calls: offered 24, it took 12, and all 12
-        answered.
+        share one process and use about a third of the memory, and on uvloop about the same CPU. One worker is still
+        one Python process, so run one per core. When it is saturated the worker stops taking calls: offered 24, it
+        took 12, and all 12 answered.
       </p>
       <a class="link" href={`${DOCS}/benchmark/`}>The method, and what it does not cover</a>
     </div>

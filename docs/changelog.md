@@ -7,6 +7,23 @@ description: Every change to OpenRTC, newest first, with migration notes. Releas
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Coroutine mode runs on uvloop
+
+**Changed**
+
+- A coroutine-mode worker now runs on uvloop when it is installed, and
+  `openrtc[livekit]` installs it outside Windows. In a head-to-head on
+  livekit-agents 1.8.3 (8 calls, 2 cores) it brought worker CPU from about 140%
+  to about 122%, level with livekit's process-per-call mode (120%), at a third of
+  the memory per call. Turn it off with `AgentPool(enable_uvloop=False)` or
+  `OPENRTC_UVLOOP=0`.
+
+**Documentation**
+
+- The Benchmark page has the new five-way head-to-head and a per-thread CPU
+  breakdown: the extra CPU of one process is livekit's Rust runtime waiting on
+  the GIL, not OpenRTC's code (introspection costs about 0.5% of a core).
+
 ### Landing page at openrtc.tech
 
 **Documentation**

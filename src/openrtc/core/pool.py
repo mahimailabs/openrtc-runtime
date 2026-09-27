@@ -31,6 +31,7 @@ from openrtc.routing.request_filter import (
     _build_registered_rooms_filter,
     _build_tenant_circuit_filter,
 )
+from openrtc.runtime.event_loop import use_uvloop
 from openrtc.runtime.registry import ServerParams
 from openrtc.utils.types import AgentRouter, ProviderValue, RequestFilter
 from openrtc.utils.validation import (
@@ -98,6 +99,7 @@ class AgentPool:
         enable_tenant_circuit_breaker: bool = False,
         tenant_circuit_cooldown_s: float = 30.0,
         enable_introspection: bool = True,
+        enable_uvloop: bool = True,
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
         deployment_version: str | None = None,
@@ -203,6 +205,11 @@ class AgentPool:
         connects to. It is coroutine-mode only (process mode isolates every
         session in its own subprocess, where a shared-process inspector sees
         nothing), so it is silently skipped under ``process`` isolation.
+
+        ``enable_uvloop`` (default on) runs a coroutine-mode worker on uvloop when
+        it is installed (it ships with ``openrtc[livekit]`` outside Windows). One
+        loop serves every call, so a faster loop cuts the CPU the worker spends
+        handing audio and events to Python. ``OPENRTC_UVLOOP=0`` also turns it off.
         """
         if request_fnc is not None and accept_only_registered_rooms:
             raise ValueError(
@@ -227,6 +234,7 @@ class AgentPool:
         # rejects an unknown name and imports the framework lazily.
         self._backend_name = backend
         self._isolation: IsolationMode = isolation
+        self._enable_uvloop = enable_uvloop
         self._max_concurrent_sessions = require_positive_int(
             "max_concurrent_sessions", max_concurrent_sessions
         )
@@ -686,6 +694,8 @@ class AgentPool:
         """
         if not self.list_agents():
             raise RuntimeError("Register at least one agent before calling run().")
+        if self._isolation == "coroutine" and self._enable_uvloop:
+            use_uvloop()
         self._backend.run()
 
     def _resolve_provider(
