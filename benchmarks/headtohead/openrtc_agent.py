@@ -3,10 +3,12 @@
 BENCH_ISOLATION=process switches isolation, BENCH_INTROSPECTION=0 turns the
 openrtc top stack off, OPENRTC_UVLOOP=0 keeps the asyncio loop, and
 BENCH_PORT gives the worker's HTTP server a port of its own (multi.sh).
+BENCH_FFI_ROUTE=1 installs the FfiQueue routing prototype (ffiroute.py).
 """
 
 import os
 
+import ffiroute
 import ffistats
 from fakes import FakeLLM, FakeSTT, FakeTTS
 from livekit.agents import Agent
@@ -32,6 +34,8 @@ pool.add("bench", BenchAgent)
 if "BENCH_PORT" in os.environ:
     pool.server._port = int(os.environ["BENCH_PORT"])
 
+if os.environ.get("BENCH_FFI_ROUTE") == "1":
+    ffiroute.install()
 if os.environ.get("BENCH_FFI_STATS") == "1":
     ffistats.install()
 
