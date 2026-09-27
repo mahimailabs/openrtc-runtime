@@ -35,6 +35,30 @@ Changes that have landed on `main` but have not yet been tagged for release.
 
 <!-- releases -->
 
+## [0.20.1] - 2026-09-27
+
+A patch release: the runtime flags on `openrtc start`, `dev` and `console` work again, the worker commands take `--port`, and coding agents can install OpenRTC skills. No migration needed: `pip install -U "openrtc[livekit,cli]"`.
+
+### Added
+
+- **`--port` on the worker commands.** `openrtc start|dev|console --port N` sets the worker's HTTP port, the CLI side of `AgentPool(port=...)`, so several workers can share a host from the CLI alone. `OPENRTC_PORT` still works; the flag wins.
+- **Agent skills.** `npx skills add mahimailabs/openrtc-runtime` installs two skills for coding agents (Claude Code, Cursor, Codex and others):
+  - `adopting-openrtc`: move a livekit-agents project onto OpenRTC;
+  - `operating-openrtc`: run and debug it in production.
+
+  A test checks every flag and keyword they name against the real CLI and `AgentPool`, so they fail CI instead of going stale.
+
+### Fixed
+
+- **`--isolation` and `--max-concurrent-sessions` on the worker commands.** In 0.20.0 they made `openrtc start`, `dev` and `console` exit with "No such option", because they reached livekit-agents' own CLI parser. They are now stripped before the hand-off, like the other OpenRTC-only flags. The `OPENRTC_ISOLATION` and `OPENRTC_MAX_CONCURRENT_SESSIONS` variables were not affected.
+
+### Documentation
+
+- A shorter README that leads with the problem, says what OpenRTC does and where it stops, and shows how to contribute. It has a new cover, and the old brand artwork is gone from `assets/`.
+- The CLI page no longer says `openrtc top` needs coroutine mode: it has served process-mode workers since 0.20.0.
+
+---
+
 ## [0.20.0] - 2026-09-27
 
 OpenRTC now targets livekit-agents only, supports livekit-agents 1.8, and runs coroutine mode on uvloop. It also sheds load when its event loop saturates. Pipecat support is removed, which is a breaking change: see the migration note.
