@@ -95,6 +95,7 @@ The full coding-style guide lives in `AGENTS.md` (typing rules, async patterns, 
 - **Branches:** `feat/<topic>` or `fix/<topic>`. Never a `claude/` prefix.
 - **Before every push:** `make ci` (ruff check, ruff format --check, mypy --strict, pytest with the 99% coverage gate) must pass locally.
 - **LiveKit facts come from the docs, not memory.** The project ships the LiveKit Docs MCP server (`.mcp.json`) and LiveKit's agent skills (`.claude/skills/`, start with `reading-livekit-docs`). Check the changelog before touching code that hooks livekit-agents internals.
+- **Docs and UI:** use the `impeccable` skill for any docs-site or frontend work. The house style is the sibling projects: mahimai.ca (`PRODUCT.md`/`DESIGN.md`: charcoal, one lavender accent, Space Grotesk + JetBrains Mono, no em dashes) and voice-prices' Mintlify docs (lead with the problem, measured numbers, tables over prose, say what is not covered and why, generated sections fenced by markers).
 - **Keep it minimal.** The `ponytail` skill is installed: reuse what exists, stdlib before dependencies, shortest diff that fixes the root cause.
 - **Performance claims need a measurement.** Compare memory with PSS, not RSS (forked job processes share pages; RSS double counts them), against vanilla livekit-agents on the same machine.
 - **Secrets:** never read or commit `.env` files (denied in `.claude/settings.json`); pass LiveKit credentials as environment variables.
