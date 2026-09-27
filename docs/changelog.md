@@ -18,6 +18,23 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Coroutine mode stops accepting calls when its event loop saturates
+
+**Fixed**
+
+- Coroutine mode reported load as `active / max_concurrent_sessions` only, so a
+  CPU-saturated worker kept accepting calls it could not serve in real time.
+  `current_load()` now reports the higher of that and the smoothed event-loop
+  lag (60 ms of lag reads as full; LiveKit's default 0.7 threshold trips at
+  ~42 ms). No API change.
+
+**Documentation**
+
+- Replaced the unmeasured "50+ sessions per worker" and "~3 GB per process"
+  claims (README, docs site, diagrams, `examples/density_demo.py`) with a
+  measured head-to-head against livekit-agents 1.8.3: ~20 MB vs ~60 MB PSS per
+  call, with CPU as the usual limit.
+
 ### livekit-agents 1.8 support
 
 **Changed**
