@@ -65,7 +65,8 @@ pool = AgentPool(agent_name="realty")                  # only explicit dispatche
 | A crash | fails that call; 5 failures in a row restart the worker | takes down only that process |
 | Memory limit | whole worker: warns at `memory_warn_mb`, drains and restarts at `memory_limit_mb` | per call, enforced by livekit-agents |
 | Load reported to LiveKit | the higher of `active / max_concurrent_sessions` and event-loop lag | livekit's CPU-based load |
-| Hot reload, `openrtc top`, tenant caps | yes | no |
+| Per-agent and per-tenant caps | yes | yes, counted from livekit's running jobs |
+| Hot reload, `openrtc top`, tenant circuit breaker | yes | no |
 | livekit-agents dependency | private internals, so pinned to `>=1.5,<1.9` | public API |
 
 The figures come from the [benchmark](/benchmark/). Coroutine mode saves memory, and on uvloop costs about the same CPU per call, but one worker still tops out at about one core. Run one coroutine worker per core, or use `isolation="process"` when your agents are CPU-bound.
@@ -151,7 +152,7 @@ pool = AgentPool(
 Agent code reads the tenant with `from openrtc.context import current_tenant_id`. It is also on `openrtc top --tenant`, the observer payload, and `runtime_snapshot().sessions_by_tenant`.
 
 <Warning>
-Tenants share one process: this confines load and failures, not memory access. For a hard boundary between clients, run a worker per tenant. The caps and the breaker need `isolation="coroutine"`; `AgentPool` raises if you combine them with `process`.
+Tenants share one process: this confines load and failures, not memory access. For a hard boundary between clients, run a worker per tenant. The caps work in both modes: process mode counts livekit's running jobs (`AgentServer.active_jobs`) in the worker, where calls are admitted. The breaker needs `isolation="coroutine"`, because in process mode each call's outcome is recorded in its own process; `AgentPool` raises if you combine it with `process`.
 </Warning>
 
 ## Deploys

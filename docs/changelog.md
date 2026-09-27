@@ -7,6 +7,21 @@ description: Every change to OpenRTC, newest first, with migration notes. Releas
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Session caps work in process mode
+
+**Added**
+
+- `max_sessions_per_agent` and `max_sessions_per_tenant` now work under
+  `isolation="process"`. The worker counts livekit's running jobs
+  (`AgentServer.active_jobs`), resolving each job's agent and tenant the same
+  way an incoming call is resolved. Against a live server, a process-mode
+  worker capped at 3 took 3 of 8 calls and rejected 5.
+
+**Changed**
+
+- `enable_tenant_circuit_breaker` still needs coroutine mode and still raises
+  under `isolation="process"`; the caps no longer do.
+
 ### Several workers on one host
 
 **Added**
@@ -71,14 +86,15 @@ Changes that have landed on `main` but have not yet been tagged for release.
   agent now starts with the old agent's conversation history; the reloaded
   instructions still replace the old ones.
 
-### Per-agent / per-tenant caps and the circuit breaker fail fast in process mode
+### The circuit breaker fails fast in process mode
 
 **Fixed**
 
-- In `isolation="process"` each call runs in its own process with its own copy
-  of the session metrics, so `max_sessions_per_agent`, `max_sessions_per_tenant`
-  and `enable_tenant_circuit_breaker` were silently never enforced. Combining
-  them with `isolation="process"` now raises `ValueError` at construction.
+- In `isolation="process"` each call runs in its own process, so
+  `max_sessions_per_agent`, `max_sessions_per_tenant` and
+  `enable_tenant_circuit_breaker` were silently never enforced. The caps now
+  work there (see "Session caps work in process mode"); the breaker raises
+  `ValueError` at construction when combined with `isolation="process"`.
 
 ### Removed the shared-worker "savings" estimate
 

@@ -33,7 +33,7 @@ It is not a density product. A measured head-to-head against livekit-agents 1.8.
 
 - Isolation: `coroutine` (default, every session an `asyncio.Task` in one process) or `process` (livekit's process per job).
 - Coroutine mode hooks private livekit-agents internals, hence the tight version pin.
-- Per-agent and per-tenant caps and the tenant circuit breaker need coroutine mode.
+- The tenant circuit breaker needs coroutine mode. Per-agent and per-tenant caps work in both modes.
 - `openrtc top` needs a coroutine-mode worker on the same host.
 - Pipecat support was removed. LiveKit only.
 
