@@ -1,0 +1,39 @@
+---
+// The install line with a copy button. The same command on the docs and the landing page.
+interface Props {
+  command?: string;
+}
+const { command = 'pip install "openrtc[livekit,cli]"' } = Astro.props;
+---
+
+<div class="install">
+  <code><span>$</span> {command}</code>
+  <button type="button" class="copy" data-copy={command} aria-label="Copy the install command">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect width="14" height="14" x="8" y="8" rx="2"></rect>
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+    </svg>
+    <span data-copy-label>Copy</span>
+  </button>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const label = b.querySelector('[data-copy-label]');
+      navigator.clipboard.writeText(b.dataset.copy ?? '').then(
+        () => {
+          b.dataset.state = 'done';
+          if (label) label.textContent = 'Copied';
+          setTimeout(() => {
+            delete b.dataset.state;
+            if (label) label.textContent = 'Copy';
+          }, 1600);
+        },
+        () => {
+          if (label) label.textContent = 'Select and copy';
+        }
+      );
+    });
+  });
+</script>

@@ -7,6 +7,16 @@ description: Every change to OpenRTC, newest first, with migration notes. Releas
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Landing page at openrtc.tech
+
+**Documentation**
+
+- The marketing page moves into this repository as `web/landing/` (Astro, Cloudflare
+  Workers), restyled to match the docs. It drops the old page's unmeasured claims
+  ("50+ sessions per worker", "~3 GB saved per agent", the density calculator) for
+  the measured benchmark, and shows the GitHub star count fetched at build time.
+- `web/shared/` now holds the theme toggle and install command both sites use.
+
 ### Docs move to docs.openrtc.tech
 
 **Documentation**

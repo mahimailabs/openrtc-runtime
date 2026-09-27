@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-27T15:52:44+00:00",
-  "title": "Design System: OpenRTC Docs",
+  "generatedAt": "2026-09-27T17:00:00+00:00",
+  "title": "Design System: OpenRTC Web",
   "extensions": {
     "colorMeta": {
       "signal": {
@@ -378,16 +378,54 @@
           "#fcdcaf",
           "#fef4e7"
         ]
+      },
+      "terminal": {
+        "role": "neutral",
+        "displayName": "Terminal",
+        "canonical": "#0c0c0c",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "terminal-dim": {
+        "role": "neutral",
+        "displayName": "Terminal Dim",
+        "canonical": "#8a8a8a",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
       }
     },
     "typographyMeta": {
+      "landing-display": {
+        "displayName": "Landing display",
+        "purpose": "Landing H1 only, 14ch."
+      },
       "display": {
         "displayName": "Display",
-        "purpose": "Home H1 only."
+        "purpose": "Docs home H1 only."
       },
       "headline": {
         "displayName": "Headline",
         "purpose": "Doc page H1."
+      },
+      "chapter-head": {
+        "displayName": "Chapter head",
+        "purpose": "Landing chapter H2s."
       },
       "title": {
         "displayName": "Title",
@@ -416,6 +454,10 @@
       "table-head": {
         "displayName": "Table head",
         "purpose": "Data table column names and stacked-row labels."
+      },
+      "console": {
+        "displayName": "Console",
+        "purpose": "Everything inside the landing console."
       }
     },
     "shadows": [
@@ -429,7 +471,7 @@
       {
         "name": "ease-out-expo",
         "value": "cubic-bezier(0.16, 1, 0.3, 1)",
-        "purpose": "Declared ease token."
+        "purpose": "Ease for the console arrive animation."
       },
       {
         "name": "state",
@@ -440,23 +482,58 @@
         "name": "copy-confirm",
         "value": "1.6s",
         "purpose": "How long the copy button shows Copied."
+      },
+      {
+        "name": "arrive",
+        "value": "0.6s var(--ease) both; from { opacity: 0; filter: blur(3px) }",
+        "purpose": "New console rows and log lines. The only animation on either surface."
+      },
+      {
+        "name": "console-tick",
+        "value": "1s interval, 16-tick loop",
+        "purpose": "Console story clock; runs only while on screen (IntersectionObserver). Reduced motion or no JS: first frame held."
       }
     ],
     "breakpoints": [
+      {
+        "name": "console-narrow",
+        "value": "34rem",
+        "purpose": "At and below: the console drops its tenant and memory columns and goes to 0.72rem."
+      },
       {
         "name": "stack-tables",
         "value": "40rem",
         "purpose": "At and below: tables stack into labelled rows; pager goes one column."
       },
       {
+        "name": "footer",
+        "value": "48rem",
+        "purpose": "Shared footer goes two columns."
+      },
+      {
         "name": "inline-nav",
         "value": "52rem",
-        "purpose": "Page links move from the scrolling second row into the top bar."
+        "purpose": "Page links move into the top bar (docs: from the scrolling second row; landing: from hidden)."
+      },
+      {
+        "name": "features",
+        "value": "56rem",
+        "purpose": "Landing features list goes to three columns (name, what, limit)."
+      },
+      {
+        "name": "compare-bench",
+        "value": "64rem",
+        "purpose": "Landing before/after panes and the benchmark head and bars sit side by side."
       },
       {
         "name": "rail",
         "value": "68rem",
-        "purpose": "Contents rail and two-column home lead-in appear."
+        "purpose": "Docs contents rail and two-column docs home lead-in appear."
+      },
+      {
+        "name": "landing-hero",
+        "value": "72rem",
+        "purpose": "Landing hero splits 0.82fr / 1.18fr, console the larger half."
       }
     ],
     "backdrop": [
@@ -472,7 +549,7 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The one primary action per viewport (Quick start).",
+      "description": "The one primary action per viewport (Quick start on the docs, Star on GitHub on the landing page).",
       "html": "<a class=\"ds-btn ds-btn-primary\" href=\"#\">Quick start</a>",
       "css": ".ds-btn{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;padding:0 1.1rem;border:1px solid var(--line-strong,#3a3a3a);border-radius:.5rem;color:var(--ink,#fafafa);font:500 .9375rem 'Space Grotesk Variable',system-ui,sans-serif;text-decoration:none;transition:border-color .15s ease,background-color .15s ease}.ds-btn-primary{border-color:transparent;background:var(--accent,#cba6f7);color:var(--on-accent,#0a0a0a)}.ds-btn-primary:hover{background:var(--accent-deep,#b48adc)}.ds-btn:focus-visible{outline:2px solid var(--accent,#cba6f7);outline-offset:3px}"
     },
@@ -531,32 +608,57 @@
       "description": "Previous/next page at the foot of each doc.",
       "html": "<a class=\"ds-pager\" href=\"#\"><span>Next</span><strong>How it works</strong></a>",
       "css": ".ds-pager{display:grid;gap:.25rem;max-width:22rem;padding:.9rem 1.1rem;border:1px solid var(--line,#262626);border-radius:.75rem;color:var(--ink,#fafafa);text-decoration:none;font-family:'Space Grotesk Variable',system-ui,sans-serif;transition:border-color .15s ease}.ds-pager:hover{border-color:var(--line-strong,#3a3a3a)}.ds-pager:focus-visible{outline:2px solid var(--accent,#cba6f7);outline-offset:3px}.ds-pager span{color:var(--muted,#a3a3a3);font-size:.8125rem}.ds-pager strong{font-weight:500}"
+    },
+    {
+      "name": "Console",
+      "kind": "custom",
+      "refersTo": "console",
+      "description": "Landing hero: simulated openrtc top, dark in both themes, captioned Simulated.",
+      "html": "<figure class=\"ds-console\"><div class=\"ds-console__screen\"><div class=\"ds-console__head\"><span class=\"ds-console__title\">openrtc top</span><span><b>3</b> sessions</span><span>load <b>0.67</b></span></div><table><thead><tr><th>session</th><th>agent</th><th class=\"num\">cpu%</th><th>status</th></tr></thead><tbody><tr><td class=\"dim\">AJ_8f3a</td><td>support</td><td class=\"num\">9</td><td class=\"ok\">active</td></tr><tr class=\"slow\"><td class=\"dim\">AJ_2c91</td><td>booking</td><td class=\"num\">62</td><td class=\"warn\">slow</td></tr><tr class=\"ds-new\"><td class=\"dim\">AJ_c45b</td><td>support</td><td class=\"num\">7</td><td class=\"ok\">active</td></tr></tbody></table><ol class=\"ds-console__log\"><li><span class=\"dim\">16:42:16</span> <span class=\"accent\">[reload]</span> booking.py changed -&gt; swapped 2 sessions in 11ms</li></ol></div><figcaption>Simulated. Sessions, events and numbers are illustrative.</figcaption></figure>",
+      "css": ".ds-console{margin:0}.ds-console__screen{overflow:hidden;border:1px solid #262626;border-radius:.875rem;background:#0c0c0c;color:#d4d4d4;font:.78rem/1.55 'JetBrains Mono Variable',ui-monospace,monospace;font-variant-numeric:tabular-nums}.ds-console__head{display:flex;flex-wrap:wrap;gap:.35rem 1.25rem;padding:.7rem 1rem;border-bottom:1px solid #262626;color:#a3a3a3}.ds-console__head b{color:#fafafa;font-weight:500}.ds-console__title{margin-right:auto;color:#fafafa;font-weight:600}.ds-console table{width:100%;border-collapse:collapse}.ds-console th{padding:.5rem 1rem .35rem;color:#8a8a8a;font-weight:500;text-align:left}.ds-console td{padding:.2rem 1rem;white-space:nowrap}.ds-console .num{text-align:right}.ds-console .dim{color:#8a8a8a}.ds-console .ok{color:#86efac}.ds-console .warn{color:#fcd34d}.ds-console tr.slow{background:rgb(252 211 77 / .07)}.ds-console .accent{color:#cba6f7}.ds-console__log{margin:.5rem 0 0;padding:.65rem 1rem;border-top:1px solid #262626;list-style:none}.ds-new{animation:ds-arrive .6s cubic-bezier(.16,1,.3,1) both}@keyframes ds-arrive{from{opacity:0;filter:blur(3px)}}@media (prefers-reduced-motion:reduce){.ds-new{animation:none}}.ds-console figcaption{margin-top:.75rem;color:var(--muted,#a3a3a3);font:.8125rem/1.5 'Space Grotesk Variable',system-ui,sans-serif}"
+    },
+    {
+      "name": "Features List",
+      "kind": "custom",
+      "refersTo": "feature-row",
+      "description": "Landing capabilities as a ruled list, each with its limit in muted.",
+      "html": "<dl class=\"ds-features\"><div class=\"ds-features__row\"><dt>Hot reload</dt><dd>Save an agent file and live calls move to the new code on their next turn.</dd><dd class=\"ds-limit\">A bad save keeps the old code running. Coroutine mode only.</dd></div><div class=\"ds-features__row\"><dt>Routing</dt><dd>Each call goes to one registered agent by metadata or room-name prefix.</dd><dd class=\"ds-limit\">An unknown agent name raises.</dd></div></dl>",
+      "css": ".ds-features{display:grid;margin:0;font-family:'Space Grotesk Variable',system-ui,sans-serif}.ds-features__row{display:grid;gap:.35rem;padding:1.25rem 0;border-top:1px solid var(--line,#262626)}.ds-features__row:last-child{border-bottom:1px solid var(--line,#262626)}@media (min-width:56rem){.ds-features__row{grid-template-columns:11rem minmax(0,1.3fr) minmax(0,1fr);gap:2rem}}.ds-features dt{color:var(--ink,#fafafa);font-weight:500;font-size:1.0625rem}.ds-features dd{margin:0;color:var(--ink-soft,#d4d4d4);line-height:1.6}.ds-features .ds-limit{color:var(--muted,#a3a3a3);font-size:.9375rem}"
+    },
+    {
+      "name": "Benchmark Bars",
+      "kind": "custom",
+      "refersTo": "bench-bar-openrtc",
+      "description": "Measured comparison; only OpenRTC's bar takes the signal, baselines are line-strong.",
+      "html": "<figure class=\"ds-bars\"><figcaption>Memory per call <span>MB PSS</span></figcaption><div class=\"ds-bars__row\"><span class=\"ds-bars__who\">livekit-agents</span><span class=\"ds-bars__track\"><span class=\"ds-bars__fill\" style=\"width:90%\"></span></span><span class=\"ds-bars__value\">~63</span></div><div class=\"ds-bars__row ds-us\"><span class=\"ds-bars__who\">OpenRTC</span><span class=\"ds-bars__track\"><span class=\"ds-bars__fill\" style=\"width:31.4%\"></span></span><span class=\"ds-bars__value\">~22</span></div></figure>",
+      "css": ".ds-bars{display:grid;gap:.75rem;margin:0;font-family:'Space Grotesk Variable',system-ui,sans-serif}.ds-bars figcaption{color:var(--ink,#fafafa);font-weight:500}.ds-bars figcaption span{margin-left:.4rem;color:var(--muted,#a3a3a3);font-weight:400;font-size:.875rem}.ds-bars__row{display:grid;grid-template-columns:8.5rem minmax(0,1fr) 3rem;gap:.9rem;align-items:center;font-size:.9375rem}.ds-bars__who{color:var(--ink-soft,#d4d4d4)}.ds-bars__track{height:.7rem;border-radius:999px;background:var(--surface-2,#1b1b1b)}.ds-bars__fill{display:block;height:100%;border-radius:inherit;background:var(--line-strong,#3a3a3a)}.ds-us .ds-bars__fill{background:var(--accent,#cba6f7)}.ds-bars__value{color:var(--ink,#fafafa);text-align:right;font-family:'JetBrains Mono Variable',ui-monospace,monospace;font-variant-numeric:tabular-nums}"
     }
   ],
   "narrative": {
     "northStar": "The Well-Kept README",
-    "overview": "This is the mahimai.ca world (see `/home/user/mahimai.ca/DESIGN.md`, the parent system) applied to a Read surface. The parent is a night-shift engineering console: charcoal ground, one lavender signal, real measurements as the only ornament. OpenRTC keeps that palette, that type pairing and that restraint, and bends the composition toward reading: one column of prose at a fixed measure, hairlines between chapters, tables and code allowed the full column, and an on-page contents rail on wide screens. Nothing decorates; the proof is a real `openrtc top` capture and measured tables.\n\nDensity is low and even. Pages are long single columns, not dashboards. Every page has the same frame (sticky top bar, title and lede, MDX body, previous/next pager, edit link); only the home page adds a lead-in with the install line and the terminal capture.\n\nWhat differs from the parent: no dot-grid background texture (the ground is flat `ground`); the four-dot OpenRTC mark replaces the panther as the one identity device; tables stack into labelled rows on phones; a sticky contents rail tracks the section being read; the shell is 76rem, not 80rem; and a second row of page links scrolls under the top bar on narrow screens instead of a menu.",
+    "overview": "This is the mahimai.ca world (see `/home/user/mahimai.ca/DESIGN.md`, the parent system) applied to a Read surface. The parent is a night-shift engineering console: charcoal ground, one lavender signal, real measurements as the only ornament. OpenRTC keeps that palette, that type pairing and that restraint, and bends the composition toward reading: one column of prose at a fixed measure, hairlines between chapters, tables and code allowed the full column, and an on-page contents rail on wide screens. Nothing decorates; the proof is a real `openrtc top` capture and measured tables.\n\nDensity is low and even. Pages are long single columns, not dashboards. Every docs page has the same frame (sticky top bar, title and lede, MDX body, previous/next pager, edit link); only the docs home adds a lead-in with the install line and the terminal capture.\n\nThe landing page (`web/landing/`) is the same world bent toward persuading: the hero is the worker running,  followed by one-column chapters on a hairline (code before and after, the features ruled with their limits, the measured benchmark bars, a closing call to action). It adds no new colors, fonts or depth. Its motion is the console loop with its beats, and a dot riding each route in the diagram; both stop for reduced motion.\n\nBoth surfaces read one source. Tokens, base elements and the shared chrome (skip link, top bar, footer, mark, buttons, theme toggle, install line) live in `web/shared/theme.css`, imported by `web/docs/src/styles/global.css` and `web/landing/src/styles/landing.css` after each app loads its fonts. The shared components are `web/shared/Mark.astro`, `ThemeToggle.astro`, `ThemeScript.astro` (sets the theme before first paint) and `InstallCommand.astro`. In CSS the frontmatter slugs appear as `--bg` (ground), `--accent` (signal), `--accent-deep` (signal-deep) and `--on-accent` (on-signal); the rest keep their names, and the light values are the same properties under `:root[data-theme='light']`.\n\nWhat differs from the parent: no dot-grid background texture (the ground is flat `ground`); the OpenRTC ring mark replaces the panther as the one identity device; tables stack into labelled rows on phones; a sticky contents rail tracks the section being read; the shell is 76rem, not 80rem; and a second row of page links scrolls under the top bar on narrow screens instead of a menu.",
     "keyCharacteristics": [
       "Flat charcoal ground, hairline rules, no texture and no shadows.",
       "One lavender signal for links, the primary action, the focus ring, the live mark dot and the active contents-rail item.",
       "Space Grotesk 500 for everything readable; JetBrains Mono for code, flags, table headers and measurements.",
       "Prose held to a 46rem measure; tables and code blocks may take the whole column.",
-      "Dark by default; light is the same roles with the signal deepened."
+      "Dark by default; light is the same roles with the signal deepened.",
+      "One shared theme file for both surfaces; the landing page adds components, not tokens."
     ],
     "rules": [
       {
         "name": "The One Signal Rule",
-        "body": "Lavender marks links, the primary action, focus and live data only. Never rules, headings, labels or decoration. One primary button per viewport.",
+        "body": "Lavender marks links, the primary action, focus and data marks only (the live mark dot, the console's `[reload]` tag, OpenRTC's benchmark bar). Never rules, headings, labels or decoration. One primary button per viewport.",
         "section": "colors"
       },
       {
         "name": "The Tokens-Only Rule",
-        "body": "Components read colors through the custom properties so both themes follow. The only literal colors are in the terminal frame, which stays dark in both themes because it frames a dark capture.",
+        "body": "Components read colors through the custom properties so both themes follow. The only literal colors are in the terminal frame and the landing console, which stay dark in both themes because they frame a dark terminal.",
         "section": "colors"
       },
       {
         "name": "The Mono-Means-Literal Rule",
-        "body": "JetBrains Mono is for things you could type or measure: code, flags, the install command, numbers, and the column names of data tables. Prose labels stay in Space Grotesk.",
+        "body": "JetBrains Mono is for things you could type or measure: code, flags, the install command, numbers (star counts, benchmark values), the console, and the column names of data tables. Prose labels stay in Space Grotesk.",
         "section": "typography"
       },
       {
@@ -573,21 +675,48 @@
         "name": "The Hairline-Not-Shadow Rule",
         "body": "Separate things with a 1px `line` rule or a step to `surface`; never with a shadow.",
         "section": "elevation"
+      },
+      {
+        "name": "The One Animation Rule",
+        "body": "The console is the only thing that moves. New rows and log lines arrive over 0.6s (opacity from 0 and a 3px blur, ease-out-expo); everything else changes only color on hover. Under `prefers-reduced-motion: reduce`, or without JavaScript, the console holds its first frame, which is a complete, readable table.",
+        "section": "components"
+      },
+      {
+        "name": "The Limit-Beside-Feature Rule",
+        "body": "Every capability row states the limit that comes with it, in the same row and in muted. A feature without a known limit does not get a row until it has one.",
+        "section": "components"
+      },
+      {
+        "name": "The Signal-Is-Us Rule",
+        "body": "Only OpenRTC's bar takes the signal; every baseline bar is `line-strong`. It stays lavender where OpenRTC loses (CPU), because the color names the subject, not the winner.",
+        "section": "components"
+      },
+      {
+        "name": "The Fetched-Or-Absent Rule",
+        "body": "The GitHub star count is read from the GitHub API at build time. If the fetch fails, the count is not rendered at all; never a hard-coded or cached number.",
+        "section": "components"
       }
     ],
     "dos": [
       "Do keep user-visible proof real: terminal captures and measured tables, with the method stated in the prose.",
       "Do hold prose to the 46rem measure and let tables and code take the full column.",
-      "Do use the four-dot mark as the only identity device, with exactly one dot lit.",
+      "Do use the ring mark as the only identity device, with the arc and the middle bar as its only lit parts.",
       "Do make every new table stack into labelled rows at 40rem and below.",
-      "Do read colors through the theme tokens so light and dark both follow."
+      "Do read colors through the theme tokens so light and dark both follow.",
+      "Do add shared tokens, chrome and components to `web/shared/` so the docs and the landing page stay one system.",
+      "Do caption any simulated view as simulated, in its first word.",
+      "Do give every landing capability its limit, and every comparison bar a stated maximum.",
+      "Do hold the console's first frame under reduced motion or without JavaScript."
     ],
     "donts": [
       "Don't add the parent site's dot-grid texture or any other background pattern; the ground is flat.",
       "Don't add drop shadows; use a hairline or a surface step.",
       "Don't use lavender on rules, headings, labels or decoration.",
       "Don't add eyebrow or kicker labels above headings, or section numbers.",
-      "Don't add abstract illustration; use a real capture or no picture.",
+      "Don't add abstract illustration; use a real capture, a labelled simulation of the real tool, or no picture.",
+      "Don't animate anything outside the console, and don't loop the console while it is off screen.",
+      "Don't give a baseline system the signal color in a comparison.",
+      "Don't hard-code a star count or reintroduce unsourced density claims; show a number only if it was fetched or measured.",
       "Don't use em dashes in site copy."
     ]
   }

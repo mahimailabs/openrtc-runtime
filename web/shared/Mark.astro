@@ -1,11 +1,13 @@
 ---
-// The OpenRTC mark: four agents in one frame, one of them live.
+// The OpenRTC mark: a worker ring with one live arc, and a voice level inside. It reads as the O
+// of OpenRTC. Colors come from the theme: the ring and quiet bars in muted, the arc and the
+// middle bar in the signal.
 ---
 
 <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-  <rect class="mark__frame" x="2" y="2" width="20" height="20" rx="5"></rect>
-  <circle class="mark__dot mark__dot--live" cx="9" cy="9" r="2.3"></circle>
-  <circle class="mark__dot" cx="15" cy="9" r="2.3"></circle>
-  <circle class="mark__dot" cx="9" cy="15" r="2.3"></circle>
-  <circle class="mark__dot" cx="15" cy="15" r="2.3"></circle>
+  <circle class="mark__ring" cx="12" cy="12" r="9.2"></circle>
+  <path class="mark__arc" d="M12 2.8A9.2 9.2 0 0 1 20.4 8.2"></path>
+  <rect class="mark__bar" x="8" y="10" width="1.8" height="4" rx="0.9"></rect>
+  <rect class="mark__bar mark__bar--live" x="11.1" y="8" width="1.8" height="8" rx="0.9"></rect>
+  <rect class="mark__bar" x="14.2" y="9.5" width="1.8" height="5" rx="0.9"></rect>
 </svg>

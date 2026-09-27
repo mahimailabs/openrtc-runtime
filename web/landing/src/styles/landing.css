@@ -1,0 +1,247 @@
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource-variable/jetbrains-mono';
+@import '../../../shared/theme.css';
+
+/* The landing page has no second row of page links; its nav folds away on phones. */
+.top__pages {
+  display: none;
+}
+.gh__stars {
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+/* Hero: a short claim and the actions, then the worker running, full width. */
+.hero {
+  display: grid;
+  gap: 3rem;
+  padding-block: 3.5rem 4.5rem;
+}
+.hero > * {
+  min-width: 0;
+}
+.hero__head {
+  display: grid;
+  gap: 1.75rem;
+}
+@media (min-width: 64rem) {
+  .hero {
+    gap: 3.5rem;
+    padding-block: 5rem 5.5rem;
+  }
+  .hero__head {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 4rem;
+    align-items: end;
+  }
+}
+.hero h1 {
+  max-width: 13ch;
+  font-size: clamp(2.6rem, 5.6vw, 4.6rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+.hero__side {
+  display: grid;
+  gap: 1.5rem;
+}
+.hero__side .install {
+  margin-top: 0;
+}
+.hero__lede {
+  max-width: 30rem;
+  color: var(--ink-soft);
+  font-size: clamp(1.05rem, 1.5vw, 1.175rem);
+  line-height: 1.55;
+}
+.hero__ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.btn__count {
+  padding-left: 0.55rem;
+  border-left: 1px solid color-mix(in srgb, var(--on-accent) 25%, transparent);
+  font-size: 0.8125rem;
+}
+.close .hero__ctas {
+  margin-top: 0.75rem;
+}
+
+/* Chapters: one column, separated by a hairline. */
+.chapter {
+  padding-block: 4.5rem;
+  border-top: 1px solid var(--line);
+}
+.head {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 46rem;
+  margin-bottom: 2.5rem;
+}
+.head h2,
+.close h2 {
+  font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+.head p,
+.close p {
+  color: var(--ink-soft);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+.head .link {
+  justify-self: start;
+}
+.chapter__more {
+  margin-top: 2rem;
+}
+
+/* Before and after */
+.compare {
+  display: grid;
+  gap: 1rem;
+}
+@media (min-width: 64rem) {
+  .compare {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.compare__pane {
+  min-width: 0;
+}
+.compare__label {
+  margin-bottom: 0.6rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.compare pre {
+  margin: 0;
+  padding: 1.1rem 1.25rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  background: var(--surface) !important;
+  font: 0.8125rem/1.75 var(--mono);
+}
+.compare pre code {
+  padding: 0;
+  background: none;
+  font: inherit;
+}
+.astro-code,
+.astro-code span {
+  color: var(--shiki-dark);
+}
+:root[data-theme='light'] .astro-code,
+:root[data-theme='light'] .astro-code span {
+  color: var(--shiki-light);
+}
+
+/* Features: a ruled list, the limit beside each feature. */
+.features {
+  display: grid;
+  margin: 0;
+}
+.features__row {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--line);
+}
+.features__row:last-child {
+  border-bottom: 1px solid var(--line);
+}
+@media (min-width: 56rem) {
+  .features__row {
+    grid-template-columns: 11rem minmax(0, 1fr) minmax(0, 1fr);
+    gap: 2rem;
+  }
+}
+.features dt {
+  font-weight: 500;
+  font-size: 1.0625rem;
+}
+.features dd {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+.features__limit {
+  color: var(--muted) !important;
+  font-size: 0.9375rem;
+}
+
+/* Benchmark: two measured comparisons, OpenRTC's bar in the signal colour. */
+@media (min-width: 64rem) {
+  .bench {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4rem;
+    align-items: center;
+  }
+  .bench .head {
+    margin-bottom: 0;
+  }
+}
+.bench__charts {
+  display: grid;
+  gap: 2rem;
+}
+.bars {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+.bars figcaption {
+  color: var(--ink);
+  font-weight: 500;
+}
+.bars figcaption span {
+  margin-left: 0.4rem;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.875rem;
+}
+.bars__row {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr) 3rem;
+  gap: 0.9rem;
+  align-items: center;
+  font-size: 0.9375rem;
+}
+.bars__who {
+  color: var(--ink-soft);
+}
+.bars__track {
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.bars__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--line-strong);
+}
+.bars__row[data-who='OpenRTC'] .bars__fill {
+  background: var(--accent);
+}
+.bars__value {
+  color: var(--ink);
+  text-align: right;
+}
+
+/* Close */
+.close {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+}
+.close p {
+  max-width: 40rem;
+}

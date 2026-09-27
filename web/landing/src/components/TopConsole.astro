@@ -1,0 +1,373 @@
+---
+// The hero: `openrtc top` playing one short, looping story on simulated sessions. It opens on a
+// call blocking the loop; a save hot-reloads the agent and the call recovers; a call arrives; a
+// call ends. The table's columns are `openrtc top`'s (MEM~ is left out: it is a share of one
+// process, not a per-call figure). The `[reload]` line is the real format; the other log lines,
+// the sessions and the numbers are illustrative, and the caption says so. With reduced motion, or
+// without JS, the opening frame stays put.
+const rows = [
+  { id: 'AJ_8f3a', agent: 'support', tenant: 'acme', dur: 187, cpu: 9, status: 'active' },
+  { id: 'AJ_2c91', agent: 'booking', tenant: 'globex', dur: 94, cpu: 63, status: 'slow' },
+  { id: 'AJ_7d0e', agent: 'booking', tenant: 'initech', dur: 41, cpu: 11, status: 'active' },
+];
+const WORKER_MB = 1240;
+// What the loop shows, in order. The rail beside the console lights the current beat.
+const beats = [
+  { title: 'A call blocks the loop', body: 'openrtc top flags it slow, so you know which call to look at.' },
+  { title: 'You save the fix', body: 'Hot reload swaps the live booking calls. The conversation carries over.' },
+  { title: 'A new call arrives', body: 'It is routed to its agent in the same worker.' },
+  { title: 'A call ends', body: 'Its session leaves the table; nothing else restarts.' },
+];
+---
+
+<div class="story" data-console>
+<figure class="console">
+  <div class="console__screen" role="img" aria-label="openrtc top, simulated: live calls in one worker, one call turns slow, a hot reload swaps the booking agent and the call recovers.">
+    <div class="console__head" aria-hidden="true">
+      <span class="console__title">openrtc top</span>
+      <span><b data-sessions>{rows.length}</b> sessions</span>
+      <span>worker <b>{WORKER_MB.toLocaleString('en-US')}</b> MB</span>
+      <span>load <b data-load>0.21</b></span>
+    </div>
+    <table class="console__table" aria-hidden="true">
+      <thead>
+        <tr>
+          <th class="num">#</th>
+          <th>session</th>
+          <th>agent</th>
+          <th>tenant</th>
+          <th class="num">dur(s)</th>
+          <th class="num">CPU%</th>
+          <th>status</th>
+        </tr>
+      </thead>
+      <tbody data-rows>
+        {
+          rows.map((r, i) => (
+            <tr data-id={r.id}>
+              <td class="num dim" data-n>{i + 1}</td>
+              <td class="dim">{r.id}</td>
+              <td>{r.agent}</td>
+              <td class="dim">{r.tenant}</td>
+              <td class="num" data-dur>{r.dur}</td>
+              <td class="num" data-cpu>{r.cpu}</td>
+              <td data-status={r.status}>{r.status}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    <ol class="console__log" aria-hidden="true" data-log>
+      <li><span class="dim">16:42:07</span> session_started booking initech</li>
+      <li><span class="dim">16:42:09</span> <span class="warn">slow</span> AJ_2c91 blocked the loop for 180 ms</li>
+    </ol>
+    <div class="console__keys" aria-hidden="true">q quit · r refresh · s sort · f filter</div>
+  </div>
+  <figcaption>Simulated <code>openrtc top</code>: the session table, then the worker's log. Sessions and numbers are illustrative.</figcaption>
+</figure>
+<ol class="beats" aria-label="What the console shows">
+  {
+    beats.map((b, i) => (
+      <li data-beat={i} aria-current={i === 0 ? 'step' : undefined}>
+        <span class="beats__n mono">{i + 1}</span>
+        <div>
+          <p class="beats__title">{b.title}</p>
+          <p class="beats__body">{b.body}</p>
+        </div>
+      </li>
+    ))
+  }
+</ol>
+</div>
+
+<script is:inline>
+  (function () {
+    var root = document.querySelector('[data-console]');
+    if (!root || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var body = root.querySelector('[data-rows]');
+    var log = root.querySelector('[data-log]');
+    var sessions = root.querySelector('[data-sessions]');
+    var load = root.querySelector('[data-load]');
+    var initial = body.innerHTML;
+    var initialLog = log.innerHTML;
+    var clock = 16 * 3600 + 42 * 60 + 7;
+    var t = 0;
+
+    function hms() {
+      var s = clock;
+      var h = Math.floor(s / 3600);
+      var m = Math.floor((s % 3600) / 60);
+      var r = s % 60;
+      return [h, m, r].map(function (n) { return String(n).padStart(2, '0'); }).join(':');
+    }
+    function say(text) {
+      var li = document.createElement('li');
+      li.innerHTML = '<span class="dim">' + hms() + '</span> ' + text;
+      li.className = 'is-new';
+      log.appendChild(li);
+      while (log.children.length > 3) log.removeChild(log.firstChild);
+    }
+    var beats = root.querySelectorAll('[data-beat]');
+    function beat(n) {
+      beats.forEach(function (li) {
+        if (Number(li.dataset.beat) === n) li.setAttribute('aria-current', 'step');
+        else li.removeAttribute('aria-current');
+      });
+    }
+    function row(id) {
+      return body.querySelector('[data-id="' + id + '"]');
+    }
+    function setStatus(tr, status) {
+      var cell = tr.querySelector('[data-status]');
+      cell.dataset.status = status;
+      cell.textContent = status;
+    }
+    function renumber() {
+      var trs = body.querySelectorAll('tr');
+      trs.forEach(function (tr, i) { tr.querySelector('[data-n]').textContent = i + 1; });
+      sessions.textContent = trs.length;
+    }
+    function tick() {
+      t = (t + 1) % 14;
+      clock += 1;
+      if (t === 0) {
+        body.innerHTML = initial;
+        log.innerHTML = initialLog;
+        renumber();
+        beat(0);
+      }
+      body.querySelectorAll('tr').forEach(function (tr) {
+        var dur = tr.querySelector('[data-dur]');
+        dur.textContent = Number(dur.textContent) + 1;
+        var cpu = tr.querySelector('[data-cpu]');
+        var slow = tr.querySelector('[data-status]').dataset.status === 'slow';
+        var base = slow ? 62 : 8 + (tr.dataset.id.charCodeAt(4) % 7);
+        cpu.textContent = base + Math.round(Math.random() * 4);
+      });
+      if (t === 3) {
+        beat(1);
+        setStatus(row('AJ_2c91'), 'active');
+        say('<span class="accent">[reload]</span> booking.py changed -&gt; swapped 2 sessions in 11ms');
+      }
+      if (t === 6) {
+        beat(2);
+        var tr = document.createElement('tr');
+        tr.dataset.id = 'AJ_c45b';
+        tr.className = 'is-new';
+        tr.innerHTML =
+          '<td class="num dim" data-n></td><td class="dim">AJ_c45b</td><td>support</td><td class="dim">globex</td>' +
+          '<td class="num" data-dur>0</td><td class="num" data-cpu>7</td>' +
+          '<td data-status="active">active</td>';
+        body.appendChild(tr);
+        renumber();
+        say('session_started support globex');
+      }
+      if (t === 10) {
+        beat(3);
+        var done = row('AJ_8f3a');
+        if (done) done.remove();
+        renumber();
+        say('session_finished support acme');
+      }
+      var slowNow = body.querySelector('[data-status="slow"]') ? 0.46 : 0;
+      load.textContent = (0.18 + body.querySelectorAll('tr').length * 0.03 + slowNow).toFixed(2);
+    }
+    var timer = null;
+    new IntersectionObserver(function (entries) {
+      var visible = entries[0].isIntersecting;
+      if (visible && !timer) timer = setInterval(tick, 1000);
+      if (!visible && timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }).observe(root);
+  })();
+</script>
+
+<style is:global>
+  /* A terminal: dark in both themes, like the capture on the docs. Global (every selector is under
+     .console) because the script adds rows Astro's scoped styles would not reach. */
+  .story {
+    display: grid;
+    gap: 1.5rem;
+  }
+  @media (min-width: 64rem) {
+    .story {
+      grid-template-columns: minmax(0, 1fr) 17rem;
+      gap: 2.5rem;
+      align-items: start;
+    }
+  }
+  .console {
+    margin: 0;
+    min-width: 0;
+  }
+  .beats {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .beats li {
+    display: grid;
+    grid-template-columns: 1.9rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.85rem 0.9rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    color: var(--muted);
+    transition:
+      border-color 0.3s var(--ease),
+      background-color 0.3s var(--ease),
+      color 0.3s var(--ease);
+  }
+  .beats li[aria-current='step'] {
+    border-color: var(--line);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .beats__n {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: 0.8125rem;
+  }
+  .beats li[aria-current='step'] .beats__n {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .beats__title {
+    font-weight: 500;
+    line-height: 1.35;
+  }
+  .beats__body {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .beats li:not([aria-current='step']) .beats__body {
+    color: var(--muted);
+  }
+  /* Phones: the rail becomes a compact list under the console. */
+  @media (max-width: 40rem) {
+    .beats li {
+      padding: 0.6rem 0.7rem;
+    }
+  }
+  .console__screen {
+    overflow: hidden;
+    border: 1px solid #262626;
+    border-radius: 0.875rem;
+    background: #0c0c0c;
+    color: #d4d4d4;
+    font: 0.78rem/1.55 var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .console__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid #262626;
+    color: #a3a3a3;
+  }
+  .console__head b {
+    color: #fafafa;
+    font-weight: 500;
+  }
+  .console__title {
+    margin-right: auto;
+    color: #fafafa;
+    font-weight: 600;
+  }
+  .console__table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .console__table th {
+    padding: 0.5rem 1rem 0.35rem;
+    color: #8a8a8a;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .console__table td {
+    padding: 0.2rem 1rem;
+    white-space: nowrap;
+  }
+  .console__table .num {
+    text-align: right;
+  }
+  .console .dim {
+    color: #8a8a8a;
+  }
+  .console [data-status='active'] {
+    color: #86efac;
+  }
+  .console [data-status='slow'] {
+    color: #fcd34d;
+  }
+  .console tr[data-id]:has([data-status='slow']) {
+    background: rgb(252 211 77 / 0.07);
+  }
+  .console .warn {
+    color: #fcd34d;
+  }
+  .console .accent {
+    color: #cba6f7;
+  }
+  .console .is-new {
+    animation: arrive 0.6s var(--ease) both;
+  }
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      filter: blur(3px);
+    }
+  }
+  .console__log {
+    display: grid;
+    gap: 0.15rem;
+    min-height: calc(3 * 1.55em + 1.3rem);
+    margin: 0.5rem 0 0;
+    padding: 0.65rem 1rem;
+    border-top: 1px solid #262626;
+    list-style: none;
+  }
+  .console__log li {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .console__keys {
+    padding: 0.5rem 1rem;
+    border-top: 1px solid #262626;
+    color: #8a8a8a;
+  }
+  .console figcaption {
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+  /* Phones: the row number and tenant columns give way so the story still reads. */
+  @media (max-width: 34rem) {
+    .console__table th:nth-child(1),
+    .console__table td:nth-child(1),
+    .console__table th:nth-child(4),
+    .console__table td:nth-child(4) {
+      display: none;
+    }
+    .console__table th,
+    .console__table td {
+      padding-inline: 0.6rem;
+    }
+    .console__screen {
+      font-size: 0.72rem;
+    }
+  }
+</style>

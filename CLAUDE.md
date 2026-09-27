@@ -19,7 +19,8 @@ All workflows go through `uv` (preferred over pip). The Makefile wraps the most-
 | Smoke-check discovery without LiveKit | `make dev` (or `uv run openrtc list ./examples/agents --default-stt … --default-llm … --default-tts …`) |
 | Build wheel | `uv build` |
 | Docs site (preview) | `npm ci --prefix web/docs && npm run dev --prefix web/docs` |
-| Docs check (CI parity) | `python3 docs/_check_docs.py` and `npm run build --prefix web/docs` |
+| Landing page (preview) | `npm ci --prefix web/landing && npm run dev --prefix web/landing` |
+| Web check (CI parity) | `python3 docs/_check_docs.py` and `npm run build` in `web/docs` and `web/landing` |
 
 `mypy src/` (in `strict = true` mode), `ruff check` and `ruff format --check` run in CI (`.github/workflows/lint.yml`). The combined line + branch coverage gate is enforced at 99% (project sits around 99.4%).
 
@@ -76,9 +77,9 @@ Worker processes can be spawned (LiveKit's default on macOS, and always in `isol
 
 `cli/__init__.py` re-exports `main` and `app`. `cli/entry_cli.py` is the lazy entrypoint that prints a friendly message if the `cli` extra isn't installed, then defers to `cli/main_cli.py` (the Typer app). Worker subcommands (`start`, `dev`, `console`, `connect`, `download-files`) mirror the LiveKit Agents CLI shape; OpenRTC-only commands are `list`, `logs`, and `top` (live session inspector, `openrtc[top]` adds psutil host vitals). OpenRTC-only flags (`--agents-dir`, `--metrics-jsonl`, etc.) are stripped before handoff in `cli/livekit_cli.py`, which rewrites `sys.argv` and applies env overrides before calling `pool.run()`. `cli/top_cli.py`, `cli/dashboard_cli.py`, `cli/reporter_cli.py` hold the rest; shared helpers live in `cli/base_cli.py`.
 
-### Docs site
+### Web: docs and landing page
 
-The web lives in `web/`: `web/docs/` is docs.openrtc.tech, an Astro static site on Cloudflare Workers (`web/docs/wrangler.jsonc`), the same pattern as voice-prices' prices.mahimai.ca; `web/shared/` holds the theme (tokens, base styles, the mark) shared with the landing page. It renders five files from `docs/` and nothing else: `index.mdx`, `how-it-works.mdx`, `cli.mdx`, `benchmark.mdx`, `changelog.md`. The page list lives in `web/docs/src/lib/site.ts`; `docs/_check_docs.py` fails CI on a missing page, an orphan file, a broken internal link, or an em dash. Keep it to few pages, each complete. `docs/design/` and `docs/audit-2026-05-02.md` are internal notes, not published. Product truth for design work is `PRODUCT.md`; the visual system is `DESIGN.md`.
+The web lives in `web/`: `web/docs/` is docs.openrtc.tech, an Astro static site on Cloudflare Workers (`web/docs/wrangler.jsonc`), the same pattern as voice-prices' prices.mahimai.ca; `web/landing/` is openrtc.tech, the marketing page (Astro, its own Worker); `web/shared/` holds what both use (tokens, base styles, the mark, theme toggle, install command). The landing page may only state what the docs can back: no unmeasured density claims, and the GitHub star count is fetched at build time, never typed in. The docs site renders five files from `docs/` and nothing else: `index.mdx`, `how-it-works.mdx`, `cli.mdx`, `benchmark.mdx`, `changelog.md`. The page list lives in `web/docs/src/lib/site.ts`; `docs/_check_docs.py` fails CI on a missing page, an orphan file, a broken internal link, or an em dash. Keep it to few pages, each complete. `docs/design/` and `docs/audit-2026-05-02.md` are internal notes, not published. Product truth for design work is `PRODUCT.md`; the visual system is `DESIGN.md`.
 
 ### Versioning and release
 
