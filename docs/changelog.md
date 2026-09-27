@@ -322,6 +322,58 @@ contributor onboarding matches what's in the repo.
 
 <!-- releases -->
 
+## [0.20.0] - 2026-09-27
+
+OpenRTC now targets livekit-agents only, supports livekit-agents 1.8, and runs coroutine mode on uvloop. It also sheds load when its event loop saturates. Pipecat support is removed, which is a breaking change: see the migration note.
+
+### Breaking
+
+- **Pipecat support removed.** OpenRTC now targets livekit-agents only. `AgentPool(backend="pipecat")` and the `openrtc[pipecat]` extra are gone.
+  - **Migration:** stay on `openrtc<0.20` if you run Pipecat agents.
+  - Nothing changes for livekit-agents users.
+
+### Added
+
+- **Several workers on one host.** `AgentPool(port=...)`, or `OPENRTC_PORT`, sets the worker's HTTP port. Before, a second worker on the same host failed to bind livekit's default 8081.
+  - Measured on two cores: two pinned workers used about a quarter less CPU than one worker for the same 8 calls.
+  - Each extra worker adds about 1.1 GB of idle memory.
+- **livekit-agents 1.8 support.** The supported range is now `>=1.5,<1.9`.
+- **`openrtc top` gets an htop-style view:**
+  - a worker header with host vitals and a CPU chart (`openrtc[top]` adds psutil);
+  - a session table with inline bars, a slot column and paging.
+
+### Changed
+
+- **Coroutine mode runs on uvloop** when it is installed. `openrtc[livekit]` installs it outside Windows.
+  - In a head-to-head on livekit-agents 1.8.3 (8 calls, 2 cores), worker CPU fell from about 140% to about 122%.
+  - livekit's process-per-call mode measures 120%, so the two are now level on CPU, and OpenRTC uses a third of the memory per call.
+  - Turn it off with `AgentPool(enable_uvloop=False)` or `OPENRTC_UVLOOP=0`.
+- **Coroutine mode stops accepting calls when its event loop saturates.** The load it reports to LiveKit is now the higher of `active / max_concurrent_sessions` and smoothed event-loop lag, where 60 ms counts as full load. Under CPU overload, a worker used to keep accepting calls and degrade; now it sheds them.
+
+### Fixed
+
+- **Hot reload keeps the live conversation.** A session rebound to a new agent class on the next turn keeps its chat history.
+- **Session caps work in process mode.** `max_sessions_per_agent` and `max_sessions_per_tenant` were silently ignored under `isolation="process"`. They are now enforced there by counting livekit's running jobs. Against a live server, a worker capped at 3 took 3 of 8 calls.
+- **The circuit breaker fails fast in process mode.** `enable_tenant_circuit_breaker` raises `ValueError` under `isolation="process"`, where the worker cannot see session outcomes. Before, it was silently ignored.
+
+### Removed
+
+- **The shared-worker "savings" estimate.** It multiplied RSS by the number of sessions, which double counts memory that forked processes share. The Benchmark page has measured PSS numbers instead.
+
+### Documentation
+
+- New five-page docs site at https://docs.openrtc.tech, and a landing page at https://openrtc.tech.
+- The Benchmark page has:
+  - the head-to-head against livekit-agents;
+  - a per-thread CPU breakdown;
+  - livekit's FFI event fan-out, which grows with the square of the calls in one process;
+  - the one-worker-per-core numbers.
+- The harness that produced these numbers is in `benchmarks/headtohead/`.
+
+**Full changelog:** https://github.com/mahimailabs/openrtc-runtime/compare/v0.19.0...v0.20.0
+
+---
+
 ## [0.19.0] - 2026-07-18
 
 ## What's Changed
