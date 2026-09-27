@@ -19,7 +19,7 @@ class RoutingStrategy(Protocol):
     """Resolve the agent name for a session, or None to defer to the next strategy.
 
     Strategies resolve a *name* (backend-neutral); the resolver looks it up in the
-    backend's registry (an ``AgentConfig`` for livekit, a builder for pipecat).
+    pool's registry of ``AgentConfig`` entries.
     """
 
     def resolve(

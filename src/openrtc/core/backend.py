@@ -1,14 +1,11 @@
 """The backend-neutral substrate seam an ``AgentPool`` drives.
 
-An ``AgentPool`` owns the worker, prewarm, and the session lifecycle. To let one
-pool run over more than one voice framework (livekit today, pipecat next), the
-pool drives its substrate through this small neutral ``Backend`` seam instead of
-a framework type. Each backend adapts its framework's server to it: the livekit
-backend wraps ``livekit.agents.AgentServer``; a pipecat backend will wrap a
-``PipelineRunner``.
+An ``AgentPool`` owns the worker, prewarm, and the session lifecycle. The pool
+drives its substrate through this small ``Backend`` seam instead of a framework
+type; the livekit backend wraps ``livekit.agents.AgentServer``.
 
-This module imports no framework, so ``import openrtc.core.backend`` pulls
-neither livekit nor pipecat. (See docs/design/framework-agnostic-backend.md.)
+This module imports no framework, so ``import openrtc.core.backend`` does not
+pull livekit.
 """
 
 from __future__ import annotations
@@ -27,9 +24,8 @@ __all__ = ["Backend"]
 class Backend(Protocol):
     """The worker substrate an ``AgentPool`` builds and runs sessions on.
 
-    One implementation per framework. Today the pool still reads ``raw_server``
-    for the substrate operations not yet migrated onto the seam (run,
-    introspection, reload, drain); those move here in later steps.
+    The pool still reads ``raw_server`` for hot reload, which needs the
+    coroutine ``AgentServer`` directly.
     """
 
     @property
@@ -52,8 +48,7 @@ class Backend(Protocol):
 
         Called only in coroutine isolation (the pool gates on it). The livekit
         backend hands the stack to its coroutine ``AgentServer`` (shared with the
-        ``CoroutinePool`` it builds); the pipecat backend holds it for its serving
-        loop to start inside pipecat's event loop.
+        ``CoroutinePool`` it builds).
         """
         ...
 

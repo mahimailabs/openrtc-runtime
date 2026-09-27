@@ -73,6 +73,11 @@ def test_resolve_backend_builder_rejects_unknown_backend() -> None:
         resolve_backend_builder("bogus")
 
 
+def test_removed_pipecat_backend_raises_a_clear_error() -> None:
+    with pytest.raises(ValueError, match="pipecat backend was removed"):
+        AgentPool(backend="pipecat")
+
+
 def test_agent_pool_defaults_to_the_livekit_backend() -> None:
     assert isinstance(AgentPool(backend="livekit")._backend, LiveKitBackend)
 

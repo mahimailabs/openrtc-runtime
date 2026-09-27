@@ -25,13 +25,13 @@ Python 3.11+ is required; 3.10 will fail because the LiveKit Silero / turn-detec
 
 ## High-level architecture
 
-OpenRTC is a thin layer on top of `livekit-agents` (and, optionally, `pipecat-ai`) that lets one worker process host many agent classes, with shared prewarm (Silero VAD, turn detector) loaded once instead of once per worker. User agents stay as standard `livekit.agents.Agent` subclasses; OpenRTC never introduces a custom base class. `import openrtc` pulls no voice framework: livekit and pipecat are opt-in extras (`openrtc[livekit]`, `openrtc[pipecat]`).
+OpenRTC is a thin layer on top of `livekit-agents` that lets one worker process host many agent classes, with shared prewarm (Silero VAD, turn detector) loaded once instead of once per worker. User agents stay as standard `livekit.agents.Agent` subclasses; OpenRTC never introduces a custom base class. `import openrtc` does not import livekit: it is the opt-in `openrtc[livekit]` extra. Pipecat support was removed; OpenRTC targets livekit-agents only.
 
 ### Package layout (`src/openrtc/`)
 
 - `core/pool.py`: `AgentPool`, the public facade (`add`, `discover`, `remove`, `run`, drain, observers, tenant/backpressure options). It builds a backend, wires routing + request filters, and owns the runtime state.
 - `core/wiring.py`: the universal session entrypoint (`run_session`, `build_session`). Per job: resolve the agent, instantiate it, build an `AgentSession` from pool defaults + per-agent + per-tenant overrides, attach the prewarmed VAD from `proc.userdata`, start.
-- `core/backend.py`: the framework-neutral `Backend` protocol. `backends/registry.py` resolves `AgentPool(backend="livekit"|"pipecat")` lazily; implementations live in `backends/livekit/` and `backends/pipecat/`.
+- `core/backend.py`: the `Backend` protocol the pool drives. `backends/registry.py` resolves `AgentPool(backend="livekit")` lazily (the only backend); the implementation lives in `backends/livekit/`.
 - `core/config.py`, `core/discovery.py`, `core/serialization.py`: registration data, `@agent_config` discovery, and spawn-safe provider serialization.
 - `core/tenant_config.py`, `core/circuit_breaker.py`, `core/audit.py`: multi-tenancy (per-tenant providers, caps, blast-radius breaker) and the audit log.
 - `runtime/`: isolation modes. `coroutine_runtime.py` + `coroutine_server.py` (default, `isolation="coroutine"`) run every session as an `asyncio.Task` in one process by swapping livekit's `ProcPool` for a `CoroutinePool`; `process_runtime.py` (`isolation="process"`) is livekit's stock process-per-job server. `prewarm.py` holds `_prewarm_worker` — add new shared resources there.
@@ -72,7 +72,7 @@ Worker processes can be spawned (LiveKit's default on macOS, and always in `isol
 
 ### CLI architecture
 
-`cli/__init__.py` re-exports `main` and `app`. `cli/entry_cli.py` is the lazy entrypoint that prints a friendly message if the `cli` extra isn't installed, then defers to `cli/main_cli.py` (the Typer app). Worker subcommands (`start`, `dev`, `console`, `connect`, `download-files`) mirror the LiveKit Agents CLI shape; OpenRTC-only commands are `list`, `serve` (pipecat), `logs`, and `top` (live session inspector, `openrtc[top]` adds psutil host vitals). OpenRTC-only flags (`--agents-dir`, `--metrics-jsonl`, etc.) are stripped before handoff in `cli/livekit_cli.py`, which rewrites `sys.argv` and applies env overrides before calling `pool.run()`. `cli/pipecat_cli.py`, `cli/top_cli.py`, `cli/dashboard_cli.py`, `cli/reporter_cli.py` hold the rest; shared helpers live in `cli/base_cli.py`.
+`cli/__init__.py` re-exports `main` and `app`. `cli/entry_cli.py` is the lazy entrypoint that prints a friendly message if the `cli` extra isn't installed, then defers to `cli/main_cli.py` (the Typer app). Worker subcommands (`start`, `dev`, `console`, `connect`, `download-files`) mirror the LiveKit Agents CLI shape; OpenRTC-only commands are `list`, `logs`, and `top` (live session inspector, `openrtc[top]` adds psutil host vitals). OpenRTC-only flags (`--agents-dir`, `--metrics-jsonl`, etc.) are stripped before handoff in `cli/livekit_cli.py`, which rewrites `sys.argv` and applies env overrides before calling `pool.run()`. `cli/top_cli.py`, `cli/dashboard_cli.py`, `cli/reporter_cli.py` hold the rest; shared helpers live in `cli/base_cli.py`.
 
 ### Versioning and release
 
