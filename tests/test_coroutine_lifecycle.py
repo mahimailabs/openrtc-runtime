@@ -102,6 +102,29 @@ async def test_executor_holds_open_until_shutdown_then_teardown() -> None:
     assert ctx.cleanup_seen is True
 
 
+class _AsyncCleanupCtx(_FakeCtx):
+    """livekit-agents >= 1.8 made ``JobContext._on_cleanup`` a coroutine."""
+
+    async def _on_cleanup(self) -> None:  # type: ignore[override]
+        self.cleanup_seen = True
+
+
+@pytest.mark.asyncio
+async def test_teardown_awaits_async_on_cleanup() -> None:
+    """An async ``_on_cleanup`` is awaited, not left as an unawaited coroutine."""
+    ctx = _AsyncCleanupCtx()
+    executor = CoroutineJobExecutor(
+        entrypoint_fnc=_noop_entry, context_factory=lambda info: ctx
+    )
+    await executor.launch_job(_info())
+    await asyncio.sleep(0)
+
+    ctx.shutdown("caller hung up")
+    await executor.join()
+
+    assert ctx.cleanup_seen is True
+
+
 @pytest.mark.asyncio
 async def test_fake_job_with_session_completes_on_return() -> None:
     """A fake job (simulate_job) is not held open even with a primary session."""

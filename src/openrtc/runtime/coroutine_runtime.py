@@ -358,7 +358,11 @@ class CoroutineJobExecutor:
         _on_cleanup = getattr(ctx, "_on_cleanup", None)
         if callable(_on_cleanup):
             with contextlib.suppress(Exception):
-                _on_cleanup()
+                # Sync before livekit-agents 1.8, async since: calling without
+                # awaiting skipped cleanup (tempdir, telemetry, log filters leak).
+                result = _on_cleanup()
+                if inspect.isawaitable(result):
+                    await result
 
     def logging_extra(self) -> dict[str, Any]:
         return {"executor_id": self._id}
