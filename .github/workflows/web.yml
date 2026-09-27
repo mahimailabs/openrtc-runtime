@@ -1,12 +1,11 @@
-name: Docs
+name: Web
 
 on:
   pull_request:
     paths:
       - 'docs/**'
-      - 'web/docs/**'
-      - 'web/shared/**'
-      - '.github/workflows/docs.yml'
+      - 'web/**'
+      - '.github/workflows/web.yml'
 
 jobs:
   validate-docs:
@@ -19,15 +18,18 @@ jobs:
         # no orphans, internal links resolve, required frontmatter, no em dashes.
         run: python3 docs/_check_docs.py
 
-  # docs.openrtc.tech builds from docs/ through web/docs/. A page that fails to render
-  # would otherwise only surface as a failed Cloudflare deploy after merge.
-  site-build:
-    name: Build docs site
+  # Both sites deploy from Cloudflare after merge. A page that fails to render would
+  # otherwise only surface as a failed deploy.
+  build:
+    name: Build ${{ matrix.site }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        site: [docs, landing]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm ci --prefix web/docs
-      - run: npm run build --prefix web/docs
+      - run: npm ci --prefix web/${{ matrix.site }}
+      - run: npm run build --prefix web/${{ matrix.site }}

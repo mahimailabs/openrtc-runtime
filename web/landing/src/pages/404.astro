@@ -1,0 +1,12 @@
+---
+import Layout from '../components/Layout.astro';
+import { DOCS } from '../lib/links';
+---
+
+<Layout title="Not found · OpenRTC" description="This page does not exist." path="/404/" stars={null}>
+  <section class="shell" style="padding-block: 6rem; display: grid; gap: 1rem;">
+    <h1>This page does not exist.</h1>
+    <p style="color: var(--muted);">Try the home page or the docs.</p>
+    <p><a class="link" href="/">OpenRTC</a> · <a class="link" href={`${DOCS}/`}>Docs</a></p>
+  </section>
+</Layout>

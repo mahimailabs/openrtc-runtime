@@ -23,7 +23,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://github.com/mahimailabs/openrtc-runtime"
+Homepage = "https://openrtc.tech"
 Documentation = "https://docs.openrtc.tech"
 Issues = "https://github.com/mahimailabs/openrtc-runtime/issues"
 Repository = "https://github.com/mahimailabs/openrtc-runtime"

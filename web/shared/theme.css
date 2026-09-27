@@ -218,3 +218,191 @@ code {
   border-color: transparent;
   background: var(--accent-deep);
 }
+
+/* Install line with a copy action */
+.install {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 34rem;
+  margin-top: 2rem;
+  padding: 0.35rem 0.35rem 0.35rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.6rem;
+  background: var(--surface);
+}
+.install code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+.install code span {
+  color: var(--muted);
+}
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2.1rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: var(--ink-soft);
+  font: 500 0.8125rem/1 var(--font);
+  cursor: pointer;
+}
+.copy:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.copy[data-state='done'] {
+  color: var(--ok);
+}
+
+/* Page chrome: skip link, top bar, footer. The docs add a second row of page links on phones. */
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.skip:focus {
+  top: 0.75rem;
+}
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+.top__row {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  height: 3.75rem;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+.top__nav {
+  display: none;
+  gap: 1.5rem;
+  font-size: 0.875rem;
+}
+.top__nav a,
+.top__pages a {
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.top__nav a:hover,
+.top__nav a[aria-current='page'],
+.top__pages a:hover,
+.top__pages a[aria-current='page'] {
+  color: var(--ink);
+}
+/* Small screens: the five pages scroll in a second row instead of hiding behind a menu. */
+.top__pages {
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.7rem;
+  font-size: 0.875rem;
+  scrollbar-width: none;
+  /* Fade the edge so the row reads as scrollable. */
+  mask-image: linear-gradient(to right, #000 85%, transparent);
+}
+.top__tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+.gh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 2.1rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  text-decoration: none;
+  color: var(--ink-soft);
+}
+.gh:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.gh__label {
+  display: none;
+}
+@media (min-width: 52rem) {
+  .top__nav {
+    display: flex;
+  }
+  .top__pages {
+    display: none;
+  }
+  .gh__label {
+    display: inline;
+  }
+}
+.foot {
+  margin-top: 6rem;
+  border-top: 1px solid var(--line);
+  padding-block: 2rem 3rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.foot__row {
+  display: grid;
+  gap: 1rem;
+}
+.foot__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--ink);
+  font-weight: 600;
+}
+.foot__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.foot__links a {
+  color: var(--ink-soft);
+  text-underline-offset: 0.2em;
+}
+@media (min-width: 48rem) {
+  .foot__row {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 2rem;
+  }
+  .foot__links {
+    justify-content: flex-end;
+  }
+}

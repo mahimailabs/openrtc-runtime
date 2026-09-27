@@ -1,18 +1,25 @@
 ---
-import '../styles/global.css';
+import '../styles/landing.css';
 import Mark from '../../../shared/Mark.astro';
 import ThemeScript from '../../../shared/ThemeScript.astro';
 import ThemeToggle from '../../../shared/ThemeToggle.astro';
-import { PAGES, PYPI, REPO } from '../lib/site';
+import { DOCS, PYPI, REPO } from '../lib/links';
 
 interface Props {
   title: string;
   description: string;
-  /** Path of this page, for the canonical link and the current nav item. */
   path: string;
+  /** Live GitHub star count, fetched at build time; null when the fetch failed. */
+  stars: number | null;
 }
-const { title, description, path } = Astro.props;
+const { title, description, path, stars } = Astro.props;
 const canonical = new URL(path, Astro.site!).href;
+const nav = [
+  { href: `${DOCS}/`, label: 'Docs' },
+  { href: `${DOCS}/how-it-works/`, label: 'How it works' },
+  { href: `${DOCS}/benchmark/`, label: 'Benchmark' },
+  { href: `${DOCS}/changelog/`, label: 'Changelog' },
+];
 ---
 
 <!doctype html>
@@ -40,14 +47,8 @@ const canonical = new URL(path, Astro.site!).href;
           <Mark />
           <span>OpenRTC</span>
         </a>
-        <nav class="top__nav" aria-label="Pages">
-          {
-            PAGES.map((p) => (
-              <a href={p.href} aria-current={path === p.href ? 'page' : undefined}>
-                {p.label}
-              </a>
-            ))
-          }
+        <nav class="top__nav" aria-label="Main">
+          {nav.map((n) => <a href={n.href}>{n.label}</a>)}
         </nav>
         <div class="top__tools">
           <a class="gh" href={REPO} rel="noopener">
@@ -56,19 +57,11 @@ const canonical = new URL(path, Astro.site!).href;
               ></path>
             </svg>
             <span class="gh__label">GitHub</span>
+            {stars !== null && <span class="gh__stars mono">{stars.toLocaleString('en-US')}</span>}
           </a>
           <ThemeToggle />
         </div>
       </div>
-      <nav class="shell top__pages" aria-label="Pages">
-        {
-          PAGES.map((p) => (
-            <a href={p.href} aria-current={path === p.href ? 'page' : undefined}>
-              {p.label}
-            </a>
-          ))
-        }
-      </nav>
     </header>
     <main id="main">
       <slot />
@@ -77,18 +70,14 @@ const canonical = new URL(path, Astro.site!).href;
       <div class="shell foot__row">
         <p class="foot__brand"><Mark /> OpenRTC</p>
         <ul class="foot__links">
+          <li><a href={`${DOCS}/`}>Docs</a></li>
           <li><a href={REPO} rel="noopener">GitHub</a></li>
           <li><a href={PYPI} rel="noopener">PyPI</a></li>
-          <li><a href="/changelog/">Changelog</a></li>
+          <li><a href={`${DOCS}/changelog/`}>Changelog</a></li>
           <li><a href={`${REPO}/blob/main/LICENSE`} rel="noopener">MIT</a></li>
           <li>Made by <a href="https://mahimai.ca" rel="noopener">Mahimai</a></li>
         </ul>
       </div>
     </footer>
-    <script is:inline>
-      // Small screens: keep the current page visible in the scrolling page row.
-      var here = document.querySelector('.top__pages [aria-current="page"]');
-      if (here) here.parentElement.scrollLeft = here.offsetLeft - 16;
-    </script>
   </body>
 </html>

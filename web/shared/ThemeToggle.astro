@@ -1,0 +1,61 @@
+---
+// Light / dark / system switch. The choice lives in localStorage['openrtc-theme'], shared by the
+// docs and the landing page; ThemeScript applies it.
+const themes = [
+  { value: 'light', label: 'Light theme' },
+  { value: 'dark', label: 'Dark theme' },
+  { value: 'auto', label: 'Match system theme' },
+];
+---
+
+<div class="seg" role="group" aria-label="Theme">
+  {
+    themes.map((t) => (
+      <button type="button" class="seg__item" data-theme-choice={t.value} aria-label={t.label} title={t.label} aria-pressed="false">
+        {t.value === 'light' && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2m-7.07-2.93 1.41-1.41m11.32-11.32 1.41-1.41M2 12h2m16 0h2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41" />
+          </svg>
+        )}
+        {t.value === 'dark' && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+          </svg>
+        )}
+        {t.value === 'auto' && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect width="20" height="14" x="2" y="3" rx="2" />
+            <path d="M8 21h8m-4-4v4" />
+          </svg>
+        )}
+      </button>
+    ))
+  }
+</div>
+
+<script is:inline>
+  // Store the choice, re-apply, and follow the system while on 'auto'.
+  (function () {
+    var buttons = document.querySelectorAll('[data-theme-choice]');
+    function sync() {
+      var c = document.documentElement.dataset.choice || 'dark';
+      buttons.forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.dataset.themeChoice === c));
+      });
+    }
+    buttons.forEach(function (b) {
+      b.addEventListener('click', function () {
+        try {
+          localStorage.setItem('openrtc-theme', b.dataset.themeChoice);
+        } catch (e) {}
+        window.__applyTheme();
+        sync();
+      });
+    });
+    matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () {
+      window.__applyTheme();
+    });
+    sync();
+  })();
+</script>

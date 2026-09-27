@@ -1,0 +1,24 @@
+---
+// Sets <html data-theme> before first paint: the stored choice, dark when nothing is stored.
+// Put it in <head>. ThemeToggle writes the choice.
+---
+
+<script is:inline>
+  // Theme before first paint: the stored choice, dark when nothing is stored.
+  (function () {
+    var root = document.documentElement;
+    function apply() {
+      var c = 'dark';
+      try {
+        c = localStorage.getItem('openrtc-theme') || 'dark';
+      } catch (e) {}
+      root.dataset.choice = c;
+      if (c === 'auto') c = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      root.dataset.theme = c === 'light' ? 'light' : 'dark';
+      var m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute('content', root.dataset.theme === 'light' ? '#fcfcfc' : '#0a0a0a');
+    }
+    window.__applyTheme = apply;
+    apply();
+  })();
+</script>
