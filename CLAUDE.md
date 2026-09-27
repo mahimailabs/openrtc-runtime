@@ -90,6 +90,22 @@ These are non-negotiable product invariants — preserve them in any change:
 
 The full coding-style guide lives in `AGENTS.md` (typing rules, async patterns, error-handling expectations, LiveKit-specific guidance). Read it before non-trivial changes.
 
+## Working conventions (AI-assisted development)
+
+- **Branches:** `feat/<topic>` or `fix/<topic>`. Never a `claude/` prefix.
+- **Before every push:** `make ci` (ruff check, ruff format --check, mypy --strict, pytest with the 99% coverage gate) must pass locally.
+- **LiveKit facts come from the docs, not memory.** The project ships the LiveKit Docs MCP server (`.mcp.json`) and LiveKit's agent skills (`.claude/skills/`, start with `reading-livekit-docs`). Check the changelog before touching code that hooks livekit-agents internals.
+- **Keep it minimal.** The `ponytail` skill is installed: reuse what exists, stdlib before dependencies, shortest diff that fixes the root cause.
+- **Performance claims need a measurement.** Compare memory with PSS, not RSS (forked job processes share pages; RSS double counts them), against vanilla livekit-agents on the same machine.
+- **Secrets:** never read or commit `.env` files (denied in `.claude/settings.json`); pass LiveKit credentials as environment variables.
+- **Project AI config lives in the repo:** `.claude/settings.json` (permissions, hooks: `uv sync` on cloud session start, `ruff format` after each Python edit), `.claude/skills/` + `skills-lock.json` (update with `npx skills update`), `.mcp.json`. Personal overrides go in the gitignored `.claude/settings.local.json`.
+
 ## Strategic context
 
-OpenRTC's purpose is to make self-hosted LiveKit agents cheap to run: 50+ concurrent sessions per worker instead of livekit-agents' ~1 session per process. `docs/audit-2026-05-02.md` is the original audit that motivated this; its recommended Option B (a custom `JobExecutor` running jobs as `asyncio.Task`s) is now implemented as coroutine isolation (`runtime/coroutine_runtime.py`), the default. Design notes for the livekit internals it hooks live in `docs/design/` (pinned to 1.5.0 source; re-derive when the pin moves).
+OpenRTC's original goal was density: many sessions per worker instead of livekit-agents' one process per job. `docs/audit-2026-05-02.md` motivated coroutine isolation (`runtime/coroutine_runtime.py`, the default). A head-to-head benchmark on livekit-agents 1.8.3 (full voice pipeline, 2 pinned cores, PSS) changed the picture:
+
+- Vanilla 1.8 forks jobs from a preloaded forkserver, so a job costs ~63 MB PSS, not ~3 GB. OpenRTC coroutine mode costs ~22 MB per session, with the same ~1.2 GB idle baseline.
+- CPU, not memory, is the binding constraint on typical hardware. One OpenRTC worker is one Python process (~1 core of Python), used ~25% more CPU per call, and held fewer calls than vanilla process mode on the same cores.
+- OpenRTC's load signal is sessions/max and ignores CPU, so under CPU overload it keeps accepting calls and degrades (unbounded memory growth, stalled sessions) where vanilla sheds load.
+
+Do not reintroduce "50+ sessions per worker" or "~3 GB per process" claims without new measurements. Design notes for the livekit internals coroutine mode hooks live in `docs/design/` (pinned to 1.5.0 source; re-derive when the pin moves).

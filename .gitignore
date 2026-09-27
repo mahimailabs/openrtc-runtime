@@ -3,7 +3,9 @@ __pycache__/
 *.py[codz]
 *$py.class
 .agents
-.claude
+# Claude Code: share project config, keep personal overrides local
+.claude/settings.local.json
+.claude/worktrees/
 
 # C extensions
 *.so

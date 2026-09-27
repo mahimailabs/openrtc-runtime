@@ -108,6 +108,8 @@ Business logic must not live inside:
 
 ## LiveKit-Specific Guidance
 
+LiveKit is a fast-evolving project. Always refer to the latest documentation. LiveKit provides an MCP server at `https://docs.livekit.io/mcp` (configured in `.mcp.json`) with tools for browsing and searching docs. Key tools: `get_docs_overview`, `get_pages`, `docs_search`, `code_search`, `get_changelog`. Prefer browsing (`get_docs_overview`, `get_pages`) over search, and `docs_search` over `code_search`. Without MCP, use `lk docs` from the LiveKit CLI. LiveKit's agent skills are vendored in `.claude/skills/` (pinned in `skills-lock.json`).
+
 ### Real-time constraints
 - Real-time audio paths should avoid unnecessary allocations, blocking calls, and hidden latency
 - Be careful with backpressure, task buildup, and event storms
