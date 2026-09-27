@@ -114,6 +114,23 @@ MaxConcurrentSessionsArg = Annotated[
     ),
 ]
 
+PortArg = Annotated[
+    int | None,
+    typer.Option(
+        "--port",
+        min=0,
+        max=65535,
+        envvar="OPENRTC_PORT",
+        help=(
+            "The worker's HTTP (health) port. Unset keeps livekit's default "
+            "(8081 under start, a free port under dev). Give each worker its own "
+            "to run several on one host. "
+            "Precedence: CLI flag > OPENRTC_PORT > library default."
+        ),
+        rich_help_panel=PANEL_OPENRTC,
+    ),
+]
+
 NoWatchArg = Annotated[
     bool,
     typer.Option(
@@ -288,11 +305,13 @@ def agent_pool_runtime_kwargs(
     *,
     isolation: str = "coroutine",
     max_concurrent_sessions: int = 50,
+    port: int | None = None,
 ) -> dict[str, Any]:
     """Keyword arguments for the runtime knobs on :class:`AgentPool`."""
     return {
         "isolation": isolation,
         "max_concurrent_sessions": max_concurrent_sessions,
+        "port": port,
     }
 
 
@@ -330,6 +349,7 @@ class SharedLiveKitWorkerOptions:
     metrics_jsonl_interval: float | None
     isolation: str = "coroutine"
     max_concurrent_sessions: int = 50
+    port: int | None = None
     enable_hot_reload: bool = False
     watch_paths: tuple[Path, ...] | None = None
 
@@ -344,6 +364,7 @@ class SharedLiveKitWorkerOptions:
             **agent_pool_runtime_kwargs(
                 isolation=self.isolation,
                 max_concurrent_sessions=self.max_concurrent_sessions,
+                port=self.port,
             ),
             "enable_hot_reload": self.enable_hot_reload,
             "watch_paths": list(self.watch_paths) if self.watch_paths else None,
@@ -369,6 +390,7 @@ class SharedLiveKitWorkerOptions:
         metrics_jsonl_interval: float | None = None,
         isolation: str = "coroutine",
         max_concurrent_sessions: int = 50,
+        port: int | None = None,
         enable_hot_reload: bool = False,
         watch_paths: tuple[Path, ...] | None = None,
     ) -> SharedLiveKitWorkerOptions:
@@ -389,6 +411,7 @@ class SharedLiveKitWorkerOptions:
             metrics_jsonl_interval=metrics_jsonl_interval,
             isolation=isolation,
             max_concurrent_sessions=max_concurrent_sessions,
+            port=port,
             enable_hot_reload=enable_hot_reload,
             watch_paths=watch_paths,
         )

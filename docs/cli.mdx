@@ -34,6 +34,7 @@ openrtc dev ./agents ./openrtc-metrics.jsonl
 | `--default-greeting` | none | greeting for agents that do not set their own |
 | `--isolation` | `coroutine` | `coroutine` or `process`. Env: `OPENRTC_ISOLATION` |
 | `--max-concurrent-sessions` | `50` | coroutine mode only. Env: `OPENRTC_MAX_CONCURRENT_SESSIONS` |
+| `--port` | livekit's: 8081 under `start`, a free port under `dev` | the worker's HTTP port; give each worker its own to run several on one host. Env: `OPENRTC_PORT` |
 | `--no-watch` | off | `dev` only: turn hot reload off |
 | `--watch-path PATH` | your agent modules | `dev` only, repeatable: more paths to watch |
 | `--metrics-jsonl PATH` | off | JSON Lines of snapshots and session events, truncated at start |
@@ -43,7 +44,7 @@ openrtc dev ./agents ./openrtc-metrics.jsonl
 | `--dashboard-refresh` | `1.0` | seconds, at least 0.25 |
 | `--log-level` | livekit's | Env: `LIVEKIT_LOG_LEVEL` |
 
-A flag beats its environment variable, which beats the library default. `connect` takes `--room` (required) and `--participant-identity`, but not the isolation or hot reload flags.
+A flag beats its environment variable, which beats the library default. `connect` takes `--room` (required) and `--participant-identity`, but not the isolation, port or hot reload flags.
 
 Each `--metrics-jsonl` line is an envelope:
 

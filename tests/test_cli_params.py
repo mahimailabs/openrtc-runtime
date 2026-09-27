@@ -25,6 +25,7 @@ def test_agent_pool_runtime_kwargs_defaults() -> None:
     assert agent_pool_runtime_kwargs() == {
         "isolation": "coroutine",
         "max_concurrent_sessions": 50,
+        "port": None,
     }
 
 
@@ -32,9 +33,11 @@ def test_agent_pool_runtime_kwargs_overrides() -> None:
     assert agent_pool_runtime_kwargs(
         isolation="process",
         max_concurrent_sessions=10,
+        port=8082,
     ) == {
         "isolation": "process",
         "max_concurrent_sessions": 10,
+        "port": 8082,
     }
 
 
@@ -78,10 +81,12 @@ def test_shared_livekit_worker_options_isolation_and_max_propagate() -> None:
         agents,
         isolation="process",
         max_concurrent_sessions=12,
+        port=8082,
     )
     kwargs = opts.agent_pool_kwargs()
     assert kwargs["isolation"] == "process"
     assert kwargs["max_concurrent_sessions"] == 12
+    assert kwargs["port"] == 8082
 
 
 def test_isolation_arg_reads_openrtc_isolation_envvar() -> None:
@@ -102,3 +107,14 @@ def test_max_concurrent_sessions_arg_reads_envvar() -> None:
 
     _annotation, option_info = typing.get_args(MaxConcurrentSessionsArg)
     assert option_info.envvar == "OPENRTC_MAX_CONCURRENT_SESSIONS"
+
+
+def test_port_arg_reads_envvar_and_bounds() -> None:
+    """``--port`` falls back to ``OPENRTC_PORT`` and only takes 0..65535."""
+    import typing
+
+    from openrtc.cli.base_cli import PortArg
+
+    _annotation, option_info = typing.get_args(PortArg)
+    assert option_info.envvar == "OPENRTC_PORT"
+    assert (option_info.min, option_info.max) == (0, 65535)

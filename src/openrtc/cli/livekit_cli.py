@@ -27,9 +27,12 @@ _OPENRTC_ONLY_FLAGS_WITH_VALUE: frozenset[str] = frozenset(
         "--default-tts",
         "--default-greeting",
         "--dashboard-refresh",
+        "--isolation",
+        "--max-concurrent-sessions",
         "--metrics-json-file",
         "--metrics-jsonl",
         "--metrics-jsonl-interval",
+        "--port",
         "--watch-path",
     }
 )

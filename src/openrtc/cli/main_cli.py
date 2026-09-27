@@ -34,6 +34,7 @@ from openrtc.cli.base_cli import (
     MetricsJsonlArg,
     MetricsJsonlIntervalArg,
     NoWatchArg,
+    PortArg,
     SharedLiveKitWorkerOptions,
     WatchPathArg,
     agent_provider_kwargs,
@@ -326,6 +327,7 @@ def _make_standard_livekit_worker_handler(subcommand: str) -> Callable[..., None
         metrics_jsonl_interval: MetricsJsonlIntervalArg = None,
         isolation: IsolationArg = "coroutine",
         max_concurrent_sessions: MaxConcurrentSessionsArg = 50,
+        port: PortArg = None,
         no_watch: NoWatchArg = False,
         watch_path: WatchPathArg = None,
     ) -> None:
@@ -351,6 +353,7 @@ def _make_standard_livekit_worker_handler(subcommand: str) -> Callable[..., None
                 metrics_jsonl_interval=metrics_jsonl_interval,
                 isolation=isolation,
                 max_concurrent_sessions=max_concurrent_sessions,
+                port=port,
                 enable_hot_reload=enable_hot_reload,
                 watch_paths=tuple(watch_path) if watch_path else None,
             ),
