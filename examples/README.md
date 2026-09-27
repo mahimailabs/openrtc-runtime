@@ -28,7 +28,7 @@ Speak, and the agent responds in your terminal. To run against a real LiveKit
 room instead, set `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` and use
 `openrtc dev ./examples/agents` (same `--default-*` flags). Routing between the
 discovered agents follows the precedence in the
-[Routing](../docs/concepts/routing.md) doc (room name prefix, metadata, ...).
+[routing rules](https://docs.openrtc.tech/how-it-works/#routing) (metadata, then room name prefix, then the first agent).
 
 ## What this proves
 

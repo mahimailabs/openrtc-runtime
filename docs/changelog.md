@@ -1,22 +1,25 @@
 ---
 title: Changelog
-description: All notable changes to OpenRTC, including migration notes and version history.
-icon: clock-rotate-left
----
-
-# Changelog
-
-All notable changes to this project are documented here.
-Entries are added automatically when a new GitHub release is published.
-
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
+description: Every change to OpenRTC, newest first, with migration notes. Release entries are added when a GitHub release is published. The format follows Keep a Changelog, and versions follow Semantic Versioning.
 ---
 
 ## [Unreleased]
 
 Changes that have landed on `main` but have not yet been tagged for release.
+
+### Docs move to docs.openrtc.tech
+
+**Documentation**
+
+- The docs leave Mintlify for a static site on Cloudflare Workers at
+  `docs.openrtc.tech`, built from `web/docs/` and rendering five pages from `docs/`:
+  Why OpenRTC, How it works, CLI, Benchmark, and this changelog. The concept
+  guides, runbooks, operations and compliance pages were folded into those
+  pages or retired; they remain in git history.
+- The Benchmark page states the head-to-head against livekit-agents 1.8.3 with
+  its method and what it does not cover, and says plainly that its harness is
+  not in the repository yet.
+- `pyproject.toml` project URLs point at the new site.
 
 ### Hot reload keeps the live conversation
 

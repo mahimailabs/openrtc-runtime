@@ -5,14 +5,14 @@
 </a>
 
 <p>
-  <a href="https://openrtc.mintlify.app"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/docs.svg" height="30" alt="Docs"/></a>
+  <a href="https://docs.openrtc.tech"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/docs.svg" height="30" alt="Docs"/></a>
   <a href="https://pypi.org/project/openrtc/"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/pypi.svg" height="30" alt="PyPI"/></a>
   <img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/python.svg" height="30" alt="Python 3.11 to 3.13"/>
   <a href="https://docs.livekit.io/agents"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/livekit.svg" height="30" alt="LiveKit Agents 1.x"/></a>
   <a href="LICENSE"><img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/badges/license.svg" height="30" alt="MIT License"/></a>
 </p>
 
-[**Docs**](https://openrtc.mintlify.app) · [**Quick start**](#quick-start) · [**Isolation**](#isolation-modes) · [**Routing**](#routing) · [**Introspection**](#session-introspection) · [**Multi-tenancy**](#multi-tenancy) · [**Deploys**](#zero-downtime-deploys) · [**API**](#public-api-at-a-glance)
+[**Docs**](https://docs.openrtc.tech) · [**Quick start**](#quick-start) · [**Isolation**](#isolation-modes) · [**Routing**](#routing) · [**Introspection**](#session-introspection) · [**Multi-tenancy**](#multi-tenancy) · [**Deploys**](#zero-downtime-deploys) · [**API**](#public-api-at-a-glance)
 
 </div>
 
@@ -56,7 +56,7 @@ Running `livekit-agents` yourself usually means one deployment per agent and han
 | **LiveKit-shaped CLI** | `start` / `dev` / `console` / `connect` / `download-files` plus an OpenRTC-only `list`, with an optional Rich dashboard. |
 | **No base class** | Your `Agent` subclasses, `@function_tool`, `RunContext`, and node hooks stay exactly as written. |
 
-Full release history: [docs/changelog.md](docs/changelog.md).
+Full release history: [changelog](https://docs.openrtc.tech/changelog/).
 
 ## Quick start
 
@@ -119,7 +119,7 @@ class RestaurantAgent(Agent):
         super().__init__(instructions="You help callers make restaurant bookings.")
 ```
 
-Without `@agent_config` the agent name defaults to the filename stem, and STT/LLM/TTS/greeting fall back to the pool defaults. Provider slots accept either instantiated plugin objects (`openai.STT(...)`) or shorthand strings (`"openai/gpt-4o-mini-transcribe"`), which the LiveKit runtime resolves at session construction. OpenRTC installs a sensible default `turn_handling` (multilingual turn detector with VAD interruption); override it per agent via `session_kwargs`. Define classes at module scope so spawn-based worker reload can import them. Depth: [openrtc.mintlify.app](https://openrtc.mintlify.app).
+Without `@agent_config` the agent name defaults to the filename stem, and STT/LLM/TTS/greeting fall back to the pool defaults. Provider slots accept either instantiated plugin objects (`openai.STT(...)`) or shorthand strings (`"openai/gpt-4o-mini-transcribe"`), which the LiveKit runtime resolves at session construction. OpenRTC installs a sensible default `turn_handling` (multilingual turn detector with VAD interruption); override it per agent via `session_kwargs`. Define classes at module scope so spawn-based worker reload can import them. Depth: [how it works](https://docs.openrtc.tech/how-it-works/).
 
 ## Isolation modes
 
@@ -176,7 +176,7 @@ Both idle at about 1.2 GB (runtime plus the shared turn-detector process). Stock
 - It does not raise the calls a machine can serve: CPU runs out first, and one coroutine worker is one Python process. Run one worker per core, or use `isolation="process"` for CPU-bound loads.
 - Measure on your own hardware before quoting a calls-per-worker number.
 
-The stub-workload `tests/benchmarks/density.py` remains the memory regression gate in CI ([history](docs/benchmarks/density-v0.1.md)); it checks OpenRTC against itself, not against stock `livekit-agents`.
+The stub-workload `tests/benchmarks/density.py` remains the memory regression gate in CI; it checks OpenRTC against itself, not against stock `livekit-agents`. Method and limits: [benchmark](https://docs.openrtc.tech/benchmark/).
 
 ## Routing
 
@@ -191,7 +191,7 @@ One worker hosts several agent classes, so each session resolves to one register
 
 Within a source, `agent` outranks `demo`. Metadata may be a JSON object string or a mapping; blank strings, non-JSON strings, and JSON scalars are ignored and defer to the next strategy. The room-metadata strategies read `ctx.job.room.metadata` first (authoritative before `ctx.connect()`, when `ctx.room.metadata` is still empty).
 
-A value naming an **unregistered** agent raises eagerly instead of falling through: `ValueError("Unknown agent '<name>' requested via <job metadata|room metadata>.")`. An empty pool raises `RuntimeError("No agents are registered in the pool.")`. Routing never falls back silently. Full rules: [routing docs](https://openrtc.mintlify.app).
+A value naming an **unregistered** agent raises eagerly instead of falling through: `ValueError("Unknown agent '<name>' requested via <job metadata|room metadata>.")`. An empty pool raises `RuntimeError("No agents are registered in the pool.")`. Routing never falls back silently. Full rules: [routing](https://docs.openrtc.tech/how-it-works/#routing).
 
 ### Scoping which rooms a worker accepts
 
@@ -279,7 +279,7 @@ Hot reload is coroutine-mode only (process mode runs one subprocess per session)
 
 Because coroutine mode runs many sessions in one process, OpenRTC attributes memory, CPU, and event-loop blocks back to individual sessions and surfaces them live. Run `openrtc top` next to a worker for an htop-style view:
 
-![openrtc top](docs/public/openrtc-top.svg)
+![openrtc top](web/docs/public/openrtc-top.svg)
 
 ```bash
 openrtc dev ./agents      # coroutine mode, introspection on by default
@@ -287,7 +287,7 @@ openrtc top               # live inspector (q quit · r refresh · s sort · f f
 openrtc top --once        # one snapshot for scripts / CI
 ```
 
-`mem(MB)` is an equal share of process RSS (per-session numbers sum back to the real RSS); `cpu%` is a sampled share of on-CPU time; a session shows `slow` when it recently blocked the shared loop (a sync call starving the others). These are honest approximations of a shared process, documented with their caveats in [session introspection](https://openrtc.mintlify.app) and the [density debugging runbook](docs/runbooks/debugging-density.md). Introspection is coroutine-mode only and on by default; disable it with `AgentPool(enable_introspection=False)`.
+`mem(MB)` is an equal share of process RSS (per-session numbers sum back to the real RSS); `cpu%` is a sampled share of on-CPU time; a session shows `slow` when it recently blocked the shared loop (a sync call starving the others). These are honest approximations of a shared process, documented with their caveats in [how it works](https://docs.openrtc.tech/how-it-works/#openrtc-top). Introspection is coroutine-mode only and on by default; disable it with `AgentPool(enable_introspection=False)`.
 
 > This is a **runtime density** tool. For cost, pipeline latency (STT/LLM/TTS), and quality metrics, use voicegateway: it consumes the `agent_name` and `metadata["tenant"]` OpenRTC emits and owns that lane. OpenRTC does not duplicate it.
 
@@ -310,7 +310,7 @@ pool = AgentPool(
 
 Provider keys are never shared across tenants; a tenant at its cap is rejected while siblings keep accepting; and a tenant whose calls start failing has its new sessions rejected for a cooldown (then auto-recovers) without touching the healthy tenants. The tenant is on every worker-internal signal (`openrtc top --tenant`, scoped logs, `runtime_snapshot().sessions_by_tenant`) and on the `SessionObserver` payload, so voicegateway attributes per-tenant cost with no extra config. Agent code reads it with `from openrtc.context import current_tenant_id`.
 
-Coroutine mode is shared-process isolation, not an OS sandbox: for a hard compliance wall run `isolation="process"` or a worker per tenant. The per-tenant caps and circuit breaker need coroutine mode (`isolation="process"` rejects them), so a process-mode deployment enforces tenant limits with a worker per tenant. Full model, guarantees, and limits: [multi-tenancy guide](docs/concepts/multi-tenancy.md), plus [onboarding](docs/runbooks/onboarding-a-tenant.md) and [incident](docs/runbooks/tenant-incident.md) runbooks.
+Coroutine mode is shared-process isolation, not an OS sandbox: for a hard compliance wall run `isolation="process"` or a worker per tenant. The per-tenant caps and circuit breaker need coroutine mode (`isolation="process"` rejects them), so a process-mode deployment enforces tenant limits with a worker per tenant. Full model and limits: [tenants](https://docs.openrtc.tech/how-it-works/#tenants).
 
 ## Zero-downtime deploys
 
@@ -323,7 +323,7 @@ snap = pool.runtime_snapshot()          # snap.deployment_version, snap.draining
 pool.begin_drain()                      # stop taking new calls; in-flight run to hangup, then exit
 ```
 
-OpenRTC runs one worker and supplies the primitives; the fleet orchestration (start the new version, shift traffic, retire the old) is your platform's job (a Kubernetes rolling update, a LiveKit worker rotation). The primitives: a `deployment_version` tag, graceful drain (`pool.begin_drain()` or SIGTERM), HMAC [signed membership](docs/compliance/audit-events.md#signed-membership) to keep a leftover old-version worker off new traffic, and deployment [audit events](docs/compliance/audit-events.md) for compliance. Mid-call migration is out of scope by design (drain sidesteps it). Full walkthrough: [deployments](docs/operations/deployments.md), [monitoring](docs/operations/monitoring-deploys.md), [rollback](docs/operations/rollback.md), and the [migration-vs-drain rationale](docs/concepts/migration.md).
+OpenRTC runs one worker and supplies the primitives; the fleet orchestration (start the new version, shift traffic, retire the old) is your platform's job (a Kubernetes rolling update, a LiveKit worker rotation). The primitives: a `deployment_version` tag, graceful drain (`pool.begin_drain()` or SIGTERM), and an `audit_sink` that receives a `deployment.drain_started` event (emit your own deploy steps with `pool.audit_log.emit(...)`). Mid-call migration is out of scope by design (drain sidesteps it). Details: [deploys](https://docs.openrtc.tech/how-it-works/#deploys).
 
 ## CLI
 
@@ -339,7 +339,7 @@ openrtc start ./agents                           # production worker (after expo
 openrtc dev   ./agents ./openrtc-metrics.jsonl   # 2nd positional path = --metrics-jsonl
 ```
 
-Flags are scoped per command: `--json` / `--plain` / `--resources` on `list`; `--isolation` / `--max-concurrent-sessions` on the worker commands; `--no-watch` / `--watch-path` control [hot reload](#hot-reload) on `dev`; the metrics and dashboard flags on the worker commands and `connect`. `--metrics-jsonl` appends one JSON object per line (an envelope of `schema_version`, `kind` (`snapshot` or `event`), `seq`, `wall_time_unix`, and `payload`), interleaving pool snapshots with `session_started` / `session_finished` / `session_failed` events for `tail -f` or `jq`. OpenRTC-only flags are stripped before the handoff to LiveKit's CLI parser. Full flag lists: [docs/cli.md](docs/cli.md).
+Flags are scoped per command: `--json` / `--plain` / `--resources` on `list`; `--isolation` / `--max-concurrent-sessions` on the worker commands; `--no-watch` / `--watch-path` control [hot reload](#hot-reload) on `dev`; the metrics and dashboard flags on the worker commands and `connect`. `--metrics-jsonl` appends one JSON object per line (an envelope of `schema_version`, `kind` (`snapshot` or `event`), `seq`, `wall_time_unix`, and `payload`), interleaving pool snapshots with `session_started` / `session_finished` / `session_failed` events for `tail -f` or `jq`. OpenRTC-only flags are stripped before the handoff to LiveKit's CLI parser. Full flag lists: [CLI](https://docs.openrtc.tech/cli/).
 
 ## Architecture
 
@@ -358,11 +358,11 @@ flowchart TB
     SESS --> SINK[runtime_snapshot plus JSONL metrics sink]
 ```
 
-Prewarm runs once as the worker's setup function and caches VAD and turn detector in `proc.userdata`. For each job the universal entrypoint runs the routing chain, instantiates the chosen `Agent` subclass, builds an `AgentSession` from cached defaults plus per-agent overrides, and starts it as a task on the shared loop. Registration data is spawn-safe, so it survives serialization to worker subprocesses. [Architecture deep dive](https://openrtc.mintlify.app).
+Prewarm runs once as the worker's setup function and caches VAD and turn detector in `proc.userdata`. For each job the universal entrypoint runs the routing chain, instantiates the chosen `Agent` subclass, builds an `AgentSession` from cached defaults plus per-agent overrides, and starts it as a task on the shared loop. Registration data is spawn-safe, so it survives serialization to worker subprocesses. [How it works](https://docs.openrtc.tech/how-it-works/).
 
 ## Public API at a glance
 
-The public surface is exactly `openrtc.__all__`, 14 names. Everything else is internal and not treated as stable.
+The public surface is exactly `openrtc.__all__`, 15 names. Everything else is internal and not treated as stable.
 
 | Export | What it is |
 | :--- | :--- |

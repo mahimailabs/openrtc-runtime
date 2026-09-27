@@ -1,0 +1,57 @@
+---
+import DocPage from '../components/DocPage.astro';
+import * as doc from '../../../../docs/index.mdx';
+
+const install = 'pip install "openrtc[livekit,cli]"';
+---
+
+<DocPage doc={doc as any} path="/" title="OpenRTC · Run every LiveKit agent from one worker">
+  <section slot="hero" class="hero-wrap">
+    <div class="shell hero">
+      <div>
+        <h1>Every LiveKit agent, one worker you can see into.</h1>
+        <p class="hero__lede">
+          OpenRTC runs your existing <code>livekit.agents.Agent</code> classes from one pool, routes each call to the right
+          one, and gives you the parts livekit-agents leaves to you: hot reload that keeps the call, a live session
+          inspector, per-tenant limits, and graceful drain.
+        </p>
+        <div class="install">
+          <code><span>$</span> {install}</code>
+          <button type="button" class="copy" data-copy={install} aria-label="Copy the install command">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect width="14" height="14" x="8" y="8" rx="2" />
+              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+            </svg>
+            <span data-copy-label>Copy</span>
+          </button>
+        </div>
+        <div class="hero__ctas">
+          <a class="btn btn--primary" href="#quick-start">Quick start</a>
+          <a class="btn" href="/how-it-works/">How it works</a>
+        </div>
+      </div>
+      <figure class="term">
+        <img
+          src="/openrtc-top.svg"
+          width="1141"
+          height="318"
+          alt="openrtc top: one row per live call with its agent, tenant, duration, memory share, CPU share and status, refreshing in place."
+        />
+        <figcaption><code>openrtc top</code> with sample sessions: one row per live call, refreshing in place.</figcaption>
+      </figure>
+    </div>
+  </section>
+</DocPage>
+
+<style>
+  .hero-wrap {
+    border-bottom: 1px solid var(--line);
+  }
+  .hero-wrap .hero {
+    border-bottom: 0;
+  }
+  .term figcaption code {
+    background: #1b1b1b;
+    color: #d4d4d4;
+  }
+</style>

@@ -1,0 +1,594 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-27T15:52:44+00:00",
+  "title": "Design System: OpenRTC Docs",
+  "extensions": {
+    "colorMeta": {
+      "signal": {
+        "role": "primary",
+        "displayName": "Signal Lavender",
+        "canonical": "#cba6f7",
+        "tonalRamp": [
+          "#230646",
+          "#3f0b7c",
+          "#5a10b1",
+          "#7515e7",
+          "#9447ee",
+          "#b37df3",
+          "#d2b2f8",
+          "#f1e8fd"
+        ]
+      },
+      "signal-deep": {
+        "role": "primary",
+        "displayName": "Pressed Lavender",
+        "canonical": "#b48adc",
+        "tonalRamp": [
+          "#27123b",
+          "#441f68",
+          "#622c95",
+          "#7f3ac1",
+          "#9c65d1",
+          "#b992de",
+          "#d6bfec",
+          "#f2ebf9"
+        ]
+      },
+      "on-signal": {
+        "role": "neutral",
+        "displayName": "On Signal",
+        "canonical": "#0a0a0a",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "ok": {
+        "role": "secondary",
+        "displayName": "Ok Green",
+        "canonical": "#86efac",
+        "tonalRamp": [
+          "#09441e",
+          "#107735",
+          "#17ab4c",
+          "#1dde63",
+          "#4ee886",
+          "#82eea9",
+          "#b5f5cc",
+          "#e8fcf0"
+        ]
+      },
+      "warn": {
+        "role": "secondary",
+        "displayName": "Warn Amber",
+        "canonical": "#fcd34d",
+        "tonalRamp": [
+          "#4b3a01",
+          "#856602",
+          "#be9203",
+          "#f7be04",
+          "#fcce3a",
+          "#fddc73",
+          "#feebad",
+          "#fff9e6"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "canonical": "#0a0a0a",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "#141414",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Surface Two",
+        "canonical": "#1b1b1b",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#262626",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Hairline",
+        "canonical": "#3a3a3a",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#fafafa",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Soft Ink",
+        "canonical": "#d4d4d4",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "canonical": "#a3a3a3",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "light-signal": {
+        "role": "primary",
+        "displayName": "Light Signal Lavender",
+        "canonical": "#6f3fb0",
+        "tonalRamp": [
+          "#241438",
+          "#3f2463",
+          "#5a338e",
+          "#7542b9",
+          "#946bca",
+          "#b396da",
+          "#d2c1e9",
+          "#f1ecf8"
+        ]
+      },
+      "light-signal-deep": {
+        "role": "primary",
+        "displayName": "Light Pressed Lavender",
+        "canonical": "#5b2f96",
+        "tonalRamp": [
+          "#23123a",
+          "#3e2067",
+          "#592e93",
+          "#743cbf",
+          "#9366cf",
+          "#b393dd",
+          "#d2bfeb",
+          "#f1ecf9"
+        ]
+      },
+      "light-ground": {
+        "role": "neutral",
+        "displayName": "Light Ground",
+        "canonical": "#fcfcfc",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "light-surface": {
+        "role": "neutral",
+        "displayName": "Light Surface",
+        "canonical": "#f3f3f4",
+        "tonalRamp": [
+          "#252528",
+          "#404046",
+          "#5c5c65",
+          "#787883",
+          "#96969f",
+          "#b5b5bb",
+          "#d3d3d7",
+          "#f2f2f3"
+        ]
+      },
+      "light-surface-2": {
+        "role": "neutral",
+        "displayName": "Light Surface Two",
+        "canonical": "#ebebed",
+        "tonalRamp": [
+          "#242428",
+          "#404047",
+          "#5b5b66",
+          "#777784",
+          "#9696a0",
+          "#b4b4bc",
+          "#d3d3d7",
+          "#f2f2f3"
+        ]
+      },
+      "light-line": {
+        "role": "neutral",
+        "displayName": "Light Hairline",
+        "canonical": "#e3e3e6",
+        "tonalRamp": [
+          "#242428",
+          "#404047",
+          "#5b5b66",
+          "#777785",
+          "#9595a0",
+          "#b4b4bc",
+          "#d3d3d7",
+          "#f2f2f3"
+        ]
+      },
+      "light-line-strong": {
+        "role": "neutral",
+        "displayName": "Light Strong Hairline",
+        "canonical": "#c9c9ce",
+        "tonalRamp": [
+          "#242428",
+          "#404047",
+          "#5c5c65",
+          "#787884",
+          "#9696a0",
+          "#b5b5bb",
+          "#d3d3d7",
+          "#f2f2f3"
+        ]
+      },
+      "light-ink": {
+        "role": "neutral",
+        "displayName": "Light Ink",
+        "canonical": "#0a0a0a",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "light-ink-soft": {
+        "role": "neutral",
+        "displayName": "Light Soft Ink",
+        "canonical": "#2a2a2e",
+        "tonalRamp": [
+          "#252528",
+          "#404046",
+          "#5c5c65",
+          "#787883",
+          "#96969f",
+          "#b5b5bb",
+          "#d3d3d7",
+          "#f2f2f3"
+        ]
+      },
+      "light-muted": {
+        "role": "neutral",
+        "displayName": "Light Muted",
+        "canonical": "#55555c",
+        "tonalRamp": [
+          "#252528",
+          "#414146",
+          "#5d5d64",
+          "#797983",
+          "#97979f",
+          "#b5b5bb",
+          "#d3d3d7",
+          "#f2f2f3"
+        ]
+      },
+      "light-ok": {
+        "role": "secondary",
+        "displayName": "Light Ok Green",
+        "canonical": "#15803d",
+        "tonalRamp": [
+          "#0b421f",
+          "#137437",
+          "#1ba64f",
+          "#23d867",
+          "#53e389",
+          "#85ebab",
+          "#b7f3ce",
+          "#e9fbf0"
+        ]
+      },
+      "light-warn": {
+        "role": "secondary",
+        "displayName": "Light Warn Amber",
+        "canonical": "#a16207",
+        "tonalRamp": [
+          "#492d03",
+          "#814f06",
+          "#b97108",
+          "#f1930a",
+          "#f7ac3f",
+          "#f9c477",
+          "#fcdcaf",
+          "#fef4e7"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Home H1 only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Doc page H1."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "MDX H2, listed in the contents rail."
+      },
+      "subtitle": {
+        "displayName": "Subtitle",
+        "purpose": "MDX H3."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose in soft ink, 46rem measure."
+      },
+      "lede": {
+        "displayName": "Lede",
+        "purpose": "Page description under the H1."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Nav, pager, rail, captions, footer."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Code, flags, commands, measurements."
+      },
+      "table-head": {
+        "displayName": "Table head",
+        "purpose": "Data table column names and stacked-row labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "toggle-pressed",
+        "value": "inset 0 0 0 1px var(--line)",
+        "purpose": "Ring on the pressed theme-toggle segment; the only shadow, and it is a hairline."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Declared ease token."
+      },
+      {
+        "name": "state",
+        "value": "0.15s ease",
+        "purpose": "Color, border and background changes on hover."
+      },
+      {
+        "name": "copy-confirm",
+        "value": "1.6s",
+        "purpose": "How long the copy button shows Copied."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "stack-tables",
+        "value": "40rem",
+        "purpose": "At and below: tables stack into labelled rows; pager goes one column."
+      },
+      {
+        "name": "inline-nav",
+        "value": "52rem",
+        "purpose": "Page links move from the scrolling second row into the top bar."
+      },
+      {
+        "name": "rail",
+        "value": "68rem",
+        "purpose": "Contents rail and two-column home lead-in appear."
+      }
+    ],
+    "backdrop": [
+      {
+        "name": "top-bar",
+        "value": "color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px)",
+        "purpose": "Sticky top bar."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary action per viewport (Quick start).",
+      "html": "<a class=\"ds-btn ds-btn-primary\" href=\"#\">Quick start</a>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;gap:.5rem;min-height:2.75rem;padding:0 1.1rem;border:1px solid var(--line-strong,#3a3a3a);border-radius:.5rem;color:var(--ink,#fafafa);font:500 .9375rem 'Space Grotesk Variable',system-ui,sans-serif;text-decoration:none;transition:border-color .15s ease,background-color .15s ease}.ds-btn-primary{border-color:transparent;background:var(--accent,#cba6f7);color:var(--on-accent,#0a0a0a)}.ds-btn-primary:hover{background:var(--accent-deep,#b48adc)}.ds-btn:focus-visible{outline:2px solid var(--accent,#cba6f7);outline-offset:3px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Every other action: hairline border, ink text.",
+      "html": "<a class=\"ds-btn-secondary\" href=\"#\">How it works</a>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;min-height:2.75rem;padding:0 1.1rem;border:1px solid var(--line-strong,#3a3a3a);border-radius:.5rem;color:var(--ink,#fafafa);font:500 .9375rem 'Space Grotesk Variable',system-ui,sans-serif;text-decoration:none;transition:border-color .15s ease}.ds-btn-secondary:hover{border-color:var(--muted,#a3a3a3)}.ds-btn-secondary:focus-visible{outline:2px solid var(--accent,#cba6f7);outline-offset:3px}"
+    },
+    {
+      "name": "Install Line",
+      "kind": "input",
+      "refersTo": "install-line",
+      "description": "The install command in mono with a copy action.",
+      "html": "<div class=\"ds-install\"><code><span>$</span> pip install \"openrtc[livekit,cli]\"</code><button type=\"button\" class=\"ds-copy\">Copy</button></div>",
+      "css": ".ds-install{display:flex;align-items:center;gap:.75rem;max-width:34rem;padding:.35rem .35rem .35rem 1rem;border:1px solid var(--line-strong,#3a3a3a);border-radius:.6rem;background:var(--surface,#141414)}.ds-install code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;color:var(--ink,#fafafa);font:.875rem 'JetBrains Mono Variable',ui-monospace,monospace}.ds-install code span{color:var(--muted,#a3a3a3)}.ds-copy{height:2.1rem;padding:0 .7rem;border:1px solid var(--line,#262626);border-radius:.4rem;background:var(--bg,#0a0a0a);color:var(--ink-soft,#d4d4d4);font:500 .8125rem/1 'Space Grotesk Variable',system-ui,sans-serif;cursor:pointer}.ds-copy:hover{border-color:var(--line-strong,#3a3a3a);color:var(--ink,#fafafa)}.ds-copy:focus-visible{outline:2px solid var(--accent,#cba6f7);outline-offset:3px}"
+    },
+    {
+      "name": "Top Navigation",
+      "kind": "nav",
+      "refersTo": "theme-toggle",
+      "description": "Mark, wordmark and page links; current page in ink.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-brand\" href=\"#\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" aria-hidden=\"true\"><rect x=\"2\" y=\"2\" width=\"20\" height=\"20\" rx=\"5\" fill=\"none\" stroke=\"#a3a3a3\" stroke-width=\"1.6\"/><circle cx=\"9\" cy=\"9\" r=\"2.3\" fill=\"#cba6f7\"/><circle cx=\"15\" cy=\"9\" r=\"2.3\" fill=\"#a3a3a3\"/><circle cx=\"9\" cy=\"15\" r=\"2.3\" fill=\"#a3a3a3\"/><circle cx=\"15\" cy=\"15\" r=\"2.3\" fill=\"#a3a3a3\"/></svg>OpenRTC</a><a href=\"#\" aria-current=\"page\">Why OpenRTC</a><a href=\"#\">How it works</a><a href=\"#\">CLI</a><a href=\"#\">Benchmark</a><a href=\"#\">Changelog</a></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;gap:1.5rem;height:3.75rem;padding:0 1rem;border-bottom:1px solid var(--line,#262626);background:var(--bg,#0a0a0a);font:.875rem 'Space Grotesk Variable',system-ui,sans-serif}.ds-nav a{color:var(--muted,#a3a3a3);text-decoration:none;white-space:nowrap}.ds-nav a:hover,.ds-nav a[aria-current=page]{color:var(--ink,#fafafa)}.ds-nav .ds-brand{display:inline-flex;align-items:center;gap:.55rem;margin-right:.5rem;color:var(--ink,#fafafa);font-weight:600;letter-spacing:-.02em}.ds-nav a:focus-visible{outline:2px solid var(--accent,#cba6f7);outline-offset:3px;border-radius:4px}"
+    },
+    {
+      "name": "Callout",
+      "kind": "card",
+      "refersTo": "callout",
+      "description": "Note, Tip and Warning asides in the MDX.",
+      "html": "<aside class=\"ds-callout\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 16v-4\"/><path d=\"M12 8h.01\"/></svg><div>Per-tenant caps need coroutine mode.</div></aside>",
+      "css": ".ds-callout{display:flex;gap:.65rem;padding:.9rem 1.1rem;border:1px solid var(--line,#262626);border-radius:.75rem;background:var(--surface,#141414);color:var(--ink-soft,#d4d4d4);font:.9375rem/1.6 'Space Grotesk Variable',system-ui,sans-serif}.ds-callout>svg{flex:none;margin-top:.25rem;color:var(--accent,#cba6f7)}"
+    },
+    {
+      "name": "Data Table",
+      "kind": "custom",
+      "refersTo": "table-head",
+      "description": "Mono headers, hairline rows, right-aligned tabular numbers.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Mode</th><th align=\"right\">PSS per call</th></tr></thead><tbody><tr><td>coroutine</td><td align=\"right\">~22 MB</td></tr><tr><td>livekit-agents 1.8.3</td><td align=\"right\">~63 MB</td></tr></tbody></table>",
+      "css": ".ds-table{border-collapse:collapse;font:.875rem/1.5 'Space Grotesk Variable',system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink-soft,#d4d4d4)}.ds-table th{padding:.55rem .75rem;border-bottom:1px solid var(--line-strong,#3a3a3a);color:var(--muted,#a3a3a3);font:500 .75rem/1.3 'JetBrains Mono Variable',ui-monospace,monospace;text-align:left}.ds-table td{padding:.55rem .75rem;border-bottom:1px solid var(--line,#262626)}.ds-table [align=right]{text-align:right}"
+    },
+    {
+      "name": "Contents Rail",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Sticky on-page contents on wide screens; current section gets the signal border.",
+      "html": "<nav class=\"ds-toc\"><p>On this page</p><a href=\"#\">Quick start</a><a href=\"#\" aria-current=\"true\">Routing</a><a href=\"#\" class=\"ds-d3\">Metadata</a></nav>",
+      "css": ".ds-toc{display:grid;gap:.1rem;width:13rem;font:.8125rem/1.4 'Space Grotesk Variable',system-ui,sans-serif}.ds-toc p{margin:0 0 .75rem;color:var(--ink,#fafafa);font-weight:500}.ds-toc a{padding:.3rem 0 .3rem .75rem;border-left:1px solid var(--line,#262626);color:var(--muted,#a3a3a3);text-decoration:none}.ds-toc a:hover{color:var(--ink,#fafafa)}.ds-toc a[aria-current=true]{border-left-color:var(--accent,#cba6f7);color:var(--ink,#fafafa)}.ds-toc .ds-d3{padding-left:1.5rem}"
+    },
+    {
+      "name": "Pager Link",
+      "kind": "card",
+      "refersTo": "pager-link",
+      "description": "Previous/next page at the foot of each doc.",
+      "html": "<a class=\"ds-pager\" href=\"#\"><span>Next</span><strong>How it works</strong></a>",
+      "css": ".ds-pager{display:grid;gap:.25rem;max-width:22rem;padding:.9rem 1.1rem;border:1px solid var(--line,#262626);border-radius:.75rem;color:var(--ink,#fafafa);text-decoration:none;font-family:'Space Grotesk Variable',system-ui,sans-serif;transition:border-color .15s ease}.ds-pager:hover{border-color:var(--line-strong,#3a3a3a)}.ds-pager:focus-visible{outline:2px solid var(--accent,#cba6f7);outline-offset:3px}.ds-pager span{color:var(--muted,#a3a3a3);font-size:.8125rem}.ds-pager strong{font-weight:500}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Well-Kept README",
+    "overview": "This is the mahimai.ca world (see `/home/user/mahimai.ca/DESIGN.md`, the parent system) applied to a Read surface. The parent is a night-shift engineering console: charcoal ground, one lavender signal, real measurements as the only ornament. OpenRTC keeps that palette, that type pairing and that restraint, and bends the composition toward reading: one column of prose at a fixed measure, hairlines between chapters, tables and code allowed the full column, and an on-page contents rail on wide screens. Nothing decorates; the proof is a real `openrtc top` capture and measured tables.\n\nDensity is low and even. Pages are long single columns, not dashboards. Every page has the same frame (sticky top bar, title and lede, MDX body, previous/next pager, edit link); only the home page adds a lead-in with the install line and the terminal capture.\n\nWhat differs from the parent: no dot-grid background texture (the ground is flat `ground`); the four-dot OpenRTC mark replaces the panther as the one identity device; tables stack into labelled rows on phones; a sticky contents rail tracks the section being read; the shell is 76rem, not 80rem; and a second row of page links scrolls under the top bar on narrow screens instead of a menu.",
+    "keyCharacteristics": [
+      "Flat charcoal ground, hairline rules, no texture and no shadows.",
+      "One lavender signal for links, the primary action, the focus ring, the live mark dot and the active contents-rail item.",
+      "Space Grotesk 500 for everything readable; JetBrains Mono for code, flags, table headers and measurements.",
+      "Prose held to a 46rem measure; tables and code blocks may take the whole column.",
+      "Dark by default; light is the same roles with the signal deepened."
+    ],
+    "rules": [
+      {
+        "name": "The One Signal Rule",
+        "body": "Lavender marks links, the primary action, focus and live data only. Never rules, headings, labels or decoration. One primary button per viewport.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tokens-Only Rule",
+        "body": "Components read colors through the custom properties so both themes follow. The only literal colors are in the terminal frame, which stays dark in both themes because it frames a dark capture.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono-Means-Literal Rule",
+        "body": "JetBrains Mono is for things you could type or measure: code, flags, the install command, numbers, and the column names of data tables. Prose labels stay in Space Grotesk.",
+        "section": "typography"
+      },
+      {
+        "name": "The Balanced Heading Rule",
+        "body": "H1 to H3 are weight 500, tracked -0.03em or tighter, with `text-wrap: balance`.",
+        "section": "typography"
+      },
+      {
+        "name": "The Rail Rule",
+        "body": "The contents rail appears only on wide screens and only when a page has more than two H2/H3 headings. It is sticky, lists H2 and H3, and marks the section in view with a signal left border.",
+        "section": "layout"
+      },
+      {
+        "name": "The Hairline-Not-Shadow Rule",
+        "body": "Separate things with a 1px `line` rule or a step to `surface`; never with a shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep user-visible proof real: terminal captures and measured tables, with the method stated in the prose.",
+      "Do hold prose to the 46rem measure and let tables and code take the full column.",
+      "Do use the four-dot mark as the only identity device, with exactly one dot lit.",
+      "Do make every new table stack into labelled rows at 40rem and below.",
+      "Do read colors through the theme tokens so light and dark both follow."
+    ],
+    "donts": [
+      "Don't add the parent site's dot-grid texture or any other background pattern; the ground is flat.",
+      "Don't add drop shadows; use a hairline or a surface step.",
+      "Don't use lavender on rules, headings, labels or decoration.",
+      "Don't add eyebrow or kicker labels above headings, or section numbers.",
+      "Don't add abstract illustration; use a real capture or no picture.",
+      "Don't use em dashes in site copy."
+    ]
+  }
+}

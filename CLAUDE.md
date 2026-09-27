@@ -18,6 +18,8 @@ All workflows go through `uv` (preferred over pip). The Makefile wraps the most-
 | Type check | `uv run mypy src/` |
 | Smoke-check discovery without LiveKit | `make dev` (or `uv run openrtc list ./examples/agents --default-stt … --default-llm … --default-tts …`) |
 | Build wheel | `uv build` |
+| Docs site (preview) | `npm ci --prefix web/docs && npm run dev --prefix web/docs` |
+| Docs check (CI parity) | `python3 docs/_check_docs.py` and `npm run build --prefix web/docs` |
 
 `mypy src/` (in `strict = true` mode), `ruff check` and `ruff format --check` run in CI (`.github/workflows/lint.yml`). The combined line + branch coverage gate is enforced at 99% (project sits around 99.4%).
 
@@ -53,7 +55,7 @@ A custom `router=` on `AgentPool` can override this. A metadata value naming an 
 
 ### Coroutine mode depends on livekit-agents internals
 
-`runtime/coroutine_runtime.py` imports private livekit-agents surfaces (`ipc.job_executor`, `job._JobContextVar`, `ipc.proc_pool`). The pin (`>=1.5,<1.9`) is deliberately tight; an unsupported version fails import with a message pointing to `isolation="process"`. `.github/workflows/canary.yml` runs the suite against the latest livekit-agents release. When bumping the pin: relock with `uv lock --upgrade-package livekit-agents`, run the full suite against the real SDK, and update the range in `pyproject.toml`, `README.md`, `docs/getting-started.md`, `AGENTS.md` and the error message in `coroutine_runtime.py`.
+`runtime/coroutine_runtime.py` imports private livekit-agents surfaces (`ipc.job_executor`, `job._JobContextVar`, `ipc.proc_pool`). The pin (`>=1.5,<1.9`) is deliberately tight; an unsupported version fails import with a message pointing to `isolation="process"`. `.github/workflows/canary.yml` runs the suite against the latest livekit-agents release. When bumping the pin: relock with `uv lock --upgrade-package livekit-agents`, run the full suite against the real SDK, and update the range in `pyproject.toml`, `README.md`, `docs/index.mdx`, `docs/how-it-works.mdx`, `AGENTS.md` and the error message in `coroutine_runtime.py`.
 
 ### Provider passthrough contract
 
@@ -73,6 +75,10 @@ Worker processes can be spawned (LiveKit's default on macOS, and always in `isol
 ### CLI architecture
 
 `cli/__init__.py` re-exports `main` and `app`. `cli/entry_cli.py` is the lazy entrypoint that prints a friendly message if the `cli` extra isn't installed, then defers to `cli/main_cli.py` (the Typer app). Worker subcommands (`start`, `dev`, `console`, `connect`, `download-files`) mirror the LiveKit Agents CLI shape; OpenRTC-only commands are `list`, `logs`, and `top` (live session inspector, `openrtc[top]` adds psutil host vitals). OpenRTC-only flags (`--agents-dir`, `--metrics-jsonl`, etc.) are stripped before handoff in `cli/livekit_cli.py`, which rewrites `sys.argv` and applies env overrides before calling `pool.run()`. `cli/top_cli.py`, `cli/dashboard_cli.py`, `cli/reporter_cli.py` hold the rest; shared helpers live in `cli/base_cli.py`.
+
+### Docs site
+
+The web lives in `web/`: `web/docs/` is docs.openrtc.tech, an Astro static site on Cloudflare Workers (`web/docs/wrangler.jsonc`), the same pattern as voice-prices' prices.mahimai.ca; `web/shared/` holds the theme (tokens, base styles, the mark) shared with the landing page. It renders five files from `docs/` and nothing else: `index.mdx`, `how-it-works.mdx`, `cli.mdx`, `benchmark.mdx`, `changelog.md`. The page list lives in `web/docs/src/lib/site.ts`; `docs/_check_docs.py` fails CI on a missing page, an orphan file, a broken internal link, or an em dash. Keep it to few pages, each complete. `docs/design/` and `docs/audit-2026-05-02.md` are internal notes, not published. Product truth for design work is `PRODUCT.md`; the visual system is `DESIGN.md`.
 
 ### Versioning and release
 
@@ -95,7 +101,7 @@ The full coding-style guide lives in `AGENTS.md` (typing rules, async patterns, 
 - **Branches:** `feat/<topic>` or `fix/<topic>`. Never a `claude/` prefix.
 - **Before every push:** `make ci` (ruff check, ruff format --check, mypy --strict, pytest with the 99% coverage gate) must pass locally.
 - **LiveKit facts come from the docs, not memory.** The project ships the LiveKit Docs MCP server (`.mcp.json`) and LiveKit's agent skills (`.claude/skills/`, start with `reading-livekit-docs`). Check the changelog before touching code that hooks livekit-agents internals.
-- **Docs and UI:** use the `impeccable` skill for any docs-site or frontend work. The house style is the sibling projects: mahimai.ca (`PRODUCT.md`/`DESIGN.md`: charcoal, one lavender accent, Space Grotesk + JetBrains Mono, no em dashes) and voice-prices' Mintlify docs (lead with the problem, measured numbers, tables over prose, say what is not covered and why, generated sections fenced by markers).
+- **Docs and UI:** use the `impeccable` skill for any docs-site or frontend work. The house style is the sibling projects: mahimai.ca (`PRODUCT.md`/`DESIGN.md`: charcoal, one lavender accent, Space Grotesk + JetBrains Mono, no em dashes) and voice-prices' docs (lead with the problem, measured numbers, tables over prose, say what is not covered and why, generated sections fenced by markers).
 - **Keep it minimal.** The `ponytail` skill is installed: reuse what exists, stdlib before dependencies, shortest diff that fixes the root cause.
 - **Performance claims need a measurement.** Compare memory with PSS, not RSS (forked job processes share pages; RSS double counts them), against vanilla livekit-agents on the same machine.
 - **Secrets:** never read or commit `.env` files (denied in `.claude/settings.json`); pass LiveKit credentials as environment variables.

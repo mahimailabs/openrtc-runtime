@@ -1,0 +1,179 @@
+---
+title: "How it works"
+description: "The pool, routing, the two isolation modes, hot reload, openrtc top, tenants and deploys, each with its limits."
+---
+
+A pool is one livekit-agents worker. OpenRTC gives it a single entrypoint that, for every call, picks one of your registered agents, builds its `AgentSession` from your defaults and overrides, and starts it. Everything below hangs off that one entrypoint.
+
+## The pool
+
+Register agents by name, or point the pool at a directory:
+
+```python
+pool = AgentPool(default_llm=openai.responses.LLM(model="gpt-4.1-mini"))
+pool.add("restaurant", RestaurantAgent, tts=openai.TTS(model="gpt-4o-mini-tts"))
+pool.discover(Path("./agents"))   # one module per agent, optional @agent_config
+```
+
+| Setting | Where | Falls back to |
+| --- | --- | --- |
+| `stt`, `llm`, `tts`, `greeting` | `add()` or `@agent_config(...)` | the pool's `default_*` |
+| any other `AgentSession` option | `add(..., **options)` or `session_kwargs=` | livekit's default |
+| turn handling | `session_kwargs` | OpenRTC's default: the multilingual turn detector with VAD interruption |
+
+Without `@agent_config`, a discovered agent's name is its file name. Provider slots take a plugin object or a provider string and pass it to `AgentSession` as is. `agents={"name": Class}` and the one-agent shorthand `agent=Class` register at construction.
+
+Silero VAD and the turn detector load once when the worker starts, not once per call. Define agent classes at module scope: in `process` isolation the registration is pickled into each job process.
+
+## Routing
+
+Each call resolves to one registered agent. The first rule that matches wins:
+
+| Order | Rule | Example |
+| ---: | --- | --- |
+| 1 | `agent` in the job's dispatch metadata | `{"agent": "support"}` |
+| 2 | `demo` in the job's dispatch metadata | `{"demo": "support"}` |
+| 3 | `agent`, then `demo`, in the room's metadata | same shape |
+| 4 | the room name starts with an agent name and a hyphen | `restaurant-call-123` |
+| 5 | the first agent registered | |
+
+A metadata value that names an agent the pool does not have raises `ValueError` and the call is rejected. It never falls through to rule 5. Blank or non-JSON metadata is ignored and the next rule runs.
+
+For your own rules, pass `router=`: a function from the job metadata to an agent name. Returning `None` hands the call to the chain above.
+
+### Scoping which rooms a worker takes
+
+LiveKit offers every room to every unnamed worker in a project. Two or more pools, or a pool beside another agent, will otherwise accept each other's rooms and route them to rule 5. Filter at acceptance time:
+
+```python
+pool = AgentPool(accept_only_registered_rooms=True)   # only rooms rules 1 to 4 map here
+pool = AgentPool(request_fnc=my_filter)                # or your own accept/reject hook
+pool = AgentPool(agent_name="realty")                  # only explicit dispatches named "realty"
+```
+
+<Warning>
+`accept_only_registered_rooms` and the per-agent session caps resolve the agent with the built-in rules 1 to 4. They do not call a custom `router=`. If you use a router, filter rooms with your own `request_fnc`.
+</Warning>
+
+## Isolation modes
+
+| | `coroutine` (default) | `process` |
+| --- | --- | --- |
+| A call runs as | an `asyncio.Task` in the worker process | its own process, forked by livekit-agents |
+| Memory per call, measured | ~22 MB PSS | ~63 MB PSS |
+| CPU | one Python process, so about one core | every core |
+| A crash | fails that call; 5 failures in a row restart the worker | takes down only that process |
+| Memory limit | whole worker: warns at `memory_warn_mb`, drains and restarts at `memory_limit_mb` | per call, enforced by livekit-agents |
+| Load reported to LiveKit | the higher of `active / max_concurrent_sessions` and event-loop lag | livekit's CPU-based load |
+| Hot reload, `openrtc top`, tenant caps | yes | no |
+| livekit-agents dependency | private internals, so pinned to `>=1.5,<1.9` | public API |
+
+The memory figures come from the [benchmark](/benchmark/). Coroutine mode saves memory but not CPU, so a busy worker runs out of CPU first. Run one coroutine worker per core, or use `isolation="process"` when your agents are CPU-bound.
+
+The load signal is what keeps a saturated worker honest. LiveKit stops sending calls to a worker whose load passes 0.7. 60 ms of event-loop lag reads as full load, so dispatch stops at about 42 ms. LiveKit reads load every 2.5 s, so a burst of calls faster than that can land before the signal moves.
+
+## Hot reload
+
+`openrtc dev` watches your agent files. On save:
+
+1. The module is imported into a fresh namespace and checked (compile, import, an `Agent` subclass present). A failure logs the error with its line and keeps the running code.
+2. New calls get the new class immediately.
+3. Each live call is moved to the new class through livekit's `update_agent`. The current turn finishes on the old code, the next turn runs the new code, and the conversation history carries over.
+
+```text
+[reload] restaurant.py changed -> swapped 3 sessions in 12ms
+```
+
+Wrap a step that must not change code mid-flow, such as a payment confirmation:
+
+```python
+from openrtc import pin_reload
+
+with pin_reload(self.session):
+    ...   # this call is not swapped until the block exits
+```
+
+Coroutine mode only: in `process` mode each call is its own process. `openrtc start` never reloads. Turn it on outside `dev` with `AgentPool(enable_hot_reload=True)`.
+
+## Seeing inside the worker
+
+### `openrtc top`
+
+An htop-style table of the calls in a running coroutine worker on the same host, read over a local socket.
+
+| Column | Meaning |
+| --- | --- |
+| `agent`, `tenant` | the registered agent, and `metadata["tenant"]` |
+| `dur(s)` | seconds since the call went live |
+| `mem(MB)`, `peak` | an equal share of the worker's resident memory |
+| `cpu%` | this call's share of sampled on-CPU time |
+| `status` | `active`, or `slow` when the call recently blocked the event loop for more than 50 ms |
+
+One process cannot measure memory per task, so `mem(MB)` is the worker's total divided by its calls: it adds up correctly but does not tell you which call is heavy. `cpu%` and `slow` do. A `slow` call is usually a synchronous call (a blocking HTTP client, a large JSON parse) starving every other call in the worker.
+
+### Observers and metrics
+
+Any object with async `on_session_start(info, session)` and `on_session_end(info, outcome)` methods is a `SessionObserver`. A slow or raising observer is logged and skipped; it never breaks the call.
+
+```python
+pool = AgentPool(observers=[MyTelemetry()])
+```
+
+`--metrics-jsonl PATH` writes one JSON object per line: pool snapshots, and `session_started`, `session_finished` and `session_failed` events, for `tail -f` or `jq`. [CLI](/cli/) has the flags.
+
+## Tenants
+
+A tenant is `metadata["tenant"]` on the dispatch. No key means the `default` tenant, so a single-tenant pool changes nothing.
+
+```python
+pool = AgentPool(
+    agent=SupportAgent,
+    tenant_config={
+        "acme": {"llm": openai.LLM(api_key="acme-key")},
+        "globex": {"llm": anthropic.LLM(api_key="globex-key")},
+    },
+    max_sessions_per_tenant={"acme": 50, "globex": 100},
+    enable_tenant_circuit_breaker=True,
+)
+```
+
+| Feature | Behaviour |
+| --- | --- |
+| `tenant_config` | per-tenant STT, LLM and TTS, so keys are never shared. A provider left out falls back to the agent's. |
+| `max_sessions_per_tenant`, `max_sessions_per_agent` | a tenant or agent at its cap is rejected while the others keep accepting |
+| `enable_tenant_circuit_breaker` | when at least half of a tenant's last 60 s of calls failed (5 calls minimum), its new calls are rejected for `tenant_circuit_cooldown_s` (30 s), then it recovers |
+
+Agent code reads the tenant with `from openrtc.context import current_tenant_id`. It is also on `openrtc top --tenant`, the observer payload, and `runtime_snapshot().sessions_by_tenant`.
+
+<Warning>
+Tenants share one process: this confines load and failures, not memory access. For a hard boundary between clients, run a worker per tenant. The caps and the breaker need `isolation="coroutine"`; `AgentPool` raises if you combine them with `process`.
+</Warning>
+
+## Deploys
+
+A live WebRTC call with streaming STT, LLM and TTS cannot be moved to another process, so OpenRTC does not try. Deploys drain: the new version takes new calls, the old one finishes its calls and exits.
+
+On SIGTERM the worker stops taking calls and waits up to `drain_timeout` (30 s by default) for the ones in flight. That much is livekit-agents. OpenRTC adds:
+
+- `deployment_version="v2.0.0"`, shown in `runtime_snapshot()` and on audit events,
+- `pool.begin_drain()`, to start draining from your own code (coroutine mode),
+- an `audit_sink=` callback, which receives a `deployment.drain_started` event, plus `pool.audit_log.emit(...)` for your own deploy steps.
+
+Starting the new version, moving traffic, and retiring the old one is your platform's job: a Kubernetes rolling update, or a LiveKit worker rotation.
+
+## Public API
+
+The supported surface is `openrtc.__all__`. Everything else can change between releases.
+
+| Name | What it is |
+| --- | --- |
+| `AgentPool` | the pool |
+| `agent_config`, `AgentConfig`, `AgentDiscoveryConfig` | per-agent settings, by decorator or from `add()` |
+| `ProviderValue` | a provider slot: a plugin object or a provider string |
+| `RequestFilter` | the type of a `request_fnc` accept/reject hook |
+| `SessionObserver`, `SessionInfo`, `SessionOutcome`, `SessionStatus` | observer protocol and payloads |
+| `pin_reload`, `is_pinned` | keep a call off hot reload for a block |
+| `FileWatcher`, `FileChange` | the file watcher behind hot reload |
+| `__version__` | the installed version |
+
+Agent code may also import `current_tenant_id`, `current_agent_name` and `current_session_id` from `openrtc.context`.
