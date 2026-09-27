@@ -71,7 +71,7 @@ openrtc list ./agents --default-llm openai/gpt-4.1-mini --plain
 
 ## openrtc top
 
-Connects to a running coroutine-mode worker on the same host. [How it works](/how-it-works/#openrtc-top) explains the columns.
+Connects to a running worker on the same host, in either isolation mode. [How it works](/how-it-works/#openrtc-top) explains the columns.
 
 ```bash
 openrtc top                      # live, 1 Hz
@@ -89,7 +89,7 @@ openrtc top --tenant acme        # one tenant
 | `--agent`, `--tenant` | all | show one agent or tenant |
 | `--socket PATH` | per-user default | the worker's introspection socket |
 
-Keys while live: `q` quit, `r` refresh, `s` next sort column, `f` next status filter. With no worker on the socket, it says so instead of failing. A worker in `process` isolation, or built with `enable_introspection=False`, serves no socket.
+Keys while live: `q` quit, `r` refresh, `s` next sort column, `f` next status filter. With no worker on the socket, it says so instead of failing. A worker built with `enable_introspection=False` serves no socket.
 
 ## openrtc logs
 
