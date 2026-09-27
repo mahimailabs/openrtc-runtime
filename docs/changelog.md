@@ -18,6 +18,15 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Hot reload keeps the live conversation
+
+**Fixed**
+
+- `openrtc dev` re-bound live sessions to a freshly built agent with an empty
+  chat context, so the LLM forgot the call so far after every save. The new
+  agent now starts with the old agent's conversation history; the reloaded
+  instructions still replace the old ones.
+
 ### Per-agent / per-tenant caps and the circuit breaker fail fast in process mode
 
 **Fixed**
