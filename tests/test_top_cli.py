@@ -41,7 +41,6 @@ def _snapshot() -> TopSnapshot:
             max_sessions=200,
             started=0,
             failed=0,
-            saved_bytes=None,
             draining=False,
             system=SystemStats(),
             cpu_history=(),

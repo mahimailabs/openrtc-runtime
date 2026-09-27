@@ -112,24 +112,6 @@ def test_file_size_bytes_returns_zero_when_path_missing(tmp_path: Path) -> None:
     assert file_size_bytes(tmp_path / "missing.txt") == 0
 
 
-def test_estimate_savings_short_circuits_when_agent_count_zero() -> None:
-    from openrtc.observability.savings import estimate_shared_worker_savings
-
-    estimate = estimate_shared_worker_savings(agent_count=0, shared_worker_bytes=100)
-
-    assert estimate.estimated_separate_workers_bytes is None
-    assert estimate.estimated_saved_bytes is None
-
-
-def test_estimate_savings_short_circuits_when_shared_worker_bytes_none() -> None:
-    from openrtc.observability.savings import estimate_shared_worker_savings
-
-    estimate = estimate_shared_worker_savings(agent_count=3, shared_worker_bytes=None)
-
-    assert estimate.estimated_separate_workers_bytes is None
-    assert estimate.estimated_saved_bytes is None
-
-
 def test_get_process_resident_set_info_for_linux_branch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

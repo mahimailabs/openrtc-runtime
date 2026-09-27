@@ -77,7 +77,6 @@ def _default_worker_context() -> WorkerContext:
         uptime_s=0.0,
         started=0,
         failed=0,
-        saved_bytes=None,
         draining=False,
     )
 

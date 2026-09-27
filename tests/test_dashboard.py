@@ -1,7 +1,7 @@
 """Unit tests for ``openrtc.cli.dashboard_cli`` rendering helpers.
 
 The CLI integration tests cover the happy paths via ``CliRunner``; this
-module pins the small pure helpers (`_format_percent`, `_memory_style`,
+module pins the small pure helpers (`_memory_style`,
 `_truncate_cell`) and the ``plain`` print-output branches that the
 integration tests don't exercise individually.
 """
@@ -15,7 +15,6 @@ from livekit.agents import Agent
 
 from openrtc import AgentPool
 from openrtc.cli.dashboard_cli import (
-    _format_percent,
     _memory_style,
     _truncate_cell,
     print_list_plain,
@@ -29,17 +28,6 @@ from openrtc.observability.snapshot import ProcessResidentSetInfo
 class TinyAgent(Agent):
     def __init__(self) -> None:
         super().__init__(instructions="x")
-
-
-def test_format_percent_returns_dash_when_inputs_missing() -> None:
-    assert _format_percent(None, 100) == "-"
-    assert _format_percent(50, None) == "-"
-    assert _format_percent(50, 0) == "-"
-
-
-def test_format_percent_rounds_ratio_to_zero_decimals() -> None:
-    assert _format_percent(33, 100) == "33%"
-    assert _format_percent(666, 1000) == "67%"
 
 
 def test_memory_style_returns_white_when_value_unknown() -> None:

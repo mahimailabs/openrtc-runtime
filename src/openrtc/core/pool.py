@@ -165,6 +165,11 @@ class AgentPool:
         recovering. This confines one tenant's bad code path so it cannot keep
         consuming slots or trip the worker supervisor for the healthy tenants.
 
+        The per-agent / per-tenant caps and the circuit breaker need
+        ``isolation="coroutine"``; combining them with ``"process"`` raises
+        ``ValueError`` (each process-mode call counts in its own process, so the
+        worker could never enforce them).
+
         ``agent_name`` sets the worker's LiveKit dispatch name. The default
         (``None``) registers an *unnamed* worker for **automatic dispatch**:
         LiveKit offers it every room and the pool's own router picks the agent.
@@ -206,6 +211,18 @@ class AgentPool:
         if agent is not None and agents is not None:
             raise ValueError("Pass either agent or agents, not both.")
         validate_isolation(isolation)
+        if isolation == "process" and (
+            max_sessions_per_agent
+            or max_sessions_per_tenant
+            or enable_tenant_circuit_breaker
+        ):
+            # Each call runs in its own process with its own copy of the metrics, so
+            # the admission filters in the worker would never see a session: the caps
+            # and breaker would silently do nothing.
+            raise ValueError(
+                "max_sessions_per_agent, max_sessions_per_tenant and "
+                "enable_tenant_circuit_breaker require isolation='coroutine'."
+            )
         # The voice framework this pool runs on (livekit). resolve_backend_builder
         # rejects an unknown name and imports the framework lazily.
         self._backend_name = backend
@@ -389,7 +406,7 @@ class AgentPool:
         self._introspection = runtime
 
     def _worker_context(self) -> WorkerContext:
-        """Pool-derived facts for the ``openrtc top`` header (uptime, caps, savings)."""
+        """Pool-derived facts for the ``openrtc top`` header (uptime, caps, failures)."""
         import socket
 
         from openrtc.observability.worker_stats import WorkerContext
@@ -401,7 +418,6 @@ class AgentPool:
             uptime_s=snap.uptime_seconds,
             started=snap.total_sessions_started,
             failed=snap.total_session_failures,
-            saved_bytes=snap.savings_estimate.estimated_saved_bytes,
             draining=snap.draining,
         )
 

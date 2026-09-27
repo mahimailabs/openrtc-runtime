@@ -13,8 +13,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from openrtc.observability.resident_set import process_resident_set_bytes
-from openrtc.observability.savings import format_prewarm_savings
 from openrtc.runtime.resources import PrewarmResources
 
 if TYPE_CHECKING:
@@ -37,16 +35,6 @@ def _prewarm_worker(
         vad=silero_module.VAD.load(),
         turn_detection_factory=turn_detector_model,
     ).store(proc)
-
-    # Day-one payoff: surface the fleet-collapse idle-baseline saving once per
-    # worker, post-prewarm (RSS is now the per-worker baseline), so existing
-    # livekit-agents users see the win on first run without --dashboard.
-    logger.info(
-        format_prewarm_savings(
-            agent_count=len(runtime_state.agents),
-            shared_worker_bytes=process_resident_set_bytes(),
-        )
-    )
 
 
 def _load_shared_runtime_dependencies() -> tuple[Any, type[Any]]:

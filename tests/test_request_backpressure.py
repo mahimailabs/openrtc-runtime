@@ -246,3 +246,19 @@ async def test_pool_installed_filter_rejects_over_cap_agent_against_live_store()
         await fnc(req)
         assert req.accepted, f"{sibling} should accept while sales is at cap"
         assert not req.rejected
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"max_sessions_per_agent": {"dental": 2}},
+        {"max_sessions_per_tenant": {"acme": 5}},
+        {"enable_tenant_circuit_breaker": True},
+    ],
+)
+def test_caps_and_breaker_are_rejected_in_process_isolation(
+    options: dict[str, Any],
+) -> None:
+    """Process mode counts each call in its own process, so these would never trip."""
+    with pytest.raises(ValueError, match="require isolation='coroutine'"):
+        AgentPool(isolation="process", **options)

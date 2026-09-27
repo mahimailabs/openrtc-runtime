@@ -29,6 +29,7 @@ tenant rejects the session rather than silently mislabeling it.
 | **Config isolation** | Per-tenant STT/LLM/TTS providers and keys, resolved at session start. One tenant's key is never used for another's session. | `tenant_config` |
 | **Resource fairness** | Per-tenant session caps: a tenant at its cap is rejected while siblings keep accepting. | `max_sessions_per_tenant` |
 | **Blast-radius isolation** | A per-tenant circuit breaker opens when a tenant's failure rate trips, rejecting its new sessions for a cooldown, then auto-recovers. | `enable_tenant_circuit_breaker` |
+| **Mode** | The per-tenant caps and circuit breaker need `isolation="coroutine"`; combining them with `"process"` raises `ValueError` (each process-mode call counts in its own process). | `isolation` |
 | **Tagging** | Tenant on every worker-internal signal (`openrtc top --tenant`, scoped logs, `runtime_snapshot().sessions_by_tenant`) and on the observer payload. | always on |
 
 ```python

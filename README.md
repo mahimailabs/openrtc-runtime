@@ -310,7 +310,7 @@ pool = AgentPool(
 
 Provider keys are never shared across tenants; a tenant at its cap is rejected while siblings keep accepting; and a tenant whose calls start failing has its new sessions rejected for a cooldown (then auto-recovers) without touching the healthy tenants. The tenant is on every worker-internal signal (`openrtc top --tenant`, scoped logs, `runtime_snapshot().sessions_by_tenant`) and on the `SessionObserver` payload, so voicegateway attributes per-tenant cost with no extra config. Agent code reads it with `from openrtc.context import current_tenant_id`.
 
-Coroutine mode is shared-process isolation, not an OS sandbox: for a hard compliance wall run `isolation="process"` or a worker per tenant. Full model, guarantees, and limits: [multi-tenancy guide](docs/concepts/multi-tenancy.md), plus [onboarding](docs/runbooks/onboarding-a-tenant.md) and [incident](docs/runbooks/tenant-incident.md) runbooks.
+Coroutine mode is shared-process isolation, not an OS sandbox: for a hard compliance wall run `isolation="process"` or a worker per tenant. The per-tenant caps and circuit breaker need coroutine mode (`isolation="process"` rejects them), so a process-mode deployment enforces tenant limits with a worker per tenant. Full model, guarantees, and limits: [multi-tenancy guide](docs/concepts/multi-tenancy.md), plus [onboarding](docs/runbooks/onboarding-a-tenant.md) and [incident](docs/runbooks/tenant-incident.md) runbooks.
 
 ## Zero-downtime deploys
 
@@ -435,7 +435,6 @@ src/openrtc/
 │   ├── metrics.py         # RuntimeMetricsStore, footprint helpers
 │   ├── snapshot.py        # PoolRuntimeSnapshot dataclass
 │   ├── resident_set.py    # RSS memory helpers
-│   ├── savings.py         # cost-savings estimator
 │   └── footprint.py       # per-session memory footprint
 ├── cli/                   # base_cli.py + variant siblings
 │   ├── base_cli.py        # shared Typer args and parameter bundles
