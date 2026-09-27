@@ -272,8 +272,8 @@ def test_loop_lag_raises_load_above_session_pressure() -> None:
     )
     assert pool.current_load() == 0.0
 
-    pool.record_loop_lag(250.0)  # one sample; EWMA 0.2 -> 50 ms -> load 0.5
-    assert pool.loop_lag_ms == 50.0
+    pool.record_loop_lag(150.0)  # one sample; EWMA 0.2 -> 30 ms -> load 0.5
+    assert pool.loop_lag_ms == 30.0
     assert pool.current_load() == 0.5
 
     for _ in range(50):

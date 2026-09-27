@@ -44,9 +44,9 @@ _BYTES_PER_MB = 1024 * 1024
 # loop, so a saturated loop (CPU-bound, not session-count-bound) must report
 # "full" or LiveKit keeps sending calls the worker can no longer serve in real
 # time. Lag is sampled every interval and smoothed (EWMA); a smoothed lag of
-# ``_LOOP_LAG_FULL_MS`` reports load 1.0 (LiveKit's prod threshold 0.7 ~ 70 ms).
+# ``_LOOP_LAG_FULL_MS`` reports load 1.0 (LiveKit's prod threshold 0.7 ~ 42 ms).
 _LOOP_LAG_SAMPLE_INTERVAL_SECONDS = 0.1
-_LOOP_LAG_FULL_MS = 100.0
+_LOOP_LAG_FULL_MS = 60.0
 _LOOP_LAG_SMOOTHING = 0.2
 
 

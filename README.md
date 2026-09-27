@@ -142,7 +142,7 @@ pool = AgentPool(
 | Prewarm (VAD, turn detector) | Loaded once per worker. | Loaded once per session subprocess. |
 | Crash isolation | Cooperative: an unhandled exception is logged and the session marked `FAILED`; siblings continue. `consecutive_failure_limit` consecutive failures (default 5) schedule `aclose()` so the platform restarts the worker; one `SUCCESS` resets the counter. | Hard: each subprocess crashes independently. |
 | Memory cap | Worker-level (one process): warns at `memory_warn_mb` and drains + restarts the worker at `memory_limit_mb`, measured against whole-worker RSS, not per session. | Per-session: livekit-agents enforces `memory_limit_mb` per subprocess. |
-| Backpressure | `current_load()` reports the higher of `active / max_concurrent_sessions` and event-loop lag (smoothed; 100 ms of lag reads as full), so a CPU-saturated worker stops taking calls. Advisory only (not a hard gate); sessions LiveKit still sends are launched. | `livekit-agents` default CPU-based load. |
+| Backpressure | `current_load()` reports the higher of `active / max_concurrent_sessions` and event-loop lag (smoothed; 60 ms of lag reads as full), so a CPU-saturated worker stops taking calls. Advisory only (not a hard gate); sessions LiveKit still sends are launched. | `livekit-agents` default CPU-based load. |
 | Dependency surface | Uses `livekit-agents` private job internals; pinned to `>=1.5,<1.9`. An unsupported version fails import with a message pointing to `isolation="process"`. | Public, version-stable API. |
 | When to pick | Memory-bound hosts (small containers, memory-priced platforms); lowest memory per call. One process uses about one core of Python, so run one worker per core. | CPU-bound workloads (uses every core), hard crash isolation, per-session memory caps. |
 
@@ -163,12 +163,12 @@ Read that as an on-loop-CPU ceiling, not a full-pipeline guarantee: the harness 
 
 **Head-to-head with stock `livekit-agents`.** Same agent, full pipeline (real rooms on a local livekit-server 1.13, WebRTC audio in and out, Silero VAD, turn detector, STT/LLM/TTS stand-ins with realistic latency), `livekit-agents` 1.8.3, worker pinned to 2 cores, memory as PSS (RSS double counts the pages forked job processes share):
 
-| Calls | Mode | Agents that answered | Memory per call | CPU for 8 calls |
+| Calls | Mode | Agents that answered | Memory per call | CPU (2 cores = 200%) |
 | ---: | :--- | ---: | ---: | ---: |
 | 8 | stock `livekit-agents` (process per job) | 8/8 | ~63 MB | ~103% |
 | 8 | OpenRTC coroutine | 8/8 | ~22 MB | ~130% |
-| 16 | stock `livekit-agents` (process per job) | 16/16 | | |
-| 16 | OpenRTC coroutine | 14/16 | | |
+| 16 | stock `livekit-agents` (process per job) | 16/16 | ~56 MB | n/a |
+| 16 | OpenRTC coroutine | 14/16 | ~18 MB | n/a |
 
 Both idle at about 1.2 GB (runtime plus the shared turn-detector process). Stock `livekit-agents` 1.8 forks jobs from a preloaded forkserver, so a job costs tens of MB, not gigabytes. What this means in practice:
 
