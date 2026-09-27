@@ -35,6 +35,25 @@ def _never_pinned(_session: AgentSession[Any]) -> bool:
     return False
 
 
+def _carry_history(old_agent: Agent, new_agent: Agent) -> None:
+    """Seed ``new_agent`` with ``old_agent``'s conversation before it is activated.
+
+    A freshly built agent starts with an empty chat context, so without this a
+    reload wipes the live call's LLM history. livekit swaps the instructions
+    message for the new agent's own when its activity starts, so the reloaded
+    instructions still apply. ``update_chat_ctx`` on an agent with no activity is
+    a plain copy that never suspends, so it is driven here without an event loop
+    (``rebind_agent`` must stay synchronous for the atomic swap).
+    """
+    step = new_agent.update_chat_ctx(old_agent.chat_ctx)
+    try:
+        step.send(None)
+    except StopIteration:
+        return
+    step.close()
+    raise RuntimeError("update_chat_ctx suspended on an agent that is not running")
+
+
 def rebind_agent(
     config: AgentConfig,
     new_cls: type[Agent],
@@ -70,7 +89,9 @@ def rebind_agent(
         try:
             # User Agent subclasses override __init__ with no required args, the
             # same call shape core/wiring.py uses to build a session's agent.
-            session.update_agent(new_cls())  # type: ignore[call-arg]
+            new_agent = new_cls()  # type: ignore[call-arg]
+            _carry_history(session.current_agent, new_agent)
+            session.update_agent(new_agent)
         except Exception:  # noqa: BLE001 - one bad session must not abort the swap
             logger.warning(
                 "[reload] failed to re-bind a live session of agent '%s'",

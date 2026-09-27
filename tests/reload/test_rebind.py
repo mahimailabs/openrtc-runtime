@@ -161,3 +161,43 @@ def test_only_sessions_of_this_agent_are_touched() -> None:
 
     assert isinstance(mine.current_agent, NewAgent)
     assert other.update_calls == []
+
+
+def test_rebind_carries_conversation_history_to_the_new_agent() -> None:
+    """A live call keeps its history across a reload; the new instructions apply."""
+    from livekit.agents.llm import ChatContext
+
+    old = OldAgent()
+    history = ChatContext.empty()
+    history.add_message(role="user", content="Book a table for two.")
+    history.add_message(role="assistant", content="For what time?")
+    asyncio.run(old.update_chat_ctx(history))  # unstarted agent: plain copy
+    session = _FakeSession(old)
+    reg = LiveSessionRegistry()
+    _register(reg, "foo", session, "j1")
+
+    assert rebind_agent(_config(), NewAgent, reg) == 1
+
+    new_agent = session.current_agent
+    assert type(new_agent) is NewAgent
+    texts = [m.text_content for m in new_agent.chat_ctx.messages()]
+    assert texts == ["Book a table for two.", "For what time?"]
+    assert new_agent.instructions == "new"
+
+
+class _SuspendingAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions="suspends")
+
+    async def update_chat_ctx(self, chat_ctx: Any, **_: Any) -> None:
+        await asyncio.sleep(0)
+
+
+def test_history_copy_that_suspends_leaves_the_session_on_the_old_agent() -> None:
+    old = OldAgent()
+    session = _FakeSession(old)
+    reg = LiveSessionRegistry()
+    _register(reg, "foo", session, "j1")
+    assert rebind_agent(_config(), _SuspendingAgent, reg) == 0
+    assert session.current_agent is old
+    assert session.update_calls == []
