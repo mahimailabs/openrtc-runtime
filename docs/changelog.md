@@ -18,6 +18,15 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Per-agent / per-tenant caps and the circuit breaker fail fast in process mode
+
+**Fixed**
+
+- In `isolation="process"` each call runs in its own process with its own copy
+  of the session metrics, so `max_sessions_per_agent`, `max_sessions_per_tenant`
+  and `enable_tenant_circuit_breaker` were silently never enforced. Combining
+  them with `isolation="process"` now raises `ValueError` at construction.
+
 ### Removed the shared-worker "savings" estimate
 
 **Removed**
