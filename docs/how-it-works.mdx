@@ -66,7 +66,8 @@ pool = AgentPool(agent_name="realty")                  # only explicit dispatche
 | Memory limit | whole worker: warns at `memory_warn_mb`, drains and restarts at `memory_limit_mb` | per call, enforced by livekit-agents |
 | Load reported to LiveKit | the higher of `active / max_concurrent_sessions` and event-loop lag | livekit's CPU-based load |
 | Per-agent and per-tenant caps | yes | yes, counted from livekit's running jobs |
-| Hot reload, `openrtc top`, tenant circuit breaker | yes | no |
+| `openrtc top` | yes, with `slow` detection | yes, each call's own memory and CPU |
+| Hot reload, tenant circuit breaker | yes | no |
 | livekit-agents dependency | private internals, so pinned to `>=1.5,<1.9` | public API |
 
 The figures come from the [benchmark](/benchmark/). Coroutine mode saves memory, and on uvloop costs about the same CPU per call, but one worker still tops out at about one core. Run one coroutine worker per core, or use `isolation="process"` when your agents are CPU-bound.
@@ -104,7 +105,7 @@ Coroutine mode only: in `process` mode each call is its own process. `openrtc st
 
 ### `openrtc top`
 
-An htop-style table of the calls in a running coroutine worker on the same host, read over a local socket.
+An htop-style table of the calls in a running worker on the same host, read over a local socket. It works in both isolation modes; what each column measures differs.
 
 | Column | Meaning |
 | --- | --- |
@@ -115,7 +116,9 @@ An htop-style table of the calls in a running coroutine worker on the same host,
 | `status` | `active`, or `slow` when the call recently blocked the event loop for more than 50 ms |
 | `pin` | reserved: always blank today, even inside a `pin_reload` block |
 
-One process cannot measure memory per task, so `MEM~` is the worker's total divided by its calls: it adds up correctly but does not tell you which call is heavy. `CPU%` and `slow` do. A `slow` call is usually a synchronous call (a blocking HTTP client, a large JSON parse) starving every other call in the worker.
+One process cannot measure memory per task, so in coroutine mode `MEM~` is the worker's total divided by its calls: it adds up correctly but does not tell you which call is heavy. `CPU%` and `slow` do. A `slow` call is usually a synchronous call (a blocking HTTP client, a large JSON parse) starving every other call in the worker.
+
+In process mode every call has its own process, so the numbers are that process's own: `MEM~` is its PSS (its share of pages it shares with the others; RSS where the OS has no PSS), and `CPU%` is its CPU over the last refresh. The rows come from livekit's running jobs, and each job process reports its pid into a private directory next to the socket. There is no `slow`: calls do not share a loop, so one cannot block another. The header's `failed` stays 0, because a job's outcome is only known inside its own process.
 
 ### Observers and metrics
 

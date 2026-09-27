@@ -280,3 +280,50 @@ def test_build_session_uses_resolved_config_and_prewarm_vad(monkeypatch) -> None
     assert resolved is config
     assert captured["vad"] == "VAD"
     assert info.agent_name == "a"
+
+
+@pytest.mark.asyncio
+async def test_run_session_records_its_pid_for_process_mode_top(
+    monkeypatch, tmp_path
+) -> None:
+    """With a job pid dir set, the job process writes its pid under its job id."""
+    import os
+
+    from openrtc.core import wiring
+
+    config = SimpleNamespace(
+        name="a",
+        stt="s",
+        llm="l",
+        tts="t",
+        session_kwargs={},
+        greeting=None,
+        agent_cls=lambda: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        wiring, "_resolve_agent_config", lambda agents, ctx, *, router=None: config
+    )
+    monkeypatch.setattr(wiring, "_build_session_kwargs", lambda kw, proc, ie=None: {})
+
+    class _FakeSession:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        async def start(self, **kwargs: object) -> None:
+            return None
+
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
+
+    async def _connect() -> None:
+        return None
+
+    ctx = SimpleNamespace(
+        proc=SimpleNamespace(userdata={"vad": "VAD"}),
+        room=SimpleNamespace(name="a-1", metadata=None),
+        job=SimpleNamespace(id="AJ_1", metadata=None),
+        connect=_connect,
+    )
+    state = _PoolRuntimeState(agents={"a": config}, job_pid_dir=str(tmp_path / "jobs"))
+    await wiring.run_session(state, ctx)
+
+    assert (tmp_path / "jobs" / "AJ_1").read_text() == str(os.getpid())

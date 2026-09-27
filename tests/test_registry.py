@@ -6,6 +6,7 @@ import pytest
 from livekit.agents import AgentServer
 
 from openrtc.runtime.coroutine_server import _CoroutineAgentServer
+from openrtc.runtime.process_runtime import _ProcessAgentServer
 from openrtc.runtime.registry import ServerParams, resolve_server_builder
 
 _PARAMS = ServerParams(
@@ -13,9 +14,12 @@ _PARAMS = ServerParams(
 )
 
 
-def test_process_builder_returns_plain_agent_server() -> None:
+def test_process_builder_returns_livekit_agent_server() -> None:
+    """Process mode runs livekit's own server; the subclass only adds top's socket."""
     server = resolve_server_builder("process")(_PARAMS)
-    assert type(server) is AgentServer
+    assert isinstance(server, _ProcessAgentServer)
+    assert isinstance(server, AgentServer)
+    assert not isinstance(server, _CoroutineAgentServer)
 
 
 def test_coroutine_builder_returns_coroutine_server() -> None:

@@ -19,7 +19,9 @@ from openrtc.runtime.registry import ServerParams, resolve_server_builder
 if TYPE_CHECKING:
     from openrtc.core.wiring import _PoolRuntimeState
     from openrtc.observability.introspection_runtime import IntrospectionRuntime
+    from openrtc.observability.process_top import ProcessIntrospectionRuntime
     from openrtc.runtime.coroutine_server import _CoroutineAgentServer
+    from openrtc.runtime.process_runtime import _ProcessAgentServer
     from openrtc.utils.types import RequestFilter
 
 __all__ = ["LiveKitBackend", "build_backend"]
@@ -48,13 +50,21 @@ class LiveKitBackend:
         """Bind shared prewarm and the universal session entrypoint onto the server."""
         wire_pool(self._server, runtime_state, request_fnc, agent_name=agent_name)
 
-    def attach_introspection(self, runtime: IntrospectionRuntime) -> None:
-        """Hand the stack to the coroutine ``AgentServer`` (shared with its pool).
+    def attach_introspection(
+        self, runtime: IntrospectionRuntime | ProcessIntrospectionRuntime
+    ) -> None:
+        """Hand the stack to the server that runs it around the worker.
 
-        The pool gates on coroutine isolation before calling this, so the wrapped
-        server is always the ``_CoroutineAgentServer`` that exposes the hook.
+        The pool builds the stack for its own isolation, so the in-process stack
+        reaches the ``_CoroutineAgentServer`` (shared with its pool) and the
+        per-job-process one reaches the ``_ProcessAgentServer``.
         """
-        cast("_CoroutineAgentServer", self._server).attach_introspection(runtime)
+        from openrtc.observability.process_top import ProcessIntrospectionRuntime
+
+        if isinstance(runtime, ProcessIntrospectionRuntime):
+            cast("_ProcessAgentServer", self._server).attach_introspection(runtime)
+        else:
+            cast("_CoroutineAgentServer", self._server).attach_introspection(runtime)
 
     def run(self) -> None:
         """Hand the worker to livekit's CLI runtime (blocking until it exits)."""

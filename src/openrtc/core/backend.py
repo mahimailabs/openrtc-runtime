@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from openrtc.core.wiring import _PoolRuntimeState
     from openrtc.observability.introspection_runtime import IntrospectionRuntime
+    from openrtc.observability.process_top import ProcessIntrospectionRuntime
     from openrtc.utils.types import RequestFilter
 
 __all__ = ["Backend"]
@@ -43,12 +44,14 @@ class Backend(Protocol):
         """Bind shared prewarm and the universal session entrypoint onto the server."""
         ...
 
-    def attach_introspection(self, runtime: IntrospectionRuntime) -> None:
+    def attach_introspection(
+        self, runtime: IntrospectionRuntime | ProcessIntrospectionRuntime
+    ) -> None:
         """Bind the ``openrtc top`` introspection stack to the substrate.
 
-        Called only in coroutine isolation (the pool gates on it). The livekit
-        backend hands the stack to its coroutine ``AgentServer`` (shared with the
-        ``CoroutinePool`` it builds).
+        The pool passes the stack that fits its isolation: the in-process one for
+        coroutine mode, the per-job-process one for process mode. The livekit
+        backend hands it to its ``AgentServer``, which runs it around the worker.
         """
         ...
 
