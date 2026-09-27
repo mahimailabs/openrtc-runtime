@@ -7,6 +7,21 @@ description: Every change to OpenRTC, newest first, with migration notes. Releas
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### `--port` on the worker commands
+
+**Added**
+
+- `openrtc start|dev|console --port N` sets the worker's HTTP port, the CLI
+  side of `AgentPool(port=...)`. `OPENRTC_PORT` still works; the flag wins.
+
+**Fixed**
+
+- `--isolation` and `--max-concurrent-sessions` made `openrtc start`, `dev`
+  and `console` exit with "No such option", because they reached
+  livekit-agents' own CLI parser. They are now stripped before the hand-off,
+  like the other OpenRTC-only flags. The `OPENRTC_ISOLATION` and
+  `OPENRTC_MAX_CONCURRENT_SESSIONS` variables were not affected.
+
 ---
 
 <!-- releases -->
