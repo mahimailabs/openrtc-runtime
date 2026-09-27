@@ -203,15 +203,15 @@ This is the mahimai.ca world (see `/home/user/mahimai.ca/DESIGN.md`, the parent 
 
 Density is low and even. Pages are long single columns, not dashboards. Every docs page has the same frame (sticky top bar, title and lede, MDX body, previous/next pager, edit link); only the docs home adds a lead-in with the install line and the terminal capture.
 
-The landing page (`web/landing/`) is the same world bent toward persuading: the hero is the worker running, a simulated `openrtc top` console larger than the copy beside it, followed by one-column chapters on a hairline (code before and after, the features ruled with their limits, the measured benchmark bars, a closing call to action). It adds no new colors, fonts or depth; it adds one animation, confined to the console.
+The landing page (`web/landing/`) is the same world bent toward persuading: the hero is the worker running: a short head over a simulated `openrtc top` console at full width, with a rail of four beats lit in sync. Then one-column chapters on a hairline (a routing diagram of calls reaching their agents, code before and after, the features ruled with their limits, the measured benchmark bars, a closing call to action). It adds no new colors, fonts or depth. Its motion is the console loop with its beats, and a dot riding each route in the diagram; both stop for reduced motion.
 
 Both surfaces read one source. Tokens, base elements and the shared chrome (skip link, top bar, footer, mark, buttons, theme toggle, install line) live in `web/shared/theme.css`, imported by `web/docs/src/styles/global.css` and `web/landing/src/styles/landing.css` after each app loads its fonts. The shared components are `web/shared/Mark.astro`, `ThemeToggle.astro`, `ThemeScript.astro` (sets the theme before first paint) and `InstallCommand.astro`. In CSS the frontmatter slugs appear as `--bg` (ground), `--accent` (signal), `--accent-deep` (signal-deep) and `--on-accent` (on-signal); the rest keep their names, and the light values are the same properties under `:root[data-theme='light']`.
 
-What differs from the parent: no dot-grid background texture (the ground is flat `ground`); the four-dot OpenRTC mark replaces the panther as the one identity device; tables stack into labelled rows on phones; a sticky contents rail tracks the section being read; the shell is 76rem, not 80rem; and a second row of page links scrolls under the top bar on narrow screens instead of a menu.
+What differs from the parent: no dot-grid background texture (the ground is flat `ground`); the OpenRTC ring mark replaces the panther as the one identity device; tables stack into labelled rows on phones; a sticky contents rail tracks the section being read; the shell is 76rem, not 80rem; and a second row of page links scrolls under the top bar on narrow screens instead of a menu.
 
 **Key Characteristics:**
 - Flat charcoal ground, hairline rules, no texture and no shadows.
-- One lavender signal for links, the primary action, the focus ring, the live mark dot and the active contents-rail item.
+- One lavender signal for links, the primary action, the focus ring, the mark's live arc and bar, and the active contents-rail item.
 - Space Grotesk 500 for everything readable; JetBrains Mono for code, flags, table headers and measurements.
 - Prose held to a 46rem measure; tables and code blocks may take the whole column.
 - Dark by default; light is the same roles with the signal deepened.
@@ -222,7 +222,7 @@ What differs from the parent: no dot-grid background texture (the ground is flat
 A near-black neutral ramp with a single lavender signal and two quiet status hues.
 
 ### Primary
-- **Signal Lavender** (`signal`; `light-signal` in light theme): links (underlined, underline at 40% signal), the primary button, the focus outline, text selection, the lit dot of the mark, the active contents-rail border, and `accent-color` on native controls. Pressed and hover state steps to **Pressed Lavender** (`signal-deep` / `light-signal-deep`). Text on a signal fill uses `on-signal`.
+- **Signal Lavender** (`signal`; `light-signal` in light theme): links (underlined, underline at 40% signal), the primary button, the focus outline, text selection, the mark's live arc and middle bar, the active contents-rail border, and `accent-color` on native controls. Pressed and hover state steps to **Pressed Lavender** (`signal-deep` / `light-signal-deep`). Text on a signal fill uses `on-signal`.
 
 ### Secondary
 - **Ok Green** (`ok` / `light-ok`): only the copy button's done state.
@@ -236,11 +236,11 @@ A near-black neutral ramp with a single lavender signal and two quiet status hue
 - **Strong Hairline** (`line-strong` / `light-line-strong`): table header rule, button and install-line borders, hover border on quiet controls, scrollbar thumb.
 - **Ink** (`ink` / `light-ink`): headings, strong text, current nav item.
 - **Soft Ink** (`ink-soft` / `light-ink-soft`): body prose and ledes.
-- **Muted** (`muted` / `light-muted`): nav links at rest, table headers, list markers, pager captions, the unlit mark dots and frame, feature limits, the star count.
+- **Muted** (`muted` / `light-muted`): nav links at rest, table headers, list markers, pager captions, the mark's ring and quiet bars, feature limits, the star count.
 - **Terminal** (`terminal`, both themes): the fill of the docs capture frame and the landing console. Inside the console the neutral ramp is literal dark values, with **Terminal Dim** (`terminal-dim`) for session ids, tenants, column heads, timestamps and the key hints.
 
 ### Named Rules
-**The One Signal Rule.** Lavender marks links, the primary action, focus and data marks only (the live mark dot, the console's `[reload]` tag, OpenRTC's benchmark bar). Never rules, headings, labels or decoration. One primary button per viewport.
+**The One Signal Rule.** Lavender marks links, the primary action, focus and data marks only (the mark's live arc, the console's `[reload]` tag, OpenRTC's benchmark bar). Never rules, headings, labels or decoration. One primary button per viewport.
 
 **The Tokens-Only Rule.** Components read colors through the custom properties so both themes follow. The only literal colors are in the terminal frame and the landing console, which stay dark in both themes because they frame a dark terminal.
 
@@ -278,7 +278,7 @@ The top bar is sticky at 3.75rem. From 52rem up the five page links sit inline; 
 
 Tables scroll horizontally on wide screens (numbers right-aligned in tabular figures) and, at 40rem and below, stack: each row becomes a block, each cell carries its column name as a small mono label above its value, and the first unlabeled cell reads as the row's title.
 
-The landing hero is one column (copy, then the console) and splits 0.82fr / 1.18fr at 72rem so the console is the larger half; the lede caps at 33rem. Below the hero, every chapter is a full-shell section with 4.5rem block padding and a 1px `line` rule on top; its head block (H2 and paragraph) caps at 46rem with 2.5rem below. Inside chapters: the before/after code splits 1.25fr / 1fr at 64rem; the features list becomes three columns (11rem name, 1.3fr what it does, 1fr limit) at 56rem; the benchmark chapter puts its head and its bars side by side at 64rem with a 4rem gap. On the landing page the top bar has no second row: below 52rem the page links fold away and only the mark, the GitHub pill and the theme toggle remain. The shared footer goes two columns at 48rem.
+The landing hero is a short head (the H1, capped at 13ch, beside the lede, actions and install line, split 1.15fr / 0.85fr at 64rem and aligned to the baseline) over the story: the console at full width with a 17rem rail of four numbered beats beside it at 64rem, stacked below it on phones. The lede caps at 30rem. Below the hero, every chapter is a full-shell section with 4.5rem block padding and a 1px `line` rule on top; its head block (H2 and paragraph) caps at 46rem with 2.5rem below. Inside chapters: the before/after code splits 1.25fr / 1fr at 64rem; the features list becomes three columns (11rem name, 1.3fr what it does, 1fr limit) at 56rem; the benchmark chapter puts its head and its bars side by side at 64rem with a 4rem gap. On the landing page the top bar has no second row: below 52rem the page links fold away and only the mark, the GitHub pill and the theme toggle remain. The shared footer goes two columns at 48rem.
 
 **The Rail Rule.** The contents rail appears only on wide screens and only when a page has more than two H2/H3 headings. It is sticky, lists H2 and H3, and marks the section in view with a signal left border.
 
@@ -292,7 +292,7 @@ Flat. There are no drop shadows. Depth comes from tonal steps (ground, surface, 
 
 Soft, small corners that grow with the object: inline code 4px, copy button 0.4rem, buttons 0.5rem, install line 0.6rem, panels (code blocks, callouts, blockquotes, pager links) 0.75rem, the terminal frame 0.875rem. The GitHub link and theme toggle are full pills. Borders are always 1px.
 
-The OpenRTC mark is the one recurring geometry: a 20-unit rounded square frame (radius 5, 1.6 stroke, muted) holding a 2x2 grid of dots, the top-left dot lit in the signal. It stands for four agents in one worker, one of them live. It appears in the top bar and the footer at 1.15rem.
+The OpenRTC mark is the one recurring geometry: a ring (radius 9.2 in a 24-unit box, 2.2 stroke, muted) with a quarter arc from twelve to two o'clock in the signal (2.6 stroke, round caps), and inside it three rounded bars of a voice level, the tall middle one in the signal. It stands for one worker with one call live, and reads as the O of OpenRTC. It appears in the top bar and the footer at 1.3rem; the favicon is the same drawing on a charcoal rounded square.
 
 ## Components
 
@@ -317,7 +317,7 @@ Mono muted headers over a strong hairline, hairline row rules, 0.875rem tabular 
 
 ### Navigation
 - **Top bar (docs):** mark and "OpenRTC" wordmark (600), five page links in muted that turn ink on hover and when current, a pill GitHub link, and the three-way theme toggle (light, dark, match system) stored in `localStorage['openrtc-theme']` and applied before first paint.
-- **Top bar (landing):** the same bar with four links (Docs, How it works, Benchmark, Changelog) that fold away below 52rem; the GitHub pill shows the star count in muted mono 0.75rem after a hairline.
+- **Top bar (landing):** the same bar with three links (Docs, Benchmark, Changelog) that fold away below 52rem; the GitHub pill shows the star count in muted mono 0.75rem after a hairline.
 - **Contents rail:** "On this page" in ink 500, links in muted on a hairline track, current item ink with a signal border.
 - **Pager:** previous/next as two hairline-bordered 0.75rem panels, muted caption over an ink label; the border strengthens on hover.
 
@@ -329,7 +329,7 @@ The landing hero: `openrtc top` rebuilt in HTML on simulated sessions, always da
 
 It plays one 16-second loop, one tick per second: a call arrives, a call turns slow, a save hot-reloads the agent (the log's `[reload]` tag is the signal) and the call recovers, a call ends. New rows and log lines use the page's only animation, `arrive`. The loop runs only while the console is on screen.
 
-**The One Animation Rule.** The console is the only thing that moves. New rows and log lines arrive over 0.6s (opacity from 0 and a 3px blur, ease-out-expo); everything else changes only color on hover. Under `prefers-reduced-motion: reduce`, or without JavaScript, the console holds its first frame, which is a complete, readable table.
+**The One Story Rule.** Motion tells one story and nothing else moves. The console loops through four beats (a call blocks the loop, the fix is saved and hot-reloaded, a call arrives, a call ends); the numbered rail beside it lights the current beat. New rows and log lines arrive over 0.6s (opacity from 0 and a 3px blur, ease-out-expo). In the routing diagram a dot rides each route every few seconds. Everything else changes only color on hover. Under `prefers-reduced-motion: reduce`, or without JavaScript, the console holds its opening frame (the slow call, beat one lit) and the diagram shows no dots; both are complete without motion.
 
 ### Before and after
 Two code panes on surface with a hairline and 0.875rem corners, mono 0.8125rem / 1.75, each under a muted 0.875rem pane label. Shiki writes both themes; the page picks the one matching `data-theme`.
@@ -352,7 +352,7 @@ Each measure is a figure: an ink 500 caption with its unit in muted, then one ro
 ### Do:
 - **Do** keep user-visible proof real: terminal captures and measured tables, with the method stated in the prose.
 - **Do** hold prose to the 46rem measure and let tables and code take the full column.
-- **Do** use the four-dot mark as the only identity device, with exactly one dot lit.
+- **Do** use the ring mark as the only identity device, with the arc and the middle bar as its only lit parts.
 - **Do** make every new table stack into labelled rows at 40rem and below.
 - **Do** read colors through the theme tokens so light and dark both follow.
 - **Do** add shared tokens, chrome and components to `web/shared/` so the docs and the landing page stay one system.
