@@ -7,317 +7,6 @@ description: Every change to OpenRTC, newest first, with migration notes. Releas
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
-### `openrtc top` in process mode
-
-**Added**
-
-- `openrtc top` now works under `isolation="process"`: one row per livekit job,
-  with agent, tenant, duration, and that job process's own memory (PSS on
-  Linux) and CPU. The rows come from `AgentServer.active_jobs`; each job
-  process reports its pid into a private directory next to the socket. There
-  is no `slow` status in process mode, since calls share no event loop.
-
-**Fixed**
-
-- Process mode now starts livekit's turn-detector inference process. Before,
-  every turn logged "inference of lk_end_of_utterance_multilingual failed: no
-  inference executor", because livekit checks for registered inference runners
-  before prewarm runs. Coroutine mode already registered it.
-
-### Session caps work in process mode
-
-**Added**
-
-- `max_sessions_per_agent` and `max_sessions_per_tenant` now work under
-  `isolation="process"`. The worker counts livekit's running jobs
-  (`AgentServer.active_jobs`), resolving each job's agent and tenant the same
-  way an incoming call is resolved. Against a live server, a process-mode
-  worker capped at 3 took 3 of 8 calls and rejected 5.
-
-**Changed**
-
-- `enable_tenant_circuit_breaker` still needs coroutine mode and still raises
-  under `isolation="process"`; the caps no longer do.
-
-### Several workers on one host
-
-**Added**
-
-- `AgentPool(port=...)`, or `OPENRTC_PORT`, sets the worker's HTTP port, so
-  several workers can run on one host; a second worker used to fail binding
-  livekit's default 8081. On two cores, two pinned workers used about a quarter
-  less CPU than one for the same 8 calls, at 1.1 GB more idle memory.
-
-**Documentation**
-
-- The Benchmark page measures one worker per core and livekit's FFI event
-  fan-out, which grows with the square of the calls in one process.
-
-### Coroutine mode runs on uvloop
-
-**Changed**
-
-- A coroutine-mode worker now runs on uvloop when it is installed, and
-  `openrtc[livekit]` installs it outside Windows. In a head-to-head on
-  livekit-agents 1.8.3 (8 calls, 2 cores) it brought worker CPU from about 140%
-  to about 122%, level with livekit's process-per-call mode (120%), at a third of
-  the memory per call. Turn it off with `AgentPool(enable_uvloop=False)` or
-  `OPENRTC_UVLOOP=0`.
-
-**Documentation**
-
-- The Benchmark page has the new five-way head-to-head and a per-thread CPU
-  breakdown: the extra CPU of one process is livekit's Rust runtime waiting on
-  the GIL, not OpenRTC's code (introspection costs about 0.5% of a core).
-
-### Landing page at openrtc.tech
-
-**Documentation**
-
-- The marketing page moves into this repository as `web/landing/` (Astro, Cloudflare
-  Workers), restyled to match the docs. It drops the old page's unmeasured claims
-  ("50+ sessions per worker", "~3 GB saved per agent", the density calculator) for
-  the measured benchmark, and shows the GitHub star count fetched at build time.
-- `web/shared/` now holds the theme toggle and install command both sites use.
-
-### Docs move to docs.openrtc.tech
-
-**Documentation**
-
-- The docs leave Mintlify for a static site on Cloudflare Workers at
-  `docs.openrtc.tech`, built from `web/docs/` and rendering five pages from `docs/`:
-  Why OpenRTC, How it works, CLI, Benchmark, and this changelog. The concept
-  guides, runbooks, operations and compliance pages were folded into those
-  pages or retired; they remain in git history.
-- The site runs on Fumadocs: full-text search, `/llms.txt`, `/llms-full.txt`,
-  and a Markdown copy of every page for AI coding agents. Page URLs are
-  unchanged.
-- The Benchmark page states the head-to-head against livekit-agents 1.8.3 with
-  its method and what it does not cover, and says plainly that its harness is
-  not in the repository yet.
-- `pyproject.toml` project URLs point at the new site.
-
-### Hot reload keeps the live conversation
-
-**Fixed**
-
-- `openrtc dev` re-bound live sessions to a freshly built agent with an empty
-  chat context, so the LLM forgot the call so far after every save. The new
-  agent now starts with the old agent's conversation history; the reloaded
-  instructions still replace the old ones.
-
-### The circuit breaker fails fast in process mode
-
-**Fixed**
-
-- In `isolation="process"` each call runs in its own process, so
-  `max_sessions_per_agent`, `max_sessions_per_tenant` and
-  `enable_tenant_circuit_breaker` were silently never enforced. The caps now
-  work there (see "Session caps work in process mode"); the breaker raises
-  `ValueError` at construction when combined with `isolation="process"`.
-
-### Removed the shared-worker "savings" estimate
-
-**Removed**
-
-- The savings estimate multiplied this process's RSS by the agent count, which
-  overstated the saving: one livekit-agents worker already hosts many agents, and
-  forked job processes share memory. It is gone from the prewarm log line,
-  `--dashboard`, `openrtc list --resources`, the `openrtc top` header (now shows
-  failed sessions), and `PoolRuntimeSnapshot` (`SavingsEstimate` removed).
-- JSON shape changes: `openrtc list --json` is `schema_version: 2` and the
-  `--metrics-jsonl` stream is schema version 2 (no `savings_estimate` key).
-
-### Pipecat support removed: OpenRTC targets livekit-agents only (breaking)
-
-**Removed**
-
-- The pipecat backend: `AgentPool(backend="pipecat")`, the `openrtc[pipecat]` and
-  `openrtc[pipecat-serve]` extras, the `openrtc serve` command,
-  `openrtc.core.session_view.for_pipecat`, pipeline-builder discovery, and the
-  `examples/pipecat_agents` examples.
-
-**Migration**
-
-- `AgentPool(backend="pipecat")` now raises `ValueError` explaining the removal.
-  Pin an earlier openrtc release to keep using pipecat. livekit users are
-  unaffected: `backend="livekit"` remains the default and only backend.
-
-### Coroutine mode stops accepting calls when its event loop saturates
-
-**Fixed**
-
-- Coroutine mode reported load as `active / max_concurrent_sessions` only, so a
-  CPU-saturated worker kept accepting calls it could not serve in real time.
-  `current_load()` now reports the higher of that and the smoothed event-loop
-  lag (60 ms of lag reads as full; LiveKit's default 0.7 threshold trips at
-  ~42 ms). No API change.
-
-**Documentation**
-
-- Replaced the unmeasured "50+ sessions per worker" and "~3 GB per process"
-  claims (README, docs site, diagrams, `examples/density_demo.py`) with a
-  measured head-to-head against livekit-agents 1.8.3: ~20 MB vs ~60 MB PSS per
-  call, with CPU as the usual limit.
-
-### livekit-agents 1.8 support
-
-**Changed**
-
-- The `openrtc[livekit]` extra now allows `livekit-agents>=1.5,<1.9` (was `<1.7`);
-  the lockfile moves to 1.8.3.
-
-**Fixed**
-
-- Spawn-safe serialization of `livekit.plugins.openai.STT` on livekit-agents 1.8:
-  the plugin now stores `language=` as `_opts.languages` and `turn_detection` as a
-  pydantic model, which broke rebuilding the provider in a worker process.
-- Coroutine mode now awaits `JobContext._on_cleanup()`, which became async in
-  livekit-agents 1.8. Calling it without awaiting skipped per-session cleanup
-  (temp directory, telemetry state, and a log filter added to every root handler
-  that accumulated for the worker's lifetime).
-
-### v0.9.0: routing: resolve room metadata from the job's room assignment so it works before connect
-
-### v0.1.0: coroutine-mode worker (default behavior change)
-
-> **Heads up:** the default isolation flips from process-per-session to
-> a coroutine-mode worker that hosts every session as an `asyncio.Task`
-> inside one process. The user-facing API does not break, but workers
-> behave differently at runtime. Read the migration notes below before
-> upgrading production deployments.
-
-**Added**
-
-- `AgentPool(isolation="coroutine" | "process")` selects the worker
-  isolation mode. `"coroutine"` is the new default; `"process"`
-  preserves v0.0.17 behavior (one OS subprocess per session via
-  `livekit-agents`'s `ProcPool`).
-- `AgentPool(max_concurrent_sessions=50)` sets the coroutine-mode
-  backpressure threshold. The worker reports `load >= 1.0` to the
-  LiveKit dispatcher once this many sessions are in flight; ignored
-  in process mode.
-- `AgentPool(consecutive_failure_limit=5)` sets the worker supervisor
-  threshold. After this many non-`SUCCESS` session terminations the
-  worker calls `aclose()` so the deployment platform can restart it
-  (bounded blast radius for systemic bugs). Ignored in process mode.
-- `AgentPool(drain_timeout=30)` bounds the graceful-drain window.
-  When SIGTERM (or SIGINT) is delivered, upstream `AgentServer`'s
-  signal handler calls `aclose()`; `drain_timeout` is the per-pool
-  budget for in-flight sessions to finish. Sessions that exceed it
-  are cancelled with a `WARNING` log and the per-executor `kill()`
-  escalation runs. Honored in both isolation modes (forwarded to
-  upstream `AgentServer` via the constructor kwarg).
-- New CLI flags `--isolation` and `--max-concurrent-sessions` on
-  `start` / `dev` / `console`. Both also read environment variables
-  (`OPENRTC_ISOLATION`, `OPENRTC_MAX_CONCURRENT_SESSIONS`); precedence
-  is CLI flag > env var > library default.
-- New `openrtc.execution.coroutine.CoroutinePool` and
-  `CoroutineJobExecutor` (internal). Both implement the
-  `livekit.agents.ipc.proc_pool.ProcPool` / `JobExecutor` shapes;
-  `_CoroutineAgentServer` (also internal) monkey-patches `ProcPool`
-  during `run()` so `AgentServer`'s state machine and dispatcher
-  protocol are reused unchanged.
-- New `tests/benchmarks/density.py` script and corresponding CI gate
-  (`.github/workflows/bench.yml`) enforcing ≥ 50 concurrent sessions
-  per worker at ≤ 4 GB peak RSS on every PR.
-- New nightly canary CI job (`.github/workflows/canary.yml`) that
-  runs the integration suite against the latest released
-  `livekit-agents` and is allowed to fail.
-- New `docker-compose.test.yml` + `tests/integration/conftest.py`
-  fixture harness for local and CI integration runs.
-- Public `SessionObserver` protocol (`openrtc.SessionObserver`,
-  `SessionInfo`, `SessionOutcome`, `SessionStatus`) plus
-  `AgentPool(observers=[...])` and `AgentPool.add_observer(...)`. External
-  telemetry attaches to each live session through the pool:
-  `on_session_start` hands the live `AgentSession`, `on_session_end` the
-  terminal outcome. Observer faults are isolated (logged and skipped,
-  bounded by a timeout) and never crash the session. Additive and backward
-  compatible; the built-in metrics store is unchanged.
-
-**Changed**
-
-- `livekit-agents` pin tightened from `~=1.4` to `~=1.5` because the
-  internal-ish surfaces we hook (`ProcPool`, `JobExecutor` Protocol)
-  are version-sensitive; the canary job watches the next minor.
-- Source layout reorganised under `core/`, `cli/`, `observability/`,
-  `tui/`, and `execution/` packages. Public imports
-  (`from openrtc import AgentPool`, etc.) are unchanged; internal
-  consumers should update to the canonical paths
-  (`openrtc.core.config.AgentConfig`, etc.).
-
-**Migration**
-
-- Existing code that does `pool = AgentPool()` keeps working but now
-  runs every session in coroutine mode. To stay on the v0.0.17
-  process-per-session model, pass `isolation="process"`:
-
-  ```python
-  pool = AgentPool(isolation="process")
-  ```
-
-  Pick `"process"` when:
-  - regulatory or compliance requirements demand hard process
-    isolation between sessions;
-  - per-session memory caps (`livekit-agents`' `job_memory_limit_mb`)
-    are required;
-  - the workload mixes very heavy agents with very light agents and
-    you want subprocess-level resource accounting.
-
-  Pick the new default `"coroutine"` when:
-  - you run many concurrent sessions on a single host and the
-    prewarm/idle baseline (VAD, turn detector) was the dominant cost;
-  - you want backpressure routed back to LiveKit dispatch via load
-    reporting instead of OS-level rejection.
-
-- `consecutive_failure_limit` defaults to 5 in coroutine mode. If your
-  agents legitimately fail more often (e.g. exploratory dev runs),
-  raise the threshold or run under `isolation="process"` (which the
-  setting does not affect).
-
-- The `current_load()` reported in coroutine mode is
-  `len(active) / max_concurrent_sessions`. If your dispatch policy
-  was tuned around `livekit-agents`' default CPU-based load math, the
-  new shape may route differently. Verify against your dispatch
-  thresholds (`load_threshold` defaults to `0.7`).
-
-- Per-session memory caps (`job_memory_limit_mb` on `AgentServer`)
-  cannot be enforced in coroutine mode (one process, no subprocess
-  boundary). Process mode preserves the cap. Documented in design
-  §9.4.
-
-See `docs/concepts/architecture.md` for the coroutine-mode lifecycle
-and `docs/benchmarks/density-v0.1.md` for the §7 success-gate
-benchmark numbers.
-
-**Developer experience**
-
-User-facing behavior is unchanged by these: they land here so the
-contributor onboarding matches what's in the repo.
-
-- Test coverage: combined line + branch coverage now sits at 100%
-  with the CI gate at 99% (was 80% line-only). `pytest` runs with
-  `branch = true` by default.
-- Type checking: `mypy` runs in `strict = true` mode on `src/`. CI
-  blocks PRs with untyped defs, implicit `Optional`, redundant
-  casts, or `Any` returns.
-- Linting: ruff selects expanded to include `SIM`, `PT`, `RET`,
-  `PERF`, `PIE`, `ICN`, `TID`, `BLE`, `A` on top of the previous
-  `E`/`W`/`F`/`I`/`B`/`C4`/`UP` set.
-- Pre-commit hook chain extended with `mypy --strict src/` so the
-  same typecheck CI applies fires locally on every commit (only
-  for source / `pyproject.toml` changes).
-- New `make ci` aggregate target runs `lint format-check typecheck
-  test` in the same order as CI, short-circuiting on the first
-  failure.
-- `.github/dependabot.yml` keeps Python and GitHub Actions
-  dependencies fresh weekly; `livekit-agents` is intentionally
-  excluded (the `~=1.5` pin is design-locked).
-- `.github/PULL_REQUEST_TEMPLATE.md` adds a short checklist for
-  contributors. `.editorconfig` keeps file-level conventions
-  consistent across editors. `SECURITY.md` documents the
-  vulnerability-disclosure intake path.
-
 ---
 
 <!-- releases -->
@@ -855,3 +544,144 @@ Milestone: v0.3, Pool observability (MAH-88, MAH-89, MAH-90, MAH-91, MAH-92, MAH
 - Greeting support via `session.generate_reply()`.
 - `openrtc[cli]` optional extra for `rich`/`typer` CLI.
 - PEP 561 `py.typed` marker shipped in the wheel.
+
+---
+
+## Coroutine-mode worker (the v0.1.0 milestone, before tagged releases)
+
+> **Heads up:** the default isolation flips from process-per-session to
+> a coroutine-mode worker that hosts every session as an `asyncio.Task`
+> inside one process. The user-facing API does not break, but workers
+> behave differently at runtime. Read the migration notes below before
+> upgrading production deployments.
+
+**Added**
+
+- `AgentPool(isolation="coroutine" | "process")` selects the worker
+  isolation mode. `"coroutine"` is the new default; `"process"`
+  preserves v0.0.17 behavior (one OS subprocess per session via
+  `livekit-agents`'s `ProcPool`).
+- `AgentPool(max_concurrent_sessions=50)` sets the coroutine-mode
+  backpressure threshold. The worker reports `load >= 1.0` to the
+  LiveKit dispatcher once this many sessions are in flight; ignored
+  in process mode.
+- `AgentPool(consecutive_failure_limit=5)` sets the worker supervisor
+  threshold. After this many non-`SUCCESS` session terminations the
+  worker calls `aclose()` so the deployment platform can restart it
+  (bounded blast radius for systemic bugs). Ignored in process mode.
+- `AgentPool(drain_timeout=30)` bounds the graceful-drain window.
+  When SIGTERM (or SIGINT) is delivered, upstream `AgentServer`'s
+  signal handler calls `aclose()`; `drain_timeout` is the per-pool
+  budget for in-flight sessions to finish. Sessions that exceed it
+  are cancelled with a `WARNING` log and the per-executor `kill()`
+  escalation runs. Honored in both isolation modes (forwarded to
+  upstream `AgentServer` via the constructor kwarg).
+- New CLI flags `--isolation` and `--max-concurrent-sessions` on
+  `start` / `dev` / `console`. Both also read environment variables
+  (`OPENRTC_ISOLATION`, `OPENRTC_MAX_CONCURRENT_SESSIONS`); precedence
+  is CLI flag > env var > library default.
+- New `openrtc.execution.coroutine.CoroutinePool` and
+  `CoroutineJobExecutor` (internal). Both implement the
+  `livekit.agents.ipc.proc_pool.ProcPool` / `JobExecutor` shapes;
+  `_CoroutineAgentServer` (also internal) monkey-patches `ProcPool`
+  during `run()` so `AgentServer`'s state machine and dispatcher
+  protocol are reused unchanged.
+- New `tests/benchmarks/density.py` script and corresponding CI gate
+  (`.github/workflows/bench.yml`) enforcing ≥ 50 concurrent sessions
+  per worker at ≤ 4 GB peak RSS on every PR.
+- New nightly canary CI job (`.github/workflows/canary.yml`) that
+  runs the integration suite against the latest released
+  `livekit-agents` and is allowed to fail.
+- New `docker-compose.test.yml` + `tests/integration/conftest.py`
+  fixture harness for local and CI integration runs.
+- Public `SessionObserver` protocol (`openrtc.SessionObserver`,
+  `SessionInfo`, `SessionOutcome`, `SessionStatus`) plus
+  `AgentPool(observers=[...])` and `AgentPool.add_observer(...)`. External
+  telemetry attaches to each live session through the pool:
+  `on_session_start` hands the live `AgentSession`, `on_session_end` the
+  terminal outcome. Observer faults are isolated (logged and skipped,
+  bounded by a timeout) and never crash the session. Additive and backward
+  compatible; the built-in metrics store is unchanged.
+
+**Changed**
+
+- `livekit-agents` pin tightened from `~=1.4` to `~=1.5` because the
+  internal-ish surfaces we hook (`ProcPool`, `JobExecutor` Protocol)
+  are version-sensitive; the canary job watches the next minor.
+- Source layout reorganised under `core/`, `cli/`, `observability/`,
+  `tui/`, and `execution/` packages. Public imports
+  (`from openrtc import AgentPool`, etc.) are unchanged; internal
+  consumers should update to the canonical paths
+  (`openrtc.core.config.AgentConfig`, etc.).
+
+**Migration**
+
+- Existing code that does `pool = AgentPool()` keeps working but now
+  runs every session in coroutine mode. To stay on the v0.0.17
+  process-per-session model, pass `isolation="process"`:
+
+  ```python
+  pool = AgentPool(isolation="process")
+  ```
+
+  Pick `"process"` when:
+  - regulatory or compliance requirements demand hard process
+    isolation between sessions;
+  - per-session memory caps (`livekit-agents`' `job_memory_limit_mb`)
+    are required;
+  - the workload mixes very heavy agents with very light agents and
+    you want subprocess-level resource accounting.
+
+  Pick the new default `"coroutine"` when:
+  - you run many concurrent sessions on a single host and the
+    prewarm/idle baseline (VAD, turn detector) was the dominant cost;
+  - you want backpressure routed back to LiveKit dispatch via load
+    reporting instead of OS-level rejection.
+
+- `consecutive_failure_limit` defaults to 5 in coroutine mode. If your
+  agents legitimately fail more often (e.g. exploratory dev runs),
+  raise the threshold or run under `isolation="process"` (which the
+  setting does not affect).
+
+- The `current_load()` reported in coroutine mode is
+  `len(active) / max_concurrent_sessions`. If your dispatch policy
+  was tuned around `livekit-agents`' default CPU-based load math, the
+  new shape may route differently. Verify against your dispatch
+  thresholds (`load_threshold` defaults to `0.7`).
+
+- Per-session memory caps (`job_memory_limit_mb` on `AgentServer`)
+  cannot be enforced in coroutine mode (one process, no subprocess
+  boundary). Process mode preserves the cap. Documented in design
+  §9.4.
+
+See `docs/concepts/architecture.md` for the coroutine-mode lifecycle
+and `docs/benchmarks/density-v0.1.md` for the §7 success-gate
+benchmark numbers.
+
+**Developer experience**
+
+User-facing behavior is unchanged by these: they land here so the
+contributor onboarding matches what's in the repo.
+
+- Test coverage: combined line + branch coverage now sits at 100%
+  with the CI gate at 99% (was 80% line-only). `pytest` runs with
+  `branch = true` by default.
+- Type checking: `mypy` runs in `strict = true` mode on `src/`. CI
+  blocks PRs with untyped defs, implicit `Optional`, redundant
+  casts, or `Any` returns.
+- Linting: ruff selects expanded to include `SIM`, `PT`, `RET`,
+  `PERF`, `PIE`, `ICN`, `TID`, `BLE`, `A` on top of the previous
+  `E`/`W`/`F`/`I`/`B`/`C4`/`UP` set.
+- Pre-commit hook chain extended with `mypy --strict src/` so the
+  same typecheck CI applies fires locally on every commit (only
+  for source / `pyproject.toml` changes).
+- New `make ci` aggregate target runs `lint format-check typecheck
+  test` in the same order as CI, short-circuiting on the first
+  failure.
+- `.github/dependabot.yml` keeps Python and GitHub Actions
+  dependencies fresh weekly; `livekit-agents` is intentionally
+  excluded (the `~=1.5` pin is design-locked).
+- `.github/PULL_REQUEST_TEMPLATE.md` adds a short checklist for
+  contributors. `.editorconfig` keeps file-level conventions
+  consistent across editors. `SECURITY.md` documents the
+  vulnerability-disclosure intake path.
