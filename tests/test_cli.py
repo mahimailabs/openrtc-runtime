@@ -20,7 +20,6 @@ from openrtc.observability.metrics import MetricsStreamEvent
 from openrtc.observability.snapshot import (
     PoolRuntimeSnapshot,
     ProcessResidentSetInfo,
-    SavingsEstimate,
 )
 from openrtc.utils.types import ProviderValue
 
@@ -95,17 +94,6 @@ class StubPool:
                 bytes_value=256 * 1024 * 1024,
                 metric="linux_vm_rss",
                 description="Current resident set from VmRSS.",
-            ),
-            savings_estimate=SavingsEstimate(
-                agent_count=len(self._discovered),
-                shared_worker_bytes=256 * 1024 * 1024,
-                estimated_separate_workers_bytes=(
-                    256 * 1024 * 1024 * max(len(self._discovered), 1)
-                ),
-                estimated_saved_bytes=(
-                    256 * 1024 * 1024 * max(len(self._discovered) - 1, 0)
-                ),
-                assumptions=("assumption",),
             ),
         )
 
@@ -500,7 +488,7 @@ def test_list_json_output_is_valid_json(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["schema_version"] == 1
+    assert data["schema_version"] == 2
     assert data["command"] == "list"
     assert len(data["agents"]) == 1
     assert data["agents"][0]["name"] == "one"
@@ -510,7 +498,7 @@ def test_list_json_output_is_valid_json(tmp_path: Path) -> None:
         "darwin_ru_max_rss",
         "unavailable",
     )
-    assert "savings_estimate" in data["resource_summary"]
+    assert "savings_estimate" not in data["resource_summary"]
 
 
 def test_list_plain_matches_line_oriented_format(
@@ -569,13 +557,6 @@ def test_build_runtime_dashboard_renders_key_metrics() -> None:
             metric="linux_vm_rss",
             description="Current resident set from VmRSS.",
         ),
-        savings_estimate=SavingsEstimate(
-            agent_count=2,
-            shared_worker_bytes=512 * 1024 * 1024,
-            estimated_separate_workers_bytes=1024 * 1024 * 1024,
-            estimated_saved_bytes=512 * 1024 * 1024,
-            assumptions=("Estimated separate-worker memory multiplies the baseline.",),
-        ),
     )
 
     console = Console(record=True, width=120)
@@ -584,7 +565,7 @@ def test_build_runtime_dashboard_renders_key_metrics() -> None:
 
     assert "OpenRTC runtime dashboard" in rendered
     assert "Worker RSS" in rendered
-    assert "Estimated saved" in rendered
+    assert "Estimated saved" not in rendered
     assert "restaurant" in rendered
 
 
@@ -648,7 +629,7 @@ def test_start_command_metrics_jsonl_writes_snapshot_records(
     lines = [ln for ln in jsonl.read_text(encoding="utf-8").split("\n") if ln.strip()]
     assert len(lines) >= 1
     first = json.loads(lines[0])
-    assert first["schema_version"] == 1
+    assert first["schema_version"] == 2
     assert first["kind"] == "snapshot"
     assert "payload" in first
     assert first["payload"]["registered_agents"] == 1

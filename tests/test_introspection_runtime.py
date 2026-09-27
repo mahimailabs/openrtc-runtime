@@ -85,7 +85,6 @@ def test_top_snapshot_combines_worker_context_and_sessions() -> None:
             uptime_s=3600.0,
             started=42,
             failed=1,
-            saved_bytes=248_000_000_000,
             draining=True,
         ),
         worker_stats_sampler=WorkerStatsSampler(psutil_module=None),

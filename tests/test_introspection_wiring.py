@@ -36,7 +36,6 @@ def test_agent_pool_worker_context_maps_the_runtime_snapshot() -> None:
     assert ctx.draining is False
     assert isinstance(ctx.name, str)
     assert ctx.name  # hostname, non-empty
-    assert ctx.saved_bytes is None or isinstance(ctx.saved_bytes, int)
 
 
 def _make_pool(introspection: IntrospectionRuntime | None) -> CoroutinePool:

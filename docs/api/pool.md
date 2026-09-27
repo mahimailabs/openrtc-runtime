@@ -283,7 +283,6 @@ in `--metrics-jsonl` output. It includes:
 - total sessions started
 - session failure count
 - last routed agent
-- a best-effort shared-worker savings estimate
 
 ## `drain_metrics_stream_events()`
 

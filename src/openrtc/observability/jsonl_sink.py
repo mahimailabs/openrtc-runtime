@@ -26,7 +26,7 @@ from typing import Any
 
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 
-METRICS_STREAM_SCHEMA_VERSION = 1
+METRICS_STREAM_SCHEMA_VERSION = 2
 KIND_SNAPSHOT = "snapshot"
 KIND_EVENT = "event"
 

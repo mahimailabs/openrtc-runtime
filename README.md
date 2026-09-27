@@ -435,7 +435,6 @@ src/openrtc/
 │   ├── metrics.py         # RuntimeMetricsStore, footprint helpers
 │   ├── snapshot.py        # PoolRuntimeSnapshot dataclass
 │   ├── resident_set.py    # RSS memory helpers
-│   ├── savings.py         # cost-savings estimator
 │   └── footprint.py       # per-session memory footprint
 ├── cli/                   # base_cli.py + variant siblings
 │   ├── base_cli.py        # shared Typer args and parameter bundles

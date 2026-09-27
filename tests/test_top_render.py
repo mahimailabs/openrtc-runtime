@@ -29,7 +29,6 @@ def _worker(*, available: bool = True) -> dict[str, Any]:
         "max_sessions": 1000,
         "started": 4218,
         "failed": 0,
-        "saved_bytes": 248_000_000_000,
         "draining": False,
         "system": {
             "available": available,

@@ -389,7 +389,7 @@ class AgentPool:
         self._introspection = runtime
 
     def _worker_context(self) -> WorkerContext:
-        """Pool-derived facts for the ``openrtc top`` header (uptime, caps, savings)."""
+        """Pool-derived facts for the ``openrtc top`` header (uptime, caps, failures)."""
         import socket
 
         from openrtc.observability.worker_stats import WorkerContext
@@ -401,7 +401,6 @@ class AgentPool:
             uptime_s=snap.uptime_seconds,
             started=snap.total_sessions_started,
             failed=snap.total_session_failures,
-            saved_bytes=snap.savings_estimate.estimated_saved_bytes,
             draining=snap.draining,
         )
 

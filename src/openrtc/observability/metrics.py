@@ -11,7 +11,6 @@ from threading import Lock
 from typing import TypedDict, cast
 
 from openrtc.observability.resident_set import get_process_resident_set_info
-from openrtc.observability.savings import estimate_shared_worker_savings
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 from openrtc.utils.validation import DEFAULT_TENANT
 
@@ -242,10 +241,6 @@ class RuntimeMetricsStore:
             sessions_by_agent=sessions_by_agent,
             sessions_by_tenant=sessions_by_tenant,
             resident_set=rss_info,
-            savings_estimate=estimate_shared_worker_savings(
-                agent_count=registered_agents,
-                shared_worker_bytes=rss_info.bytes_value,
-            ),
             deployment_version=deployment_version,
             draining=draining,
         )

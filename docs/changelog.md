@@ -18,6 +18,18 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Removed the shared-worker "savings" estimate
+
+**Removed**
+
+- The savings estimate multiplied this process's RSS by the agent count, which
+  overstated the saving: one livekit-agents worker already hosts many agents, and
+  forked job processes share memory. It is gone from the prewarm log line,
+  `--dashboard`, `openrtc list --resources`, the `openrtc top` header (now shows
+  failed sessions), and `PoolRuntimeSnapshot` (`SavingsEstimate` removed).
+- JSON shape changes: `openrtc list --json` is `schema_version: 2` and the
+  `--metrics-jsonl` stream is schema version 2 (no `savings_estimate` key).
+
 ### Pipecat support removed: OpenRTC targets livekit-agents only (breaking)
 
 **Removed**

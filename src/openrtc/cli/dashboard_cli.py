@@ -17,16 +17,9 @@ from openrtc.observability.footprint import (
     format_byte_size,
 )
 from openrtc.observability.resident_set import get_process_resident_set_info
-from openrtc.observability.savings import estimate_shared_worker_savings
 from openrtc.observability.snapshot import PoolRuntimeSnapshot
 
 console = Console()
-
-
-def _format_percent(saved_bytes: int | None, baseline_bytes: int | None) -> str:
-    if saved_bytes is None or baseline_bytes is None or baseline_bytes == 0:
-        return "-"
-    return f"{(saved_bytes / baseline_bytes) * 100:.0f}%"
 
 
 def _memory_style(num_bytes: int | None) -> str:
@@ -59,11 +52,9 @@ def _build_sessions_table(snapshot: PoolRuntimeSnapshot) -> Table:
 def build_runtime_dashboard(snapshot: PoolRuntimeSnapshot) -> Panel:
     """Build a Rich dashboard from a runtime snapshot."""
     metrics = Table.grid(expand=True)
-    metrics.add_column(ratio=2)
-    metrics.add_column(ratio=1)
+    metrics.add_column()
 
     rss_bytes = snapshot.resident_set.bytes_value
-    savings = snapshot.savings_estimate
     progress_total = max(snapshot.registered_agents, 1)
     left = Table.grid(padding=(0, 1))
     left.add_column(style="bold cyan")
@@ -85,38 +76,7 @@ def build_runtime_dashboard(snapshot: PoolRuntimeSnapshot) -> Panel:
     left.add_row("Failures", str(snapshot.total_session_failures))
     left.add_row("Last route", snapshot.last_routed_agent or "-")
 
-    right = Table.grid(padding=(0, 1))
-    right.add_column(style="bold magenta")
-    right.add_column()
-    right.add_row(
-        "Shared worker",
-        format_byte_size(savings.shared_worker_bytes or 0)
-        if savings.shared_worker_bytes is not None
-        else "Unavailable",
-    )
-    right.add_row(
-        "10x style estimate"
-        if snapshot.registered_agents == 10
-        else "Separate workers",
-        format_byte_size(savings.estimated_separate_workers_bytes or 0)
-        if savings.estimated_separate_workers_bytes is not None
-        else "Unavailable",
-    )
-    right.add_row(
-        "Estimated saved",
-        format_byte_size(savings.estimated_saved_bytes or 0)
-        if savings.estimated_saved_bytes is not None
-        else "Unavailable",
-    )
-    right.add_row(
-        "Saved vs separate",
-        _format_percent(
-            savings.estimated_saved_bytes,
-            savings.estimated_separate_workers_bytes,
-        ),
-    )
-
-    metrics.add_row(left, right)
+    metrics.add_row(left)
 
     progress = Table.grid(expand=True)
     progress.add_column(ratio=3)
@@ -250,7 +210,7 @@ def build_list_json_payload(
 
     # Bump when the JSON shape changes so automation can branch safely.
     payload: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "command": "list",
         "agents": agents,
     }
@@ -258,10 +218,6 @@ def build_list_json_payload(
         footprints = agent_disk_footprints(discovered)
         total_source = sum(f.size_bytes for f in footprints)
         rss_info = get_process_resident_set_info()
-        savings = estimate_shared_worker_savings(
-            agent_count=len(discovered),
-            shared_worker_bytes=rss_info.bytes_value,
-        )
         payload["resource_summary"] = {
             "agent_count": len(discovered),
             "total_source_bytes": total_source,
@@ -271,15 +227,6 @@ def build_list_json_payload(
                 "metric": rss_info.metric,
                 "description": rss_info.description,
             },
-            "savings_estimate": {
-                "agent_count": savings.agent_count,
-                "shared_worker_bytes": savings.shared_worker_bytes,
-                "estimated_separate_workers_bytes": (
-                    savings.estimated_separate_workers_bytes
-                ),
-                "estimated_saved_bytes": savings.estimated_saved_bytes,
-                "assumptions": list(savings.assumptions),
-            },
         }
     return payload
 
@@ -288,10 +235,6 @@ def print_resource_summary_rich(discovered: list[AgentConfig]) -> None:
     footprints = agent_disk_footprints(discovered)
     total_source = sum(f.size_bytes for f in footprints)
     rss_info = get_process_resident_set_info()
-    savings = estimate_shared_worker_savings(
-        agent_count=len(discovered),
-        shared_worker_bytes=rss_info.bytes_value,
-    )
 
     lines: list[str] = [
         (
@@ -312,12 +255,6 @@ def print_resource_summary_rich(discovered: list[AgentConfig]) -> None:
     else:
         lines.append(
             f"Resident memory metric unavailable on this platform ({rss_info.metric})."
-        )
-
-    if savings.estimated_saved_bytes is not None:
-        lines.append(
-            "Estimated shared-worker savings versus one worker per agent: "
-            f"{format_byte_size(savings.estimated_saved_bytes)}"
         )
 
     lines.append("")
@@ -343,10 +280,6 @@ def print_resource_summary_plain(discovered: list[AgentConfig]) -> None:
     footprints = agent_disk_footprints(discovered)
     total_source = sum(f.size_bytes for f in footprints)
     rss_info = get_process_resident_set_info()
-    savings = estimate_shared_worker_savings(
-        agent_count=len(discovered),
-        shared_worker_bytes=rss_info.bytes_value,
-    )
 
     print("Resource summary (local estimates for this `openrtc list` process):")
     print(
@@ -367,11 +300,6 @@ def print_resource_summary_plain(discovered: list[AgentConfig]) -> None:
         print(
             f"  Resident memory metric unavailable ({rss_info.metric}): "
             f"{rss_info.description}"
-        )
-    if savings.estimated_saved_bytes is not None:
-        print(
-            "  Estimated shared-worker savings versus one worker per agent: "
-            f"{format_byte_size(savings.estimated_saved_bytes)}"
         )
     print()
     print(

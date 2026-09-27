@@ -156,8 +156,8 @@ def build_header_panel(worker: dict[str, Any] | None) -> RenderableType:
     grid.add_row(
         "[dim]LOAD[/dim]",
         load_cell,
-        "[dim]SAVED[/dim]",
-        fmt_gb(worker.get("saved_bytes")),
+        "[dim]FAILED[/dim]",
+        str(worker.get("failed", 0)),
     )
 
     chart_lines = cpu_area(worker.get("cpu_history") or [], width=44, height=3)

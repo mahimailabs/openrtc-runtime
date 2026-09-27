@@ -37,7 +37,6 @@ class WorkerContext:
     uptime_s: float
     started: int
     failed: int
-    saved_bytes: int | None
     draining: bool
 
 
@@ -51,7 +50,6 @@ class WorkerStats:
     max_sessions: int
     started: int
     failed: int
-    saved_bytes: int | None
     draining: bool
     system: SystemStats
     cpu_history: tuple[float, ...]
@@ -71,7 +69,6 @@ def build_worker_stats(
         max_sessions=context.max_sessions,
         started=context.started,
         failed=context.failed,
-        saved_bytes=context.saved_bytes,
         draining=context.draining,
         system=system,
         cpu_history=cpu_history,

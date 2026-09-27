@@ -24,17 +24,6 @@ class ProcessResidentSetInfo:
 
 
 @dataclass(frozen=True, slots=True)
-class SavingsEstimate:
-    """Best-effort estimate of memory savings from one shared worker."""
-
-    agent_count: int
-    shared_worker_bytes: int | None
-    estimated_separate_workers_bytes: int | None
-    estimated_saved_bytes: int | None
-    assumptions: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
 class PoolRuntimeSnapshot:
     """Typed runtime view of the current shared worker state."""
 
@@ -49,7 +38,6 @@ class PoolRuntimeSnapshot:
     sessions_by_agent: dict[str, int]
     sessions_by_tenant: dict[str, int]
     resident_set: ProcessResidentSetInfo
-    savings_estimate: SavingsEstimate
     # The worker's deployment version tag (MAH-110), for observing which version a
     # worker runs during a blue-green drain. ``None`` when untagged.
     deployment_version: str | None = None
@@ -76,14 +64,5 @@ class PoolRuntimeSnapshot:
                 "bytes": self.resident_set.bytes_value,
                 "metric": self.resident_set.metric,
                 "description": self.resident_set.description,
-            },
-            "savings_estimate": {
-                "agent_count": self.savings_estimate.agent_count,
-                "shared_worker_bytes": self.savings_estimate.shared_worker_bytes,
-                "estimated_separate_workers_bytes": (
-                    self.savings_estimate.estimated_separate_workers_bytes
-                ),
-                "estimated_saved_bytes": self.savings_estimate.estimated_saved_bytes,
-                "assumptions": list(self.savings_estimate.assumptions),
             },
         }

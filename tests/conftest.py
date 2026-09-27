@@ -116,7 +116,6 @@ import pytest
 from openrtc.observability.snapshot import (
     PoolRuntimeSnapshot,
     ProcessResidentSetInfo,
-    SavingsEstimate,
 )
 
 
@@ -138,12 +137,5 @@ def minimal_pool_runtime_snapshot() -> PoolRuntimeSnapshot:
             bytes_value=1024,
             metric="test",
             description="test",
-        ),
-        savings_estimate=SavingsEstimate(
-            agent_count=1,
-            shared_worker_bytes=1024,
-            estimated_separate_workers_bytes=1024,
-            estimated_saved_bytes=0,
-            assumptions=(),
         ),
     )

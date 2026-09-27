@@ -174,8 +174,7 @@ openrtc download-files ./agents
 
 ## Runtime visibility and automation
 
-- **`--dashboard`**: Live Rich summary (RSS, sessions, routing, savings
-  estimate). Off by default.
+- **`--dashboard`**: Live Rich summary (RSS, sessions, routing). Off by default.
 - **`--metrics-json-file PATH`**: Overwrites a JSON file each tick with the
   latest `PoolRuntimeSnapshot` (good for scripts). Grouped under **Advanced**.
 - **`--metrics-jsonl PATH`**: Appends **versioned JSON Lines** (truncates when
@@ -222,8 +221,6 @@ With **`--resources`**, `list` adds:
 - **Summary**: total source bytes and a **best-effort** process memory metric
   from `openrtc.observability.metrics` (Linux: current VmRSS; macOS: peak
   `ru_maxrss`, not live RSS, see `resident_set.description` in `--json` output).
-- **Savings estimate**: a transparent estimate of the memory saved by one
-  shared worker versus one worker per registered agent.
 
 ```bash
 openrtc list --agents-dir ./examples/agents --resources
