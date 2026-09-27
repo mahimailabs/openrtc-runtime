@@ -25,7 +25,7 @@
 @media (min-width: 72rem) {
   .hero {
     grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
-    align-items: center;
+    align-items: start;
     gap: 3.5rem;
     padding-block: 5rem 6rem;
   }
@@ -53,6 +53,12 @@
   padding-left: 0.55rem;
   border-left: 1px solid color-mix(in srgb, var(--on-accent) 25%, transparent);
   font-size: 0.8125rem;
+}
+/* The console's first row lines up with the headline's cap height. */
+@media (min-width: 72rem) {
+  .hero .console {
+    margin-top: 0.6rem;
+  }
 }
 .hero__meta {
   margin-top: 1rem;

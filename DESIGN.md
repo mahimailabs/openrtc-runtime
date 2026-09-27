@@ -1,6 +1,6 @@
 ---
-name: OpenRTC Docs
-description: The mahimai.ca signal-on-black world applied to a five-page Read surface for OpenRTC.
+name: OpenRTC Web
+description: The mahimai.ca signal-on-black world applied to OpenRTC's two surfaces, the five-page docs (Read) and the landing page (Persuade).
 colors:
   signal: "#cba6f7"
   signal-deep: "#b48adc"
@@ -27,7 +27,15 @@ colors:
   light-muted: "#55555c"
   light-ok: "#15803d"
   light-warn: "#a16207"
+  terminal: "#0c0c0c"
+  terminal-dim: "#8a8a8a"
 typography:
+  landing-display:
+    fontFamily: "Space Grotesk Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "clamp(2.6rem, 5.4vw, 4.4rem)"
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: "-0.04em"
   display:
     fontFamily: "Space Grotesk Variable, ui-sans-serif, system-ui, sans-serif"
     fontSize: "clamp(2.4rem, 5vw, 4rem)"
@@ -40,6 +48,12 @@ typography:
     fontWeight: 500
     lineHeight: 1.05
     letterSpacing: "-0.04em"
+  chapter-head:
+    fontFamily: "Space Grotesk Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "clamp(1.8rem, 3.4vw, 2.6rem)"
+    fontWeight: 500
+    lineHeight: 1.08
+    letterSpacing: "-0.035em"
   title:
     fontFamily: "Space Grotesk Variable, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.625rem"
@@ -77,6 +91,12 @@ typography:
     fontSize: "0.75rem"
     fontWeight: 500
     lineHeight: 1.3
+  console:
+    fontFamily: "JetBrains Mono Variable, ui-monospace, SF Mono, Menlo, monospace"
+    fontSize: "0.78rem"
+    fontWeight: 400
+    lineHeight: 1.55
+    fontFeature: "tnum"
 rounded:
   code: "4px"
   control: "0.4rem"
@@ -90,6 +110,7 @@ spacing:
   stack: "1rem"
   panel-pad: "0.9rem 1.1rem"
   chapter: "2rem"
+  landing-chapter: "4.5rem"
   rail-gap: "4rem"
   measure: "46rem"
   shell: "76rem"
@@ -144,9 +165,35 @@ components:
     backgroundColor: "{colors.surface-2}"
     rounded: "{rounded.code}"
     padding: "0.1em 0.35em"
+  console:
+    backgroundColor: "{colors.terminal}"
+    textColor: "{colors.ink-soft}"
+    typography: "{typography.console}"
+    rounded: "{rounded.frame}"
+  code-compare:
+    backgroundColor: "{colors.surface}"
+    typography: "{typography.code}"
+    rounded: "{rounded.frame}"
+    padding: "1.1rem 1.25rem"
+  feature-row:
+    textColor: "{colors.ink-soft}"
+    typography: "{typography.body}"
+    padding: "1.25rem 0"
+  bench-track:
+    backgroundColor: "{colors.surface-2}"
+    rounded: "{rounded.pill}"
+    height: "0.7rem"
+  bench-bar-openrtc:
+    backgroundColor: "{colors.signal}"
+    rounded: "{rounded.pill}"
+    height: "0.7rem"
+  bench-bar-baseline:
+    backgroundColor: "{colors.line-strong}"
+    rounded: "{rounded.pill}"
+    height: "0.7rem"
 ---
 
-# Design System: OpenRTC Docs
+# Design System: OpenRTC Web
 
 ## Overview
 
@@ -154,7 +201,11 @@ components:
 
 This is the mahimai.ca world (see `/home/user/mahimai.ca/DESIGN.md`, the parent system) applied to a Read surface. The parent is a night-shift engineering console: charcoal ground, one lavender signal, real measurements as the only ornament. OpenRTC keeps that palette, that type pairing and that restraint, and bends the composition toward reading: one column of prose at a fixed measure, hairlines between chapters, tables and code allowed the full column, and an on-page contents rail on wide screens. Nothing decorates; the proof is a real `openrtc top` capture and measured tables.
 
-Density is low and even. Pages are long single columns, not dashboards. Every page has the same frame (sticky top bar, title and lede, MDX body, previous/next pager, edit link); only the home page adds a lead-in with the install line and the terminal capture.
+Density is low and even. Pages are long single columns, not dashboards. Every docs page has the same frame (sticky top bar, title and lede, MDX body, previous/next pager, edit link); only the docs home adds a lead-in with the install line and the terminal capture.
+
+The landing page (`web/landing/`) is the same world bent toward persuading: the hero is the worker running, a simulated `openrtc top` console larger than the copy beside it, followed by one-column chapters on a hairline (code before and after, the features ruled with their limits, the measured benchmark bars, a closing call to action). It adds no new colors, fonts or depth; it adds one animation, confined to the console.
+
+Both surfaces read one source. Tokens, base elements and the shared chrome (skip link, top bar, footer, mark, buttons, theme toggle, install line) live in `web/shared/theme.css`, imported by `web/docs/src/styles/global.css` and `web/landing/src/styles/landing.css` after each app loads its fonts. The shared components are `web/shared/Mark.astro`, `ThemeToggle.astro`, `ThemeScript.astro` (sets the theme before first paint) and `InstallCommand.astro`. In CSS the frontmatter slugs appear as `--bg` (ground), `--accent` (signal), `--accent-deep` (signal-deep) and `--on-accent` (on-signal); the rest keep their names, and the light values are the same properties under `:root[data-theme='light']`.
 
 What differs from the parent: no dot-grid background texture (the ground is flat `ground`); the four-dot OpenRTC mark replaces the panther as the one identity device; tables stack into labelled rows on phones; a sticky contents rail tracks the section being read; the shell is 76rem, not 80rem; and a second row of page links scrolls under the top bar on narrow screens instead of a menu.
 
@@ -164,6 +215,7 @@ What differs from the parent: no dot-grid background texture (the ground is flat
 - Space Grotesk 500 for everything readable; JetBrains Mono for code, flags, table headers and measurements.
 - Prose held to a 46rem measure; tables and code blocks may take the whole column.
 - Dark by default; light is the same roles with the signal deepened.
+- One shared theme file for both surfaces; the landing page adds components, not tokens.
 
 ## Colors
 
@@ -184,12 +236,13 @@ A near-black neutral ramp with a single lavender signal and two quiet status hue
 - **Strong Hairline** (`line-strong` / `light-line-strong`): table header rule, button and install-line borders, hover border on quiet controls, scrollbar thumb.
 - **Ink** (`ink` / `light-ink`): headings, strong text, current nav item.
 - **Soft Ink** (`ink-soft` / `light-ink-soft`): body prose and ledes.
-- **Muted** (`muted` / `light-muted`): nav links at rest, table headers, list markers, pager captions, the unlit mark dots and frame.
+- **Muted** (`muted` / `light-muted`): nav links at rest, table headers, list markers, pager captions, the unlit mark dots and frame, feature limits, the star count.
+- **Terminal** (`terminal`, both themes): the fill of the docs capture frame and the landing console. Inside the console the neutral ramp is literal dark values, with **Terminal Dim** (`terminal-dim`) for session ids, tenants, column heads, timestamps and the key hints.
 
 ### Named Rules
-**The One Signal Rule.** Lavender marks links, the primary action, focus and live data only. Never rules, headings, labels or decoration. One primary button per viewport.
+**The One Signal Rule.** Lavender marks links, the primary action, focus and data marks only (the live mark dot, the console's `[reload]` tag, OpenRTC's benchmark bar). Never rules, headings, labels or decoration. One primary button per viewport.
 
-**The Tokens-Only Rule.** Components read colors through the custom properties so both themes follow. The only literal colors are in the terminal frame, which stays dark in both themes because it frames a dark capture.
+**The Tokens-Only Rule.** Components read colors through the custom properties so both themes follow. The only literal colors are in the terminal frame and the landing console, which stay dark in both themes because they frame a dark terminal.
 
 ## Typography
 
@@ -200,17 +253,20 @@ A near-black neutral ramp with a single lavender signal and two quiet status hue
 **Character:** A tight, slightly technical grotesk carries every heading and sentence at weight 500 or 400; the mono appears only where the content is literally code, a flag or a number.
 
 ### Hierarchy
-- **Display** (500, clamp(2.4rem, 5vw, 4rem), 1.02, -0.04em): the home H1 only, capped at 15ch.
+- **Landing display** (500, clamp(2.6rem, 5.4vw, 4.4rem), 1, -0.04em): the landing H1 only, capped at 14ch.
+- **Display** (500, clamp(2.4rem, 5vw, 4rem), 1.02, -0.04em): the docs home H1 only, capped at 15ch.
 - **Headline** (500, clamp(2.1rem, 4.4vw, 3.2rem), 1.05, -0.04em): each doc page's H1.
+- **Chapter head** (500, clamp(1.8rem, 3.4vw, 2.6rem), 1.08, -0.035em): landing chapter H2s, each with a soft-ink paragraph (1.0625rem / 1.65) under it inside a 46rem head block.
 - **Title** (500, 1.625rem, 1.2): MDX H2, the chapter heads the contents rail lists.
 - **Subtitle** (500, 1.125rem): MDX H3, indented one step in the rail.
 - **Body** (400, 1rem, 1.7): prose in soft ink, at most 46rem wide. Ledes run 1.0625rem to 1.15rem.
 - **Label** (500, 0.8125rem to 0.875rem): nav, pager captions, rail links, figure captions, footer.
 - **Code** (400, 0.8125rem blocks / 0.875em inline, tabular numerals): code, flags, commands, measurements.
 - **Table head** (mono 500, 0.75rem): table column headers and, on phones, the per-cell labels (0.6875rem).
+- **Console** (mono 400, 0.78rem, 1.55, tabular numerals; 0.72rem on phones): everything inside the landing console.
 
 ### Named Rules
-**The Mono-Means-Literal Rule.** JetBrains Mono is for things you could type or measure: code, flags, the install command, numbers, and the column names of data tables. Prose labels stay in Space Grotesk.
+**The Mono-Means-Literal Rule.** JetBrains Mono is for things you could type or measure: code, flags, the install command, numbers (star counts, benchmark values), the console, and the column names of data tables. Prose labels stay in Space Grotesk.
 
 **The Balanced Heading Rule.** H1 to H3 are weight 500, tracked -0.03em or tighter, with `text-wrap: balance`.
 
@@ -221,6 +277,8 @@ A centered shell of `min(100% - 2rem, 76rem)` gives a 16px gutter on phones. Doc
 The top bar is sticky at 3.75rem. From 52rem up the five page links sit inline; below that they move to a second, horizontally scrolling row with a faded right edge, and the current page is scrolled into view. The home lead-in is one column, then splits 0.9fr / 1.1fr at 68rem with the terminal capture on the right; on phones the capture follows the lede.
 
 Tables scroll horizontally on wide screens (numbers right-aligned in tabular figures) and, at 40rem and below, stack: each row becomes a block, each cell carries its column name as a small mono label above its value, and the first unlabeled cell reads as the row's title.
+
+The landing hero is one column (copy, then the console) and splits 0.82fr / 1.18fr at 72rem so the console is the larger half; the lede caps at 33rem. Below the hero, every chapter is a full-shell section with 4.5rem block padding and a 1px `line` rule on top; its head block (H2 and paragraph) caps at 46rem with 2.5rem below. Inside chapters: the before/after code splits 1.25fr / 1fr at 64rem; the features list becomes three columns (11rem name, 1.3fr what it does, 1fr limit) at 56rem; the benchmark chapter puts its head and its bars side by side at 64rem with a 4rem gap. On the landing page the top bar has no second row: below 52rem the page links fold away and only the mark, the GitHub pill and the theme toggle remain. The shared footer goes two columns at 48rem.
 
 **The Rail Rule.** The contents rail appears only on wide screens and only when a page has more than two H2/H3 headings. It is sticky, lists H2 and H3, and marks the section in view with a signal left border.
 
@@ -243,6 +301,7 @@ The OpenRTC mark is the one recurring geometry: a 20-unit rounded square frame (
 - **Primary:** signal fill, on-signal text, no border; hover steps to pressed lavender.
 - **Secondary:** transparent with a strong hairline border and ink text; hover lifts the border to muted.
 - **Focus:** the global 2px signal outline, 3px offset.
+- **Count:** the landing "Star on GitHub" primary carries the live star count in mono 0.8125rem after a hairline divider (on-signal at 25%); it is absent when the count is.
 
 ### Install line
 The home page's command: a surface field with a strong hairline and 0.6rem corners, the command in mono with a muted `$`, and a copy button at its right end. The copy button is a quiet ground-filled control (hairline border, 0.4rem corners) whose label flips to "Copied" in ok green for 1.6s.
@@ -257,12 +316,36 @@ Surface panel, hairline border, 0.75rem corners, JetBrains Mono 0.8125rem / 1.7,
 Mono muted headers over a strong hairline, hairline row rules, 0.875rem tabular figures, right-aligned numeric columns. Stack into labelled rows on phones (see Layout).
 
 ### Navigation
-- **Top bar:** mark and "OpenRTC" wordmark (600), five page links in muted that turn ink on hover and when current, a pill GitHub link, and the three-way theme toggle (light, dark, match system) stored in `localStorage['openrtc-theme']` and applied before first paint.
+- **Top bar (docs):** mark and "OpenRTC" wordmark (600), five page links in muted that turn ink on hover and when current, a pill GitHub link, and the three-way theme toggle (light, dark, match system) stored in `localStorage['openrtc-theme']` and applied before first paint.
+- **Top bar (landing):** the same bar with four links (Docs, How it works, Benchmark, Changelog) that fold away below 52rem; the GitHub pill shows the star count in muted mono 0.75rem after a hairline.
 - **Contents rail:** "On this page" in ink 500, links in muted on a hairline track, current item ink with a signal border.
 - **Pager:** previous/next as two hairline-bordered 0.75rem panels, muted caption over an ink label; the border strengthens on hover.
 
-### Terminal frame (signature)
-A real capture (`openrtc top`) inside a 0.875rem frame that stays dark in both themes, with a hairline and a muted caption under it. It is the only image on the site.
+### Terminal frame (signature, docs)
+A real capture (`openrtc top`) inside a 0.875rem frame that stays dark in both themes, with a hairline and a muted caption under it. It is the only image on the docs.
+
+### Console (signature, landing)
+The landing hero: `openrtc top` rebuilt in HTML on simulated sessions, always dark (terminal fill, 1px #262626 hairlines, 0.875rem corners, console type). A header line (title in ink 600, sessions, worker MB, load), the session table (dim ids and tenants, right-aligned numbers, `active` in ok green, `slow` in warn amber with the row tinted at 7% amber), a three-line log, and a key-hint footer. Below the frame, a muted 0.8125rem caption that begins "Simulated." On phones (34rem and below) the tenant and memory columns drop. The screen is one `role="img"` with a label describing the story; its parts are `aria-hidden`.
+
+It plays one 16-second loop, one tick per second: a call arrives, a call turns slow, a save hot-reloads the agent (the log's `[reload]` tag is the signal) and the call recovers, a call ends. New rows and log lines use the page's only animation, `arrive`. The loop runs only while the console is on screen.
+
+**The One Animation Rule.** The console is the only thing that moves. New rows and log lines arrive over 0.6s (opacity from 0 and a 3px blur, ease-out-expo); everything else changes only color on hover. Under `prefers-reduced-motion: reduce`, or without JavaScript, the console holds its first frame, which is a complete, readable table.
+
+### Before and after
+Two code panes on surface with a hairline and 0.875rem corners, mono 0.8125rem / 1.75, each under a muted 0.875rem pane label. Shiki writes both themes; the page picks the one matching `data-theme`.
+
+### Features list (landing)
+A ruled definition list: each row has a hairline above it (and the last one below), 1.25rem block padding, the feature name in ink 500 at 1.0625rem, what it does in soft ink, and its limit in muted at 0.9375rem. No cards, no icons.
+
+**The Limit-Beside-Feature Rule.** Every capability row states the limit that comes with it, in the same row and in muted. A feature without a known limit does not get a row until it has one.
+
+### Benchmark bars (landing)
+Each measure is a figure: an ink 500 caption with its unit in muted, then one row per system (8.5rem soft-ink name, a 0.7rem pill track in surface-2, a 3rem right-aligned mono value). Bars are drawn to a stated maximum, so widths compare honestly.
+
+**The Signal-Is-Us Rule.** Only OpenRTC's bar takes the signal; every baseline bar is `line-strong`. It stays lavender where OpenRTC loses (CPU), because the color names the subject, not the winner.
+
+### Star count
+**The Fetched-Or-Absent Rule.** The GitHub star count is read from the GitHub API at build time. If the fetch fails, the count is not rendered at all; never a hard-coded or cached number.
 
 ## Do's and Don'ts
 
@@ -272,11 +355,18 @@ A real capture (`openrtc top`) inside a 0.875rem frame that stays dark in both t
 - **Do** use the four-dot mark as the only identity device, with exactly one dot lit.
 - **Do** make every new table stack into labelled rows at 40rem and below.
 - **Do** read colors through the theme tokens so light and dark both follow.
+- **Do** add shared tokens, chrome and components to `web/shared/` so the docs and the landing page stay one system.
+- **Do** caption any simulated view as simulated, in its first word.
+- **Do** give every landing capability its limit, and every comparison bar a stated maximum.
+- **Do** hold the console's first frame under reduced motion or without JavaScript.
 
 ### Don't:
 - **Don't** add the parent site's dot-grid texture or any other background pattern; the ground is flat.
 - **Don't** add drop shadows; use a hairline or a surface step.
 - **Don't** use lavender on rules, headings, labels or decoration.
 - **Don't** add eyebrow or kicker labels above headings, or section numbers.
-- **Don't** add abstract illustration; use a real capture or no picture.
+- **Don't** add abstract illustration; use a real capture, a labelled simulation of the real tool, or no picture.
+- **Don't** animate anything outside the console, and don't loop the console while it is off screen.
+- **Don't** give a baseline system the signal color in a comparison.
+- **Don't** hard-code a star count or reintroduce unsourced density claims; show a number only if it was fetched or measured.
 - **Don't** use em dashes in site copy.

@@ -7,20 +7,28 @@ import { DOCS, REPO, fetchStars } from '../lib/links';
 
 const stars = await fetchStars();
 
-const before = `# livekit-agents: one entrypoint, your dispatch
+const before = `# livekit-agents: one entrypoint, so the dispatch is yours
+def prewarm(proc: JobProcess):
+    proc.userdata["vad"] = silero.VAD.load()
+
 async def entrypoint(ctx: JobContext):
     meta = json.loads(ctx.job.metadata or "{}")
     name = meta.get("agent") or ctx.room.name.split("-")[0]
     agent = {"booking": BookingAgent,
              "support": SupportAgent}[name]()
     session = AgentSession(stt=..., llm=..., tts=...,
-                           vad=silero.VAD.load())
+                           vad=ctx.proc.userdata["vad"])
     await session.start(agent=agent, room=ctx.room)
 
-cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))`;
+cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint,
+                          prewarm_fnc=prewarm))`;
 
 const after = `# OpenRTC: register and run
-pool = AgentPool(default_stt=..., default_llm=..., default_tts=...)
+pool = AgentPool(
+    default_stt=...,
+    default_llm=...,
+    default_tts=...,
+)
 pool.add("booking", BookingAgent)
 pool.add("support", SupportAgent)
 pool.run()`;
@@ -139,8 +147,9 @@ const bench = [
       <h2>Less memory per call. Not more calls per box.</h2>
       <p>
         We measured OpenRTC against livekit-agents 1.8.3 on the same two cores, with a full voice pipeline. OpenRTC's calls
-        share one process and use about a third of the memory. They also use more CPU, and CPU runs out first. Run one
-        worker per core.
+        share one process and use about a third of the memory. They also use more CPU, and CPU runs out first, so run one
+        worker per core. When it is saturated the worker stops taking calls: offered 24, it took 12, and all 12
+        answered.
       </p>
       <a class="link" href={`${DOCS}/benchmark/`}>The method, and what it does not cover</a>
     </div>

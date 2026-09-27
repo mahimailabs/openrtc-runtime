@@ -103,13 +103,14 @@ An htop-style table of the calls in a running coroutine worker on the same host,
 
 | Column | Meaning |
 | --- | --- |
-| `agent`, `tenant` | the registered agent, and `metadata["tenant"]` |
+| `session`, `agent`, `tenant` | the LiveKit job id, the registered agent, and `metadata["tenant"]` |
 | `dur(s)` | seconds since the call went live |
-| `mem(MB)`, `peak` | an equal share of the worker's resident memory |
-| `cpu%` | this call's share of sampled on-CPU time |
+| `CPU%` | this call's share of sampled on-CPU time |
+| `MEM~` | an equal share of the worker's resident memory |
 | `status` | `active`, or `slow` when the call recently blocked the event loop for more than 50 ms |
+| `pin` | reserved: always blank today, even inside a `pin_reload` block |
 
-One process cannot measure memory per task, so `mem(MB)` is the worker's total divided by its calls: it adds up correctly but does not tell you which call is heavy. `cpu%` and `slow` do. A `slow` call is usually a synchronous call (a blocking HTTP client, a large JSON parse) starving every other call in the worker.
+One process cannot measure memory per task, so `MEM~` is the worker's total divided by its calls: it adds up correctly but does not tell you which call is heavy. `CPU%` and `slow` do. A `slow` call is usually a synchronous call (a blocking HTTP client, a large JSON parse) starving every other call in the worker.
 
 ### Observers and metrics
 

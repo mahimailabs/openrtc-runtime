@@ -16,7 +16,6 @@ const { title, description, path, stars } = Astro.props;
 const canonical = new URL(path, Astro.site!).href;
 const nav = [
   { href: `${DOCS}/`, label: 'Docs' },
-  { href: `${DOCS}/how-it-works/`, label: 'How it works' },
   { href: `${DOCS}/benchmark/`, label: 'Benchmark' },
   { href: `${DOCS}/changelog/`, label: 'Changelog' },
 ];

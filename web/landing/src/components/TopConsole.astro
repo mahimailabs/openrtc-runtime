@@ -1,15 +1,16 @@
 ---
-// The hero: `openrtc top` playing one short, looping story on simulated sessions. A call arrives,
-// one call starts blocking the loop, a save hot-reloads the agent and the call recovers, a call
-// ends. The columns and the log lines match the real tool; the numbers are illustrative and the
-// caption says so. With reduced motion, or without JS, the first frame stays put.
+// The hero: `openrtc top` playing one short, looping story on simulated sessions. It opens on a
+// call blocking the loop; a save hot-reloads the agent and the call recovers; a call arrives; a
+// call ends. The table's columns are `openrtc top`'s (MEM~ is left out: it is a share of one
+// process, not a per-call figure). The `[reload]` line is the real format; the other log lines,
+// the sessions and the numbers are illustrative, and the caption says so. With reduced motion, or
+// without JS, the opening frame stays put.
 const rows = [
   { id: 'AJ_8f3a', agent: 'support', tenant: 'acme', dur: 187, cpu: 9, status: 'active' },
-  { id: 'AJ_2c91', agent: 'booking', tenant: 'globex', dur: 94, cpu: 14, status: 'active' },
+  { id: 'AJ_2c91', agent: 'booking', tenant: 'globex', dur: 94, cpu: 63, status: 'slow' },
   { id: 'AJ_7d0e', agent: 'booking', tenant: 'initech', dur: 41, cpu: 11, status: 'active' },
 ];
 const WORKER_MB = 1240;
-const share = Math.round(WORKER_MB / rows.length);
 ---
 
 <figure class="console" data-console>
@@ -23,24 +24,24 @@ const share = Math.round(WORKER_MB / rows.length);
     <table class="console__table" aria-hidden="true">
       <thead>
         <tr>
+          <th class="num">#</th>
           <th>session</th>
           <th>agent</th>
           <th>tenant</th>
           <th class="num">dur(s)</th>
-          <th class="num">mem(MB)</th>
-          <th class="num">cpu%</th>
+          <th class="num">CPU%</th>
           <th>status</th>
         </tr>
       </thead>
       <tbody data-rows>
         {
-          rows.map((r) => (
+          rows.map((r, i) => (
             <tr data-id={r.id}>
+              <td class="num dim" data-n>{i + 1}</td>
               <td class="dim">{r.id}</td>
               <td>{r.agent}</td>
               <td class="dim">{r.tenant}</td>
               <td class="num" data-dur>{r.dur}</td>
-              <td class="num" data-mem>{share}</td>
               <td class="num" data-cpu>{r.cpu}</td>
               <td data-status={r.status}>{r.status}</td>
             </tr>
@@ -49,14 +50,15 @@ const share = Math.round(WORKER_MB / rows.length);
       </tbody>
     </table>
     <ol class="console__log" aria-hidden="true" data-log>
-      <li><span class="dim">16:42:07</span> worker ready: 3 agents, VAD loaded once</li>
+      <li><span class="dim">16:42:07</span> session_started booking initech</li>
+      <li><span class="dim">16:42:09</span> <span class="warn">slow</span> AJ_2c91 blocked the loop for 180 ms</li>
     </ol>
     <div class="console__keys" aria-hidden="true">q quit · r refresh · s sort · f filter</div>
   </div>
-  <figcaption>Simulated. Above, the table <code>openrtc top</code> shows; below, the worker's log. Sessions, events and numbers are illustrative.</figcaption>
+  <figcaption>Simulated <code>openrtc top</code>: the session table, then the worker's log. Sessions and numbers are illustrative.</figcaption>
 </figure>
 
-<script is:inline define:vars={{ WORKER_MB }}>
+<script is:inline>
   (function () {
     var root = document.querySelector('[data-console]');
     if (!root || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -91,19 +93,18 @@ const share = Math.round(WORKER_MB / rows.length);
       cell.dataset.status = status;
       cell.textContent = status;
     }
-    function reshare() {
+    function renumber() {
       var trs = body.querySelectorAll('tr');
-      var share = Math.round(WORKER_MB / trs.length);
-      trs.forEach(function (tr) { tr.querySelector('[data-mem]').textContent = share; });
+      trs.forEach(function (tr, i) { tr.querySelector('[data-n]').textContent = i + 1; });
       sessions.textContent = trs.length;
     }
     function tick() {
-      t = (t + 1) % 16;
+      t = (t + 1) % 14;
       clock += 1;
       if (t === 0) {
         body.innerHTML = initial;
         log.innerHTML = initialLog;
-        reshare();
+        renumber();
       }
       body.querySelectorAll('tr').forEach(function (tr) {
         var dur = tr.querySelector('[data-dur]');
@@ -113,30 +114,26 @@ const share = Math.round(WORKER_MB / rows.length);
         var base = slow ? 62 : 8 + (tr.dataset.id.charCodeAt(4) % 7);
         cpu.textContent = base + Math.round(Math.random() * 4);
       });
-      if (t === 2) {
+      if (t === 3) {
+        setStatus(row('AJ_2c91'), 'active');
+        say('<span class="accent">[reload]</span> booking.py changed -&gt; swapped 2 sessions in 11ms');
+      }
+      if (t === 6) {
         var tr = document.createElement('tr');
         tr.dataset.id = 'AJ_c45b';
         tr.className = 'is-new';
         tr.innerHTML =
-          '<td class="dim">AJ_c45b</td><td>support</td><td class="dim">globex</td>' +
-          '<td class="num" data-dur>0</td><td class="num" data-mem></td><td class="num" data-cpu>7</td>' +
+          '<td class="num dim" data-n></td><td class="dim">AJ_c45b</td><td>support</td><td class="dim">globex</td>' +
+          '<td class="num" data-dur>0</td><td class="num" data-cpu>7</td>' +
           '<td data-status="active">active</td>';
         body.appendChild(tr);
-        reshare();
+        renumber();
         say('session_started support globex');
       }
-      if (t === 5) {
-        setStatus(row('AJ_2c91'), 'slow');
-        say('<span class="warn">slow</span> AJ_2c91 blocked the loop for 180 ms');
-      }
-      if (t === 9) {
-        setStatus(row('AJ_2c91'), 'active');
-        say('<span class="accent">[reload]</span> booking.py changed -&gt; swapped 2 sessions in 11ms');
-      }
-      if (t === 12) {
+      if (t === 10) {
         var done = row('AJ_8f3a');
         if (done) done.remove();
-        reshare();
+        renumber();
         say('session_finished support acme');
       }
       var slowNow = body.querySelector('[data-status="slow"]') ? 0.46 : 0;
@@ -259,10 +256,10 @@ const share = Math.round(WORKER_MB / rows.length);
   }
   /* Phones: the tenant and memory columns give way so the story still reads. */
   @media (max-width: 34rem) {
-    .console__table th:nth-child(3),
-    .console__table td:nth-child(3),
-    .console__table th:nth-child(5),
-    .console__table td:nth-child(5) {
+    .console__table th:nth-child(1),
+    .console__table td:nth-child(1),
+    .console__table th:nth-child(4),
+    .console__table td:nth-child(4) {
       display: none;
     }
     .console__table th,

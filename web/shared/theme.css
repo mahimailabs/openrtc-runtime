@@ -4,7 +4,7 @@
 
 /* The mahimai.ca palette, as on prices.mahimai.ca. Dark is the default; light keeps the same
    roles with the lavender deepened for contrast. <html data-theme> is set before paint by the
-   script in Layout.astro. The lavender marks links, actions and data only. */
+   script in ThemeScript.astro. The lavender marks links, actions and data only. */
 :root {
   color-scheme: dark;
   --bg: #0a0a0a;
@@ -243,6 +243,13 @@ code {
 }
 .install code span {
   color: var(--muted);
+}
+/* Phones: the command wraps instead of hiding its end. */
+@media (max-width: 30rem) {
+  .install code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 .copy {
   display: inline-flex;
