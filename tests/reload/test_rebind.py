@@ -183,3 +183,21 @@ def test_rebind_carries_conversation_history_to_the_new_agent() -> None:
     texts = [m.text_content for m in new_agent.chat_ctx.messages()]
     assert texts == ["Book a table for two.", "For what time?"]
     assert new_agent.instructions == "new"
+
+
+class _SuspendingAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions="suspends")
+
+    async def update_chat_ctx(self, chat_ctx: Any, **_: Any) -> None:
+        await asyncio.sleep(0)
+
+
+def test_history_copy_that_suspends_leaves_the_session_on_the_old_agent() -> None:
+    old = OldAgent()
+    session = _FakeSession(old)
+    reg = LiveSessionRegistry()
+    _register(reg, "foo", session, "j1")
+    assert rebind_agent(_config(), _SuspendingAgent, reg) == 0
+    assert session.current_agent is old
+    assert session.update_calls == []
