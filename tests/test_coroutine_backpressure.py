@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import multiprocessing as mp
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -31,7 +32,12 @@ def _stub_running_job_info(job_id: str) -> Any:
     )
 
 
-def _build_pool(*, max_concurrent_sessions: int, entrypoint: Any) -> CoroutinePool:
+def _build_pool(
+    *,
+    max_concurrent_sessions: int,
+    entrypoint: Any,
+    track_loop_lag: bool = False,
+) -> CoroutinePool:
     pool = CoroutinePool(
         initialize_process_fnc=lambda _proc: None,
         job_entrypoint_fnc=entrypoint,
@@ -54,6 +60,9 @@ def _build_pool(*, max_concurrent_sessions: int, entrypoint: Any) -> CoroutinePo
         room=SimpleNamespace(name=f"room-{info.job.id}"),
         session_id=info.job.id,
     )
+    if not track_loop_lag:
+        # Session-pressure tests assert exact loads; keep scheduler jitter out.
+        pool.record_loop_lag = lambda _lag_ms: None  # type: ignore[method-assign]
     return pool
 
 
@@ -250,3 +259,47 @@ def test_load_fnc_closure_pattern_reports_pool_load() -> None:
     assert load_idle == 0.0
     assert load_partial == 0.7
     assert load_full == 1.0
+
+
+def test_loop_lag_raises_load_above_session_pressure() -> None:
+    """A saturated loop reports load even with few sessions, capped at 1.0."""
+
+    async def _noop(_ctx: Any) -> None:
+        return None
+
+    pool = _build_pool(
+        max_concurrent_sessions=10, entrypoint=_noop, track_loop_lag=True
+    )
+    assert pool.current_load() == 0.0
+
+    pool.record_loop_lag(250.0)  # one sample; EWMA 0.2 -> 50 ms -> load 0.5
+    assert pool.loop_lag_ms == 50.0
+    assert pool.current_load() == 0.5
+
+    for _ in range(50):
+        pool.record_loop_lag(1000.0)
+    assert pool.current_load() == 1.0
+
+
+def test_lag_monitor_detects_a_blocked_loop_and_stops_on_close() -> None:
+    """The real sampler sees a synchronous block and is cancelled by aclose()."""
+
+    async def _noop(_ctx: Any) -> None:
+        return None
+
+    async def _scenario() -> tuple[float, bool]:
+        pool = _build_pool(
+            max_concurrent_sessions=10, entrypoint=_noop, track_loop_lag=True
+        )
+        await pool.start()
+        await asyncio.sleep(0.05)
+        time.sleep(0.3)  # block the loop past the 100 ms sample interval
+        await asyncio.sleep(0.15)
+        lag = pool.loop_lag_ms
+        await pool.aclose()
+        return lag, pool._lag_monitor_task is None
+
+    lag, stopped = asyncio.run(_scenario())
+
+    assert lag > 20.0
+    assert stopped

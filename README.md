@@ -31,12 +31,12 @@ A thin multi-agent layer for [LiveKit Agents](https://docs.livekit.io/agents). R
 
 ## Why OpenRTC
 
-The default one-worker-per-agent model in `livekit-agents` reloads the same stack (Python runtime, Silero VAD, turn detector) in every process. OpenRTC answers the questions an operator actually asks:
+Running `livekit-agents` yourself usually means one deployment per agent and hand-rolled glue for routing, deploys, and visibility. OpenRTC answers the questions an operator actually asks:
 
-- **How many agents per box?** One worker hosts every registered agent, each session an `asyncio.Task` over a shared `JobProcess`. The density benchmark clears 50+ concurrent sessions per worker under a 4 GB peak-RSS budget with headroom (see [Density](#density)).
+- **How many agents per box?** One worker hosts every registered agent; each call is routed to the right one. You run one fleet instead of one deployment per agent.
 - **Do I rewrite my agents?** No. Your `Agent` subclasses, tools, and provider objects are unchanged; you delete per-worker boilerplate (`entrypoint`, `AgentSession` wiring, `cli.run_app`) and register classes on one pool.
-- **What does it cost in RAM?** Prewarm loads once per worker, not once per agent, so you stop paying resident set for copies you do not need.
-- **What if I need hard isolation?** Pass `isolation="process"` for the one-subprocess-per-session model with independent crashes and livekit's per-session memory caps.
+- **What does it cost in RAM?** In the default coroutine mode about 22 MB per call versus about 63 MB for stock `livekit-agents` 1.8 on the same machine (measured, see [Throughput and density](#throughput-and-density)). CPU, not memory, is usually what limits calls per box.
+- **What if I need hard isolation?** Pass `isolation="process"` for the one-subprocess-per-session model with independent crashes, livekit's per-session memory caps, and all CPU cores.
 
 ## Features
 
@@ -142,9 +142,9 @@ pool = AgentPool(
 | Prewarm (VAD, turn detector) | Loaded once per worker. | Loaded once per session subprocess. |
 | Crash isolation | Cooperative: an unhandled exception is logged and the session marked `FAILED`; siblings continue. `consecutive_failure_limit` consecutive failures (default 5) schedule `aclose()` so the platform restarts the worker; one `SUCCESS` resets the counter. | Hard: each subprocess crashes independently. |
 | Memory cap | Worker-level (one process): warns at `memory_warn_mb` and drains + restarts the worker at `memory_limit_mb`, measured against whole-worker RSS, not per session. | Per-session: livekit-agents enforces `memory_limit_mb` per subprocess. |
-| Backpressure | `current_load() = active / max_concurrent_sessions`, reported to LiveKit dispatch. Advisory only (unclamped, not a hard gate); sessions past the threshold still launch. | `livekit-agents` default CPU-based load. |
+| Backpressure | `current_load()` reports the higher of `active / max_concurrent_sessions` and event-loop lag (smoothed; 100 ms of lag reads as full), so a CPU-saturated worker stops taking calls. Advisory only (not a hard gate); sessions LiveKit still sends are launched. | `livekit-agents` default CPU-based load. |
 | Dependency surface | Uses `livekit-agents` private job internals; pinned to `>=1.5,<1.9`. An unsupported version fails import with a message pointing to `isolation="process"`. | Public, version-stable API. |
-| When to pick | High density on one host; cost-sensitive deployments. | Regulatory hard isolation; per-session memory caps. |
+| When to pick | Memory-bound hosts (small containers, memory-priced platforms); lowest memory per call. One process uses about one core of Python, so run one worker per core. | CPU-bound workloads (uses every core), hard crash isolation, per-session memory caps. |
 
 `max_concurrent_sessions` (50), `consecutive_failure_limit` (5), and `drain_timeout` (30) are validated as positive integers; `memory_warn_mb` (1000) and `memory_limit_mb` (0 = disabled) as non-negative numbers. On SIGTERM the worker drains: it stops accepting jobs and waits up to `drain_timeout` seconds for in-flight sessions before cancelling.
 
@@ -159,22 +159,24 @@ Two axes, two benchmarks. **Throughput** is the defensible "sessions per worker"
 | 50 | 2.0 ms | 197 MB |
 | 100 | 1.1 ms | 264 MB |
 
-**Memory** is the other axis. The stub-workload `tests/benchmarks/density.py` (memory only, and the current CI gate) holds 50+ sessions per worker under a 4 GB peak-RSS budget with headroom ([full table](docs/benchmarks/density-v0.1.md)). Process mode instead loads the runtime plus models per session (~3 GB each, see [docs/audit-2026-05-02.md](docs/audit-2026-05-02.md)), so the same 50 sessions would need ~150 GB; coroutine mode shares one process.
+Read that as an on-loop-CPU ceiling, not a full-pipeline guarantee: the harness stubs the WebRTC/STT/LLM/TTS network path. Shared CI runners are too noisy for a p99 gate, so throughput ships report-only for now.
 
-Read both as an on-loop-CPU plus memory ceiling, not a full-pipeline guarantee: the harness stubs the WebRTC/STT/LLM/TTS network path. Shared CI runners are too noisy for a p99 gate, so throughput ships report-only for now; measure on your own hardware before quoting a sessions-per-worker number.
+**Head-to-head with stock `livekit-agents`.** Same agent, full pipeline (real rooms on a local livekit-server 1.13, WebRTC audio in and out, Silero VAD, turn detector, STT/LLM/TTS stand-ins with realistic latency), `livekit-agents` 1.8.3, worker pinned to 2 cores, memory as PSS (RSS double counts the pages forked job processes share):
 
-**Prove it on your machine** (no LiveKit server, no API keys, no model download):
+| Calls | Mode | Agents that answered | Memory per call | CPU for 8 calls |
+| ---: | :--- | ---: | ---: | ---: |
+| 8 | stock `livekit-agents` (process per job) | 8/8 | ~63 MB | ~103% |
+| 8 | OpenRTC coroutine | 8/8 | ~22 MB | ~130% |
+| 16 | stock `livekit-agents` (process per job) | 16/16 | | |
+| 16 | OpenRTC coroutine | 14/16 | | |
 
-```bash
-uv run python examples/density_demo.py                # 16 sessions
-uv run python examples/density_demo.py --sessions 50  # the gap widens with N
-```
+Both idle at about 1.2 GB (runtime plus the shared turn-detector process). Stock `livekit-agents` 1.8 forks jobs from a preloaded forkserver, so a job costs tens of MB, not gigabytes. What this means in practice:
 
-```text
-livekit-agents (process per session):   1861 MB total  (116.3 MB/session)
-OpenRTC coroutine pool (one process):     195 MB total  ( 12.2 MB/session)
-OpenRTC uses 9.5x less memory for the same 16 sessions.
-```
+- Coroutine mode uses about 3x less memory per call. That matters on memory-bound hosts.
+- It does not raise the calls a machine can serve: CPU runs out first, and one coroutine worker is one Python process. Run one worker per core, or use `isolation="process"` for CPU-bound loads.
+- Measure on your own hardware before quoting a calls-per-worker number.
+
+The stub-workload `tests/benchmarks/density.py` remains the memory regression gate in CI ([history](docs/benchmarks/density-v0.1.md)); it checks OpenRTC against itself, not against stock `livekit-agents`.
 
 ## Routing
 

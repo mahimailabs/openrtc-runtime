@@ -9,7 +9,7 @@ instead of one worker per agent, and host them all in a single process: shared
 prewarm loads once, every call still gets its own `AgentSession`, and you never
 inherit an OpenRTC base class.
 
-The payoff is the stuff livekit-agents leaves to you: **50+ sessions per worker,
+The payoff is the stuff livekit-agents leaves to you: **one fleet for every agent,
 hot reload, live introspection, per-tenant isolation, and zero-downtime deploys.**
 
 <CardGroup cols={2}>
@@ -29,7 +29,7 @@ hot reload, live introspection, per-tenant isolation, and zero-downtime deploys.
 | **Your `Agent` code** | standard subclasses | **unchanged** |
 | **Workers** | one process per agent | one worker hosts every agent |
 | **Prewarm** | reloads per process | loaded once, shared |
-| **Scaling** | ~3 GB per idle worker | 50+ concurrent sessions in one process |
+| **Memory per call** | ~63 MB (process per job) | ~22 MB (coroutine mode, measured on livekit-agents 1.8) |
 | **Shipping a change** | restart, drop in-flight calls | hot reload, no dropped calls |
 
 ## What you get on top
@@ -39,9 +39,9 @@ hot reload, live introspection, per-tenant isolation, and zero-downtime deploys.
     Register any number of standard `Agent` subclasses on one pool. No base class,
     no rewrite: your tools and node hooks stay exactly as written.
   </Card>
-  <Card title="Coroutine density" icon="bolt" href="/benchmarks/density-v0.1">
-    Sessions run as `asyncio` tasks in one loop, 50+ concurrent, sharing one
-    Silero VAD and turn detector. Process isolation is one flag away.
+  <Card title="Lean coroutine mode" icon="bolt" href="/benchmarks/density-v0.1">
+    Sessions run as `asyncio` tasks in one loop, sharing one Silero VAD and turn
+    detector, at about a third of the memory per call. Process isolation is one flag away.
   </Card>
   <Card title="Smart routing" icon="route" href="/concepts/routing">
     Every call resolves to one agent by job metadata, room metadata, or room-name

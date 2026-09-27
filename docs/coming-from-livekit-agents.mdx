@@ -108,9 +108,9 @@ The per-worker boilerplate that OpenRTC now owns for you:
 The things livekit-agents alone leaves to you:
 
 <CardGroup cols={2}>
-  <Card title="Density" icon="bolt" href="/benchmarks/density-v0.1">
-    50+ concurrent sessions per worker as `asyncio` tasks, sharing one prewarm,
-    instead of a subprocess (~3 GB) per session.
+  <Card title="Lower memory per call" icon="bolt" href="/benchmarks/density-v0.1">
+    Sessions run as `asyncio` tasks sharing one prewarm: about 22 MB per call
+    versus about 63 MB for a process per job (livekit-agents 1.8, measured).
   </Card>
   <Card title="Hot reload" icon="arrows-rotate" href="/concepts/hot-reload">
     Edit an agent and live calls pick up the new code on their next turn, with no
@@ -133,7 +133,7 @@ The things livekit-agents alone leaves to you:
 | `AgentServer()` + one `@server.rtc_session(agent_name=...)` per agent | one `AgentPool()`, then `pool.add(name, Agent)` per agent |
 | `AgentSession(stt=, llm=, tts=, turn_handling=)` rebuilt in each session | built for you from pool defaults plus per-agent overrides |
 | prewarm reloaded in every worker process | shared prewarm (VAD, turn detector) loaded once per worker |
-| one worker process per agent to scale | many agents and 50+ sessions in one worker (coroutine mode) |
+| one worker deployment per agent | many agents in one worker, routed per call |
 | `agents.cli.run_app(server)` | `pool.run()`, which wraps the same CLI |
 | dispatch keyed on `agent_name` | routing chain: job metadata, room metadata, room-name prefix |
 | restart the worker to ship a change | hot reload swaps live sessions on their next turn |
