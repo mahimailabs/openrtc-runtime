@@ -8,8 +8,12 @@ unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy
 export LIVEKIT_URL=ws://127.0.0.1:7880 LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=secret PYTHONPATH=$PWD
 PY=${PY:-../../.venv/bin/python}
 mkdir -p out
+# set -m: the worker (and any workers under it, multi.sh) get a process group of their own,
+# numbered $WPID, so the cleanup below reaches every one of them.
+set -m
 taskset -c 0,1 "$@" start > "out/$LABEL.worker.log" 2>&1 &
 WPID=$!
+set +m
 for _ in $(seq 120); do grep -q "registered worker" "out/$LABEL.worker.log" && break; sleep 1; done
 sleep 15  # let prewarm settle: the first rows of the sampler are the idle baseline
 $PY sampler.py $WPID "out/$LABEL.csv" &
@@ -23,6 +27,6 @@ grep -E "^cpu[01] " /proc/stat > "out/$LABEL.stat1"
 [ -s "out/$LABEL.load.json" ] || echo '{"calls": '"$N"', "loadgen_timed_out": true}' > "out/$LABEL.load.json"
 sleep 30
 STUCK=$($PY cleanup.py "$LABEL" 2>/dev/null)
-kill -INT $WPID; sleep 5; kill -9 $WPID 2>/dev/null; pkill -9 -P $WPID 2>/dev/null
+kill -INT -- -$WPID; sleep 5; kill -9 -- -$WPID 2>/dev/null
 kill $SPID 2>/dev/null
 STUCK=$STUCK $PY collect.py "$LABEL"
