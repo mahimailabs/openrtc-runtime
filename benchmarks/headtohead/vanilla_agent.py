@@ -2,6 +2,7 @@
 
 import os
 
+import ffistats
 from fakes import FakeLLM, FakeSTT, FakeTTS
 from livekit.agents import (
     Agent,
@@ -49,6 +50,9 @@ async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
     await session.start(agent=BenchAgent(), room=ctx.room)
 
+
+if os.environ.get("BENCH_FFI_STATS") == "1":
+    ffistats.install()
 
 if __name__ == "__main__":
     cli.run_app(server)
