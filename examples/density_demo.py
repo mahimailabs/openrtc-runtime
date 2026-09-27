@@ -1,23 +1,26 @@
-"""Prove the OpenRTC density win, on one laptop, with real numbers.
+"""Measure the memory OpenRTC saves per session, on one machine, with real numbers.
 
-The claim: livekit-agents runs roughly one OS process per session (about
-3 GB each in production). OpenRTC's coroutine pool runs N sessions as
-asyncio tasks inside a single process, so the heavy per-process cost
-(Python interpreter, the livekit-agents import graph, and shared models
-like Silero VAD and the turn detector) is paid ONCE instead of N times.
+OpenRTC's coroutine pool runs N sessions as asyncio tasks inside a single
+process. Stock livekit-agents runs one OS process per session: on Linux it
+forks each from a forkserver that preloaded the import graph (children share
+those pages copy-on-write); on macOS and Windows it spawns a fresh interpreter.
 
-This script measures both models for real:
+This script measures both models the way they really run:
 
-  * "process-per-session" (what vanilla livekit-agents does):
-    spawn N subprocesses, each imports the agent stack and holds a
-    per-session buffer. We sum the resident memory across all of them.
+  * "process-per-session" (stock livekit-agents): N child processes started
+    with the same start method livekit-agents uses on this OS, each holding a
+    per-session buffer. We sum their memory, plus the forkserver's.
 
-  * "OpenRTC coroutine pool" (the default isolation mode):
-    import the stack ONCE, run N asyncio sessions in this single process,
-    each holding the same per-session buffer. We read this process's
-    resident memory.
+  * "OpenRTC coroutine pool" (the default isolation mode): import the stack
+    ONCE, run N asyncio sessions in this single process, each holding the same
+    per-session buffer.
 
-Then it prints total memory each way, memory per session, and the ratio.
+Memory is PSS where the OS reports it (Linux): shared pages are split fairly
+between the processes that share them, so the sum is the real total. RSS would
+count every shared page once per process and overstate the process model.
+
+This measures memory only. CPU, not memory, usually limits how many calls a
+machine can serve; see the README's head-to-head benchmark.
 No LiveKit server, no network, no model download required.
 
 Run it:
@@ -26,9 +29,9 @@ Run it:
     uv run python examples/density_demo.py --sessions 32
     uv run python examples/density_demo.py --sessions 50 --load-vad
 
-Use --load-vad to also load the real Silero VAD in every worker (the model
-livekit-agents would load per process and OpenRTC shares). It downloads
-ONNX weights on first run, then makes the gap even wider.
+Use --load-vad to also load the real Silero VAD in every session process (the
+model livekit-agents loads per process in prewarm and OpenRTC shares). It
+downloads ONNX weights on first run.
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ import asyncio
 import contextlib
 import multiprocessing as mp
 import os
+import sys
 import time
 
 import psutil
@@ -46,6 +50,12 @@ import psutil
 # per-session cost is dominated by the shared-vs-per-process fixed cost, so
 # the exact buffer size is not load-bearing; it just keeps each session honest.
 _SESSION_BUFFER_MB = 5
+
+
+def _memory_bytes(proc: psutil.Process) -> int:
+    """PSS where available (Linux), else RSS."""
+    info = proc.memory_full_info()
+    return int(getattr(info, "pss", info.rss))
 
 
 def _import_stack(load_vad: bool) -> None:
@@ -72,10 +82,14 @@ def _process_worker(ready: object, stop: object, load_vad: bool) -> None:
 
 
 def measure_process_model(sessions: int, load_vad: bool) -> float:
-    """Sum resident memory of N independent worker processes (MB)."""
-    # "spawn" matches LiveKit's default executor on macOS, so each child pays
-    # the full fresh-interpreter import cost, exactly as in production.
-    ctx = mp.get_context("spawn")
+    """Sum the memory of N session processes plus their forkserver (MB)."""
+    # Same start method livekit-agents uses: forkserver with the stack preloaded
+    # on Linux (children share it copy-on-write), fresh spawn elsewhere.
+    if sys.platform.startswith("linux"):
+        ctx = mp.get_context("forkserver")
+        ctx.set_forkserver_preload(["livekit.agents", "openrtc"])
+    else:
+        ctx = mp.get_context("spawn")
     ready_events = [ctx.Event() for _ in range(sessions)]
     stop_event = ctx.Event()
     procs = [
@@ -91,11 +105,11 @@ def measure_process_model(sessions: int, load_vad: bool) -> float:
 
     time.sleep(0.5)  # let resident memory settle
     total_bytes = 0
-    for p in procs:
-        with contextlib.suppress(
-            psutil.NoSuchProcess
-        ):  # a worker may have exited early
-            total_bytes += psutil.Process(p.pid).memory_info().rss
+    # Every descendant: the session processes and, on Linux, the forkserver
+    # that holds the preloaded pages they share.
+    for child in psutil.Process().children(recursive=True):
+        with contextlib.suppress(psutil.Error):  # a child may have exited early
+            total_bytes += _memory_bytes(child)
 
     stop_event.set()
     for p in procs:
@@ -104,7 +118,7 @@ def measure_process_model(sessions: int, load_vad: bool) -> float:
 
 
 async def measure_coroutine_model(sessions: int, load_vad: bool) -> float:
-    """Resident memory of ONE process hosting N asyncio sessions (MB)."""
+    """Memory of ONE process hosting N asyncio sessions (MB)."""
     _import_stack(load_vad)  # paid once, in this process
 
     async def _session() -> None:
@@ -116,12 +130,12 @@ async def measure_coroutine_model(sessions: int, load_vad: bool) -> float:
 
     tasks = [asyncio.create_task(_session()) for _ in range(sessions)]
     await asyncio.sleep(0.5)  # let all sessions allocate + settle
-    rss_mb = psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+    total_mb = _memory_bytes(psutil.Process(os.getpid())) / (1024 * 1024)
 
     for t in tasks:
         t.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
-    return rss_mb
+    return total_mb
 
 
 def main() -> None:
@@ -137,7 +151,8 @@ def main() -> None:
     args = parser.parse_args()
     n = args.sessions
 
-    print(f"\nHosting {n} concurrent voice sessions. Measuring resident memory.\n")
+    metric = "PSS" if sys.platform.startswith("linux") else "RSS"
+    print(f"\nHosting {n} concurrent voice sessions. Measuring memory ({metric}).\n")
 
     # Process model first so this parent process stays light; the coroutine
     # measurement then imports the stack into this same process on purpose.
