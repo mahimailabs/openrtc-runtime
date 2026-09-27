@@ -288,7 +288,7 @@ openrtc top               # live inspector (q quit · r refresh · s sort · f f
 openrtc top --once        # one snapshot for scripts / CI
 ```
 
-`mem(MB)` is an equal share of process RSS (per-session numbers sum back to the real RSS); `cpu%` is a sampled share of on-CPU time; a session shows `slow` when it recently blocked the shared loop (a sync call starving the others). These are honest approximations of a shared process, documented with their caveats in [how it works](https://docs.openrtc.tech/how-it-works/#openrtc-top). Introspection is coroutine-mode only and on by default; disable it with `AgentPool(enable_introspection=False)`.
+`mem(MB)` is an equal share of process RSS (per-session numbers sum back to the real RSS); `cpu%` is a sampled share of on-CPU time; a session shows `slow` when it recently blocked the shared loop (a sync call starving the others). These are honest approximations of a shared process, documented with their caveats in [how it works](https://docs.openrtc.tech/how-it-works/#openrtc-top). In process mode `openrtc top` lists each call's own process instead: its PSS and CPU, without `slow`, since calls share no loop. Introspection is on by default; disable it with `AgentPool(enable_introspection=False)`.
 
 > This is a **runtime density** tool. For cost, pipeline latency (STT/LLM/TTS), and quality metrics, use voicegateway: it consumes the `agent_name` and `metadata["tenant"]` OpenRTC emits and owns that lane. OpenRTC does not duplicate it.
 

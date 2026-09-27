@@ -7,6 +7,23 @@ description: Every change to OpenRTC, newest first, with migration notes. Releas
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### `openrtc top` in process mode
+
+**Added**
+
+- `openrtc top` now works under `isolation="process"`: one row per livekit job,
+  with agent, tenant, duration, and that job process's own memory (PSS on
+  Linux) and CPU. The rows come from `AgentServer.active_jobs`; each job
+  process reports its pid into a private directory next to the socket. There
+  is no `slow` status in process mode, since calls share no event loop.
+
+**Fixed**
+
+- Process mode now starts livekit's turn-detector inference process. Before,
+  every turn logged "inference of lk_end_of_utterance_multilingual failed: no
+  inference executor", because livekit checks for registered inference runners
+  before prewarm runs. Coroutine mode already registered it.
+
 ### Session caps work in process mode
 
 **Added**

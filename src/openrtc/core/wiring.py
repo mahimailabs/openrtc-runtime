@@ -74,6 +74,9 @@ class _PoolRuntimeState:
     # The worker's deployment version (MAH-112), stamped onto each session's
     # observer payload for the per-call "which version handled it" audit.
     deployment_version: str | None = None
+    # Process-mode ``openrtc top`` (None when off): each job process writes its
+    # pid here, under its job id, so the worker can read its memory and CPU.
+    job_pid_dir: str | None = None
 
 
 def build_session(
@@ -159,6 +162,10 @@ async def run_session(
 ) -> None:
     """Run one session through its lifecycle: metrics, observers, greeting."""
     session, config, info = build_session(runtime_state, ctx)
+    if runtime_state.job_pid_dir is not None:
+        from openrtc.observability.process_top import record_job_pid
+
+        record_job_pid(runtime_state.job_pid_dir, info.job_id)
     # Bind session_id + agent_name + tenant for this task tree so every log record
     # and the per-session attribution (v0.3) can be scoped to this session
     # (MAH-91), namespaced by agent (MAH-98), and isolated per tenant (MAH-101).

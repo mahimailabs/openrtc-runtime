@@ -106,8 +106,17 @@ def test_agent_pool_can_disable_introspection() -> None:
     assert pool.introspection is None
 
 
-def test_agent_pool_skips_introspection_in_process_mode() -> None:
-    # process mode isolates each session in a subprocess; a shared-process
-    # inspector sees nothing, so introspection is silently skipped.
+def test_agent_pool_serves_process_mode_top_from_job_processes() -> None:
+    # Process mode has no in-process sessions: top lists livekit's job processes,
+    # which report their pids into a directory the runtime state carries to them.
     pool = AgentPool(isolation="process")
     assert pool.introspection is None
+    top = pool.server._openrtc_top  # type: ignore[attr-defined]
+    assert top is not None
+    assert pool._runtime_state.job_pid_dir == str(top.job_pid_dir)
+
+
+def test_agent_pool_process_mode_top_can_be_disabled() -> None:
+    pool = AgentPool(isolation="process", enable_introspection=False)
+    assert pool.server._openrtc_top is None  # type: ignore[attr-defined]
+    assert pool._runtime_state.job_pid_dir is None

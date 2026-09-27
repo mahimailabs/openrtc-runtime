@@ -208,9 +208,9 @@ class AgentPool:
         per-session memory/CPU attribution, a slow-session (event-loop-block)
         detector at ``slow_session_threshold_ms``, and a private local Unix socket
         (at ``introspection_socket_path`` or the per-user default) the inspector
-        connects to. It is coroutine-mode only (process mode isolates every
-        session in its own subprocess, where a shared-process inspector sees
-        nothing), so it is silently skipped under ``process`` isolation.
+        connects to. In ``process`` isolation it lists livekit's running jobs
+        instead, with each job process's own memory (PSS on Linux) and CPU; the
+        slow-session detector needs the shared loop, so it is coroutine-only.
 
         ``enable_uvloop`` (default on) runs a coroutine-mode worker on uvloop when
         it is installed (it ships with ``openrtc[livekit]`` outside Windows). One
@@ -380,14 +380,15 @@ class AgentPool:
                 base_filter=self._request_fnc,
             )
         self._introspection: IntrospectionRuntime | None = None
-        # openrtc top runs the shared-process inspector, so it applies in coroutine
-        # isolation only, not process mode.
         # Set up before wire() so the registry is registered as a session observer
-        # the backend captures when it copies the observer list.
+        # the backend captures when it copies the observer list. Process mode has
+        # no in-process sessions to observe: its top lists livekit's job processes.
         if enable_introspection and isolation == "coroutine":
             self._setup_introspection(
                 slow_session_threshold_ms, introspection_socket_path
             )
+        elif enable_introspection:
+            self._setup_process_introspection(introspection_socket_path)
         self._backend.wire(
             self._runtime_state,
             self._request_fnc,
@@ -428,6 +429,24 @@ class AgentPool:
         self._backend.attach_introspection(runtime)
         self.add_observer(runtime.registry)
         self._introspection = runtime
+
+    def _setup_process_introspection(self, socket_path: Path | None) -> None:
+        """Serve ``openrtc top`` for process mode: one row per livekit job process.
+
+        Each job process reports its pid into a directory next to the socket (the
+        path rides on the runtime state), and the worker reads its memory and CPU.
+        """
+        from openrtc.observability.introspection_ipc import default_socket_path
+        from openrtc.observability.process_top import ProcessIntrospectionRuntime
+
+        runtime = ProcessIntrospectionRuntime(
+            agents=self._agents,
+            active_jobs=lambda: self._server.active_jobs,
+            socket_path=socket_path or default_socket_path(),
+            worker_context_provider=self._worker_context,
+        )
+        self._backend.attach_introspection(runtime)
+        self._runtime_state.job_pid_dir = str(runtime.job_pid_dir)
 
     def _worker_context(self) -> WorkerContext:
         """Pool-derived facts for the ``openrtc top`` header (uptime, caps, failures)."""
