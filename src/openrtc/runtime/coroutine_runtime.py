@@ -25,13 +25,13 @@ except ImportError as exc:  # pragma: no cover
     raise ImportError(
         "openrtc coroutine isolation mode depends on livekit-agents' private job "
         "surface, which moved in this version. Pin livekit-agents to a supported range "
-        "(>=1.5,<1.7) or use isolation='process' (the public, version-stable mode)."
+        "(>=1.5,<1.9) or use isolation='process' (the public, version-stable mode)."
     ) from exc
 
 from openrtc.observability.resident_set import process_resident_set_bytes
 from openrtc.utils.validation import require_positive_int
 
-# Mirrors upstream livekit-agents 1.6.2: primary AgentSession.aclose() is
+# Mirrors upstream livekit-agents 1.8.3: primary AgentSession.aclose() is
 # bounded at 60 s during teardown so a hung session never stalls cleanup.
 _SESSION_ACLOSE_TIMEOUT = 60.0
 
@@ -349,7 +349,11 @@ class CoroutineJobExecutor:
         _on_cleanup = getattr(ctx, "_on_cleanup", None)
         if callable(_on_cleanup):
             with contextlib.suppress(Exception):
-                _on_cleanup()
+                # Sync before livekit-agents 1.8, async since: calling without
+                # awaiting skipped cleanup (tempdir, telemetry, log filters leak).
+                result = _on_cleanup()
+                if inspect.isawaitable(result):
+                    await result
 
     def logging_extra(self) -> dict[str, Any]:
         return {"executor_id": self._id}

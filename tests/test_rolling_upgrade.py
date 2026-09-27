@@ -46,7 +46,11 @@ def _pool(entrypoint: Any) -> CoroutinePool:
 
 
 def _info(sid: str) -> Any:
-    return SimpleNamespace(job=SimpleNamespace(id=sid), fake_job=True, worker_id="w")
+    return SimpleNamespace(
+        job=SimpleNamespace(id=sid, enable_redaction=False),
+        fake_job=True,
+        worker_id="w",
+    )
 
 
 _IN_FLIGHT = 5  # stand-in for the ticket's 20; the drain path is per-executor.

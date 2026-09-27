@@ -116,7 +116,15 @@ def _extract_provider_kwargs(value: Any) -> dict[str, Any]:
     options = getattr(value, "_opts", None)
     if options is None:
         return {}
-    return _filter_provider_kwargs(vars(options))
+    kwargs = _filter_provider_kwargs(vars(options))
+    # livekit-agents 1.8 openai STT: ``_opts`` no longer mirrors ``__init__``.
+    # ``language=`` is stored as ``languages``, ``turn_detection`` as a pydantic model.
+    if "languages" in kwargs and "language" not in kwargs:
+        kwargs["language"] = kwargs.pop("languages")
+    model_dump = getattr(kwargs.get("turn_detection"), "model_dump", None)
+    if model_dump is not None:
+        kwargs["turn_detection"] = model_dump(exclude_none=True)
+    return kwargs
 
 
 def _filter_provider_kwargs(options: Mapping[str, Any]) -> dict[str, Any]:
@@ -129,14 +137,14 @@ def _filter_provider_kwargs(options: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _is_not_given(value: Any) -> bool:
-    """True if ``value`` is OpenAI's ``NotGiven`` (unset optional on plugin ``_opts``)."""
+    """True if ``value`` is an OpenAI or livekit ``NotGiven`` (unset option on ``_opts``)."""
     if _OPENAI_NOT_GIVEN_TYPE is not None and isinstance(value, _OPENAI_NOT_GIVEN_TYPE):
         return True
     cls = type(value)
     if cls.__name__ != "NotGiven":
         return False
     module = getattr(cls, "__module__", "")
-    return module == "openai._types" or module.startswith("openai.")
+    return module.startswith(("openai.", "livekit.agents."))
 
 
 def _build_agent_class_ref(agent_cls: type[Agent]) -> _AgentClassRef:

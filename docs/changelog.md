@@ -18,6 +18,23 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### livekit-agents 1.8 support
+
+**Changed**
+
+- The `openrtc[livekit]` extra now allows `livekit-agents>=1.5,<1.9` (was `<1.7`);
+  the lockfile moves to 1.8.3.
+
+**Fixed**
+
+- Spawn-safe serialization of `livekit.plugins.openai.STT` on livekit-agents 1.8:
+  the plugin now stores `language=` as `_opts.languages` and `turn_detection` as a
+  pydantic model, which broke rebuilding the provider in a worker process.
+- Coroutine mode now awaits `JobContext._on_cleanup()`, which became async in
+  livekit-agents 1.8. Calling it without awaiting skipped per-session cleanup
+  (temp directory, telemetry state, and a log filter added to every root handler
+  that accumulated for the worker's lifetime).
+
 ### v0.9.0: routing: resolve room metadata from the job's room assignment so it works before connect
 
 ### v0.1.0: coroutine-mode worker (default behavior change)

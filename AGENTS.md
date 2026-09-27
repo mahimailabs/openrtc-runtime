@@ -108,6 +108,8 @@ Business logic must not live inside:
 
 ## LiveKit-Specific Guidance
 
+LiveKit is a fast-evolving project. Always refer to the latest documentation. LiveKit provides an MCP server at `https://docs.livekit.io/mcp` (configured in `.mcp.json`) with tools for browsing and searching docs. Key tools: `get_docs_overview`, `get_pages`, `docs_search`, `code_search`, `get_changelog`. Prefer browsing (`get_docs_overview`, `get_pages`) over search, and `docs_search` over `code_search`. Without MCP, use `lk docs` from the LiveKit CLI. LiveKit's agent skills are vendored in `.claude/skills/` (pinned in `skills-lock.json`).
+
 ### Real-time constraints
 - Real-time audio paths should avoid unnecessary allocations, blocking calls, and hidden latency
 - Be careful with backpressure, task buildup, and event storms
@@ -444,7 +446,7 @@ All commands are documented in `CONTRIBUTING.md`. Quick reference:
 
 ### Non-obvious notes
 
-- The `tests/conftest.py` shim targets the `livekit-agents` pin in `pyproject.toml` (~1.4.x today) and only implements APIs OpenRTC uses. When upgrading LiveKit or adding new `livekit.agents` usage, extend the shim or confirm tests pass with the real SDK (`uv sync` + `uv run pytest`). If imports behave oddly, check whether the shim path is active vs. the real package.
+- The `tests/conftest.py` shim targets the `livekit-agents` pin in `pyproject.toml` (`>=1.5,<1.9` today) and only implements APIs OpenRTC uses. When upgrading LiveKit or adding new `livekit.agents` usage, extend the shim or confirm tests pass with the real SDK (`uv sync` + `uv run pytest`). If imports behave oddly, check whether the shim path is active vs. the real package.
 - Version is derived from git tags via `hatch-vcs`. In a dev checkout the version will be something like `0.0.9.dev0+g<hash>`.
 - `mypy` is enforced in CI alongside Ruff; run `uv run mypy src/` before pushing type-sensitive changes.
 - Running `openrtc start` or `openrtc dev` requires a running LiveKit server and provider API keys. For development validation, use `openrtc list` which exercises discovery and routing without network dependencies. Pass `--metrics-jsonl` on the worker to emit per-session metrics to a JSONL file (default `./openrtc-metrics.jsonl`); tail or script that file (for example `tail -f openrtc-metrics.jsonl` or pipe it through `jq`) to inspect throughput.

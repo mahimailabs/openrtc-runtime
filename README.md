@@ -65,7 +65,7 @@ pip install "openrtc[livekit]"        # or: uv add "openrtc[livekit]"
 pip install "openrtc[livekit,cli]"    # adds the openrtc CLI (rich + typer)
 ```
 
-Requires Python 3.11 to 3.13 (`>=3.11,<3.14`; the transitive `onnxruntime` behind Silero and the turn detector has no 3.10 wheels). The voice framework is an opt-in extra: `import openrtc` pulls neither livekit nor pipecat, and the neutral core is just `watchfiles`. The default livekit backend ships as `openrtc[livekit]`, which pulls `livekit-agents[openai,silero,turn-detector]>=1.5,<1.7`. Ships a PEP 561 `py.typed` marker. Set `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` as for any LiveKit worker.
+Requires Python 3.11 to 3.13 (`>=3.11,<3.14`; the transitive `onnxruntime` behind Silero and the turn detector has no 3.10 wheels). The voice framework is an opt-in extra: `import openrtc` pulls neither livekit nor pipecat, and the neutral core is just `watchfiles`. The default livekit backend ships as `openrtc[livekit]`, which pulls `livekit-agents[openai,silero,turn-detector]>=1.5,<1.9`. Ships a PEP 561 `py.typed` marker. Set `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` as for any LiveKit worker.
 
 **Explicit registration with `add()`** when you want every agent named and configured in one place:
 
@@ -143,7 +143,7 @@ pool = AgentPool(
 | Crash isolation | Cooperative: an unhandled exception is logged and the session marked `FAILED`; siblings continue. `consecutive_failure_limit` consecutive failures (default 5) schedule `aclose()` so the platform restarts the worker; one `SUCCESS` resets the counter. | Hard: each subprocess crashes independently. |
 | Memory cap | Worker-level (one process): warns at `memory_warn_mb` and drains + restarts the worker at `memory_limit_mb`, measured against whole-worker RSS, not per session. | Per-session: livekit-agents enforces `memory_limit_mb` per subprocess. |
 | Backpressure | `current_load() = active / max_concurrent_sessions`, reported to LiveKit dispatch. Advisory only (unclamped, not a hard gate); sessions past the threshold still launch. | `livekit-agents` default CPU-based load. |
-| Dependency surface | Uses `livekit-agents` private job internals; pinned to `>=1.5,<1.7`. An unsupported version fails import with a message pointing to `isolation="process"`. | Public, version-stable API. |
+| Dependency surface | Uses `livekit-agents` private job internals; pinned to `>=1.5,<1.9`. An unsupported version fails import with a message pointing to `isolation="process"`. | Public, version-stable API. |
 | When to pick | High density on one host; cost-sensitive deployments. | Regulatory hard isolation; per-session memory caps. |
 
 `max_concurrent_sessions` (50), `consecutive_failure_limit` (5), and `drain_timeout` (30) are validated as positive integers; `memory_warn_mb` (1000) and `memory_limit_mb` (0 = disabled) as non-negative numbers. On SIGTERM the worker drains: it stops accepting jobs and waits up to `drain_timeout` seconds for in-flight sessions before cancelling.

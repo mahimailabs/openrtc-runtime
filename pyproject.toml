@@ -35,7 +35,7 @@ openrtc = "openrtc.cli:main"
 [project.optional-dependencies]
 # The livekit backend (the default). Install `openrtc[livekit]` to run it.
 livekit = [
-  "livekit-agents[openai,silero,turn-detector]>=1.5,<1.7",
+  "livekit-agents[openai,silero,turn-detector]>=1.5,<1.9",
 ]
 # The pipecat backend. Install `openrtc[pipecat]` to run it.
 pipecat = [
