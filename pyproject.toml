@@ -36,6 +36,8 @@ openrtc = "openrtc.cli:main"
 # The livekit backend (the default). Install `openrtc[livekit]` to run it.
 livekit = [
   "livekit-agents[openai,silero,turn-detector]>=1.5,<1.9",
+  # Coroutine mode runs on uvloop when present (AgentPool(enable_uvloop=...)).
+  "uvloop>=0.21; sys_platform != 'win32'",
 ]
 cli = [
   "rich>=13",

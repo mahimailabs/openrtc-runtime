@@ -89,7 +89,7 @@ pool.run()
 
 ## What it is not
 
-It is not a way to serve more calls from the same machine. Against livekit-agents 1.8.3 on the same two cores, OpenRTC's default mode used about 3x less memory per call, but CPU ran out first and it held fewer calls. The [benchmark](/benchmark/) has the numbers and the method. Run one worker per core, or use `isolation="process"` for CPU-bound agents.
+It is not a way to serve more calls from the same machine. Against livekit-agents 1.8.3 on the same two cores, OpenRTC's default mode used about 3x less memory per call and, on uvloop, about the same CPU. One worker is still one Python process, so CPU caps it at about one core. The [benchmark](/benchmark/) has the numbers, the method, and where the CPU goes. Run one worker per core, or use `isolation="process"` for CPU-bound agents.
 
 <Note>
 OpenRTC is early and has few users so far. The supported surface is `openrtc.__all__`, listed on [How it works](/how-it-works/#public-api). Everything else can change between releases. Bugs and questions go to [GitHub issues](https://github.com/mahimailabs/openrtc-runtime/issues).

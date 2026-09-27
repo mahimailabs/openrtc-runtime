@@ -1,0 +1,15 @@
+calls=1
+ffi-stats events/s=44 offers/s=134 delivered/s=110 max_subscribers=5
+ffi-stats events/s=41 offers/s=126 delivered/s=103 max_subscribers=5
+calls=2
+ffi-stats events/s=102 offers/s=599 delivered/s=474 max_subscribers=9
+ffi-stats events/s=92 offers/s=546 delivered/s=429 max_subscribers=10
+calls=4
+ffi-stats events/s=261 offers/s=3143 delivered/s=2418 max_subscribers=18
+ffi-stats events/s=253 offers/s=3005 delivered/s=2303 max_subscribers=18
+calls=8
+ffi-stats events/s=750 offers/s=20392 delivered/s=15672 max_subscribers=39
+ffi-stats events/s=750 offers/s=19807 delivered/s=15089 max_subscribers=38
+calls=8, by type
+ffi-stats events/s=747 offers/s=20546 delivered/s=15851 max_subscribers=40 delivered/s by type: audio_stream_event=3893, byte_stream_writer_write=3135, byte_stream_open=3130, byte_stream_writer_close=3097, capture_audio_frame=1452, publish_transcription=392
+ffi-stats events/s=745 offers/s=19772 delivered/s=15175 max_subscribers=38 delivered/s by type: audio_stream_event=3514, byte_stream_writer_write=3077, byte_stream_open=3068, byte_stream_writer_close=3018, capture_audio_frame=1366, publish_transcription=380

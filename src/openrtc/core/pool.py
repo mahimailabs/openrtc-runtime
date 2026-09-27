@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -31,11 +32,13 @@ from openrtc.routing.request_filter import (
     _build_registered_rooms_filter,
     _build_tenant_circuit_filter,
 )
+from openrtc.runtime.event_loop import use_uvloop
 from openrtc.runtime.registry import ServerParams
 from openrtc.utils.types import AgentRouter, ProviderValue, RequestFilter
 from openrtc.utils.validation import (
     require_agent_name,
     require_non_negative_number,
+    require_port,
     require_positive_int,
     require_tenant_id,
     validate_isolation,
@@ -98,6 +101,8 @@ class AgentPool:
         enable_tenant_circuit_breaker: bool = False,
         tenant_circuit_cooldown_s: float = 30.0,
         enable_introspection: bool = True,
+        enable_uvloop: bool = True,
+        port: int | None = None,
         slow_session_threshold_ms: float = 50.0,
         introspection_socket_path: Path | None = None,
         deployment_version: str | None = None,
@@ -203,6 +208,15 @@ class AgentPool:
         connects to. It is coroutine-mode only (process mode isolates every
         session in its own subprocess, where a shared-process inspector sees
         nothing), so it is silently skipped under ``process`` isolation.
+
+        ``enable_uvloop`` (default on) runs a coroutine-mode worker on uvloop when
+        it is installed (it ships with ``openrtc[livekit]`` outside Windows). One
+        loop serves every call, so a faster loop cuts the CPU the worker spends
+        handing audio and events to Python. ``OPENRTC_UVLOOP=0`` also turns it off.
+
+        ``port`` sets the worker's HTTP (health) port; ``None`` reads
+        ``OPENRTC_PORT`` and otherwise keeps livekit's default (8081 under
+        ``start``). Set it to run several workers on one host, e.g. one per core.
         """
         if request_fnc is not None and accept_only_registered_rooms:
             raise ValueError(
@@ -227,6 +241,8 @@ class AgentPool:
         # rejects an unknown name and imports the framework lazily.
         self._backend_name = backend
         self._isolation: IsolationMode = isolation
+        self._enable_uvloop = enable_uvloop
+        self._port = _resolve_port(port)
         self._max_concurrent_sessions = require_positive_int(
             "max_concurrent_sessions", max_concurrent_sessions
         )
@@ -382,6 +398,7 @@ class AgentPool:
             drain_timeout=self._drain_timeout,
             memory_warn_mb=self._memory_warn_mb,
             memory_limit_mb=self._memory_limit_mb,
+            port=self._port,
         )
 
     def _setup_introspection(
@@ -686,6 +703,8 @@ class AgentPool:
         """
         if not self.list_agents():
             raise RuntimeError("Register at least one agent before calling run().")
+        if self._isolation == "coroutine" and self._enable_uvloop:
+            use_uvloop()
         self._backend.run()
 
     def _resolve_provider(
@@ -709,3 +728,16 @@ class AgentPool:
         if direct_session_kwargs is not None:
             merged_kwargs.update(direct_session_kwargs)
         return merged_kwargs
+
+
+def _resolve_port(port: int | None) -> int | None:
+    """``port`` if given, else ``OPENRTC_PORT`` if set, else None (livekit's default)."""
+    if port is not None:
+        return require_port("port", port)
+    raw = os.environ.get("OPENRTC_PORT", "").strip()
+    if not raw:
+        return None
+    try:
+        return require_port("OPENRTC_PORT", int(raw))
+    except ValueError as exc:
+        raise ValueError(f"OPENRTC_PORT must be a port number, got {raw!r}.") from exc

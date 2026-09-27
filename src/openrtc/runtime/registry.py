@@ -5,12 +5,18 @@ from __future__ import annotations
 import importlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from livekit.agents import AgentServer
 
 __all__ = ["ServerParams", "resolve_server_builder"]
+
+
+class PortKwargs(TypedDict, total=False):
+    """``AgentServer``'s ``port`` keyword, present only when one is set."""
+
+    port: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +32,13 @@ class ServerParams:
     # RSS watermark (one process, so caps cannot be per-session).
     memory_warn_mb: float = 1000.0
     memory_limit_mb: float = 0.0
+    # The worker's HTTP (health) port. None keeps livekit's default: 8081 under
+    # ``start``, a free port under ``dev``.
+    port: int | None = None
+
+    def port_kwargs(self) -> PortKwargs:
+        """``{"port": port}`` when one is set, else nothing (livekit's default)."""
+        return PortKwargs() if self.port is None else PortKwargs(port=self.port)
 
 
 # isolation mode -> (module path, builder attribute). Lazy import keeps the
