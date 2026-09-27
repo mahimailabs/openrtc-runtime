@@ -1,9 +1,8 @@
 """Backend selection: framework name to a ``Backend`` builder (lazy import).
 
 ``AgentPool(backend=...)`` resolves the substrate here. Each entry is imported
-lazily on selection, so ``import openrtc`` (and picking one backend) never pulls
-another framework. Only the livekit backend ships today; ``pipecat`` is added
-here when its backend lands, behind the ``openrtc[pipecat]`` extra.
+lazily on selection, so ``import openrtc`` never pulls a voice framework; livekit
+ships behind the ``openrtc[livekit]`` extra.
 """
 
 from __future__ import annotations
@@ -25,7 +24,6 @@ __all__ = ["resolve_backend_builder"]
 # install hint when it is not installed.
 _BACKENDS: dict[str, tuple[str, str, str]] = {
     "livekit": ("openrtc.backends.livekit", "build_backend", "livekit"),
-    "pipecat": ("openrtc.backends.pipecat", "build_backend", "pipecat"),
 }
 
 
@@ -39,6 +37,11 @@ def resolve_backend_builder(name: str) -> Callable[[ServerParams, str], Backend]
     try:
         module_path, attr, extra = _BACKENDS[name]
     except KeyError as exc:
+        if name == "pipecat":
+            raise ValueError(
+                "The pipecat backend was removed; OpenRTC now targets livekit-agents "
+                "only. Pin an earlier openrtc release to keep using pipecat."
+            ) from exc
         available = ", ".join(sorted(_BACKENDS))
         raise ValueError(
             f"Unknown backend {name!r}. Available backends: {available}."

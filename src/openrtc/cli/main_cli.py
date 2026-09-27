@@ -52,7 +52,6 @@ from openrtc.cli.livekit_cli import (
     _run_connect_handoff,
     inject_cli_positional_paths,
 )
-from openrtc.cli.pipecat_cli import serve_pipecat_agents
 from openrtc.cli.reporter_cli import RuntimeReporter
 from openrtc.core.pool import AgentPool
 from openrtc.observability.jsonl_sink import DEFAULT_METRICS_JSONL_FILENAME
@@ -147,16 +146,6 @@ def list_command(
     print_list_rich_table(discovered, resources=resources)
     if resources:
         print_resource_summary_rich(discovered)
-
-
-@app.command("serve")
-def serve_command(agents_dir: AgentsDirArg) -> None:
-    """Serve pipecat agents discovered from a directory.
-
-    Discovers ``@agent_config``-marked pipeline builders and serves them over a
-    transport via pipecat's runner. Needs ``openrtc[pipecat-serve]``.
-    """
-    serve_pipecat_agents(agents_dir)
 
 
 @app.command("logs")

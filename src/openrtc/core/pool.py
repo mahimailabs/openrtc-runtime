@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 from openrtc.backends.registry import resolve_backend_builder
 from openrtc.core.audit import DEPLOYMENT_DRAIN_STARTED, AuditLog, AuditSink
@@ -16,7 +16,6 @@ from openrtc.core.config import (
 )
 from openrtc.core.discovery import (
     _find_local_agent_subclass,
-    _find_marked_builders,
     _load_agent_module,
 )
 from openrtc.core.tenant_config import TenantConfigResolver, TenantConfigSource
@@ -55,7 +54,6 @@ logger = logging.getLogger("openrtc")
 if TYPE_CHECKING:
     from livekit.agents import Agent, AgentServer
 
-    from openrtc.backends.pipecat.backend import PipecatAgentConfig
     from openrtc.core.backend import Backend
     from openrtc.observability.introspection_runtime import IntrospectionRuntime
     from openrtc.observability.worker_stats import WorkerContext
@@ -208,9 +206,8 @@ class AgentPool:
         if agent is not None and agents is not None:
             raise ValueError("Pass either agent or agents, not both.")
         validate_isolation(isolation)
-        # The voice framework this pool runs on. Defaults to livekit; a pipecat
-        # backend plugs in behind openrtc[pipecat]. resolve_backend_builder rejects
-        # an unknown name and lazily imports only the selected framework.
+        # The voice framework this pool runs on (livekit). resolve_backend_builder
+        # rejects an unknown name and imports the framework lazily.
         self._backend_name = backend
         self._isolation: IsolationMode = isolation
         self._max_concurrent_sessions = require_positive_int(
@@ -343,8 +340,8 @@ class AgentPool:
                 base_filter=self._request_fnc,
             )
         self._introspection: IntrospectionRuntime | None = None
-        # openrtc top runs the shared-process inspector, so it applies to any
-        # backend in coroutine isolation (livekit and pipecat), not process mode.
+        # openrtc top runs the shared-process inspector, so it applies in coroutine
+        # isolation only, not process mode.
         # Set up before wire() so the registry is registered as a session observer
         # the backend captures when it copies the observer list.
         if enable_introspection and isolation == "coroutine":
@@ -378,8 +375,7 @@ class AgentPool:
         The registry is registered as a session observer so it tracks live
         sessions; the stack itself (samplers, detector, IPC socket) is handed to
         the backend via ``attach_introspection``, which shares it with the runtime
-        that follows the worker's start/close lifecycle (the coroutine pool for
-        livekit, the serving loop for pipecat).
+        that follows the worker's start/close lifecycle (the coroutine pool).
         """
         from openrtc.observability.introspection_runtime import IntrospectionRuntime
 
@@ -413,11 +409,8 @@ class AgentPool:
         """Wire live-session tracking and the reload coordinator onto the worker.
 
         Hot reload is coroutine-mode only: process mode runs one subprocess per
-        session and cannot swap an agent class in place. It is also livekit-only
-        (it swaps a live ``AgentSession``'s agent class).
+        session and cannot swap an agent class in place.
         """
-        if self._backend_name != "livekit":
-            raise ValueError("enable_hot_reload requires the livekit backend.")
         if self._isolation != "coroutine":
             raise ValueError(
                 "enable_hot_reload requires isolation='coroutine'; process mode "
@@ -556,7 +549,7 @@ class AgentPool:
     def add(
         self,
         name: str,
-        agent_cls: type[Agent] | Callable[..., Any],
+        agent_cls: type[Agent],
         *,
         stt: ProviderValue | None = None,
         llm: ProviderValue | None = None,
@@ -565,19 +558,9 @@ class AgentPool:
         session_kwargs: Mapping[str, Any] | None = None,
         source_path: Path | str | None = None,
         **session_options: Any,
-    ) -> AgentConfig | PipecatAgentConfig:
-        """Register an agent in the pool and return its configuration.
-
-        On the livekit backend ``agent_cls`` is a ``livekit.agents.Agent``
-        subclass. On the pipecat backend it is a pipeline builder callable
-        ``(PipecatCallView) -> processors`` (the call view carries the worker's
-        shared prewarm); the provider / session options are livekit-only (the
-        builder owns the pipecat pipeline) and are ignored.
-        """
+    ) -> AgentConfig:
+        """Register a ``livekit.agents.Agent`` subclass and return its configuration."""
         normalized_name = require_agent_name(name)
-        if self._backend_name != "livekit":
-            return self._register_pipeline_builder(normalized_name, agent_cls)
-
         from livekit.agents import Agent
 
         if normalized_name in self._agents:
@@ -608,40 +591,13 @@ class AgentPool:
         logger.debug("Registered agent '%s'.", normalized_name)
         return config
 
-    def _register_pipeline_builder(
-        self, name: str, builder: object
-    ) -> PipecatAgentConfig:
-        """Register a pipecat pipeline builder on the backend (the pipecat add())."""
-        from openrtc.backends.pipecat.backend import (
-            PipecatAgentConfig,
-            PipecatBackend,
-        )
-
-        if not callable(builder):
-            raise TypeError(
-                "On the pipecat backend, add() takes a callable pipeline builder."
-            )
-        assert isinstance(self._backend, PipecatBackend)
-        self._backend.register(name, builder)
-        logger.debug("Registered pipecat agent '%s'.", name)
-        return PipecatAgentConfig(name=name, builder=builder)
-
-    def discover(
-        self, agents_dir: str | Path
-    ) -> list[AgentConfig] | list[PipecatAgentConfig]:
-        """Discover and register agent modules from a directory; return registered configs.
-
-        On the livekit backend this finds ``Agent`` subclasses; on the pipecat
-        backend it finds ``@agent_config``-marked builder callables.
-        """
+    def discover(self, agents_dir: str | Path) -> list[AgentConfig]:
+        """Discover and register agent modules from a directory; return registered configs."""
         directory = Path(agents_dir).expanduser().resolve()
         if not directory.exists():
             raise FileNotFoundError(f"Agents directory does not exist: {directory}")
         if not directory.is_dir():
             raise NotADirectoryError(f"Agents path is not a directory: {directory}")
-
-        if self._backend_name != "livekit":
-            return self._discover_pipecat_builders(directory)
 
         discovered_configs: list[AgentConfig] = []
         for module_path in sorted(directory.glob("*.py")):
@@ -653,19 +609,14 @@ class AgentPool:
             agent_cls = _find_local_agent_subclass(module)
             metadata = _resolve_discovery_metadata(agent_cls)
             agent_name = metadata.name or module_path.stem
-            # discover() loads livekit Agent subclasses, so add() takes the
-            # livekit path and returns an AgentConfig.
-            config = cast(
-                "AgentConfig",
-                self.add(
-                    agent_name,
-                    agent_cls,
-                    stt=metadata.stt,
-                    llm=metadata.llm,
-                    tts=metadata.tts,
-                    greeting=metadata.greeting,
-                    source_path=module_path,
-                ),
+            config = self.add(
+                agent_name,
+                agent_cls,
+                stt=metadata.stt,
+                llm=metadata.llm,
+                tts=metadata.tts,
+                greeting=metadata.greeting,
+                source_path=module_path,
             )
             logger.info(
                 "Discovered agent '%s' from %s using class %s.",
@@ -677,50 +628,19 @@ class AgentPool:
 
         return discovered_configs
 
-    def _discover_pipecat_builders(self, directory: Path) -> list[PipecatAgentConfig]:
-        """Discover ``@agent_config``-marked builders in a directory (pipecat)."""
-        discovered: list[PipecatAgentConfig] = []
-        for module_path in sorted(directory.glob("*.py")):
-            if module_path.name == "__init__.py" or module_path.stem.startswith("_"):
-                logger.debug("Skipping agent module '%s'.", module_path.name)
-                continue
-            module = _load_agent_module(module_path)
-            for name, builder in _find_marked_builders(module):
-                config = cast("PipecatAgentConfig", self.add(name, builder))
-                logger.info(
-                    "Discovered pipecat agent '%s' from %s.", config.name, module_path
-                )
-                discovered.append(config)
-        return discovered
-
     def list_agents(self) -> list[str]:
         """Return registered agent names in registration order."""
-        if self._backend_name != "livekit":
-            from openrtc.backends.pipecat.backend import PipecatBackend
-
-            assert isinstance(self._backend, PipecatBackend)
-            return self._backend.registered_names()
         return list(self._agents)
 
-    def get(self, name: str) -> AgentConfig | PipecatAgentConfig:
+    def get(self, name: str) -> AgentConfig:
         """Return a registered agent configuration by name."""
-        if self._backend_name != "livekit":
-            from openrtc.backends.pipecat.backend import PipecatBackend
-
-            assert isinstance(self._backend, PipecatBackend)
-            return self._backend.get(name)
         try:
             return self._agents[name]
         except KeyError as exc:
             raise KeyError(f"Unknown agent '{name}'.") from exc
 
-    def remove(self, name: str) -> AgentConfig | PipecatAgentConfig:
+    def remove(self, name: str) -> AgentConfig:
         """Remove and return a registered agent configuration."""
-        if self._backend_name != "livekit":
-            from openrtc.backends.pipecat.backend import PipecatBackend
-
-            assert isinstance(self._backend, PipecatBackend)
-            return self._backend.remove(name)
         try:
             removed = self._agents.pop(name)
         except KeyError as exc:

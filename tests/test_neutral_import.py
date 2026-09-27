@@ -1,6 +1,6 @@
 """The neutral-core guarantee: ``import openrtc`` pulls no voice framework.
 
-Mirrors voicegateway's check. The framework (livekit today, pipecat next) is
+Mirrors voicegateway's check. livekit is
 imported lazily only when a backend is selected, so the package top level stays
 framework-free. Run in a subprocess to observe a clean ``sys.modules``.
 """

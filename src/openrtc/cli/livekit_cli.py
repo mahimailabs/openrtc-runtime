@@ -8,7 +8,6 @@ import os
 import sys
 from collections.abc import Iterator
 from pathlib import Path
-from typing import cast
 
 import typer
 
@@ -251,9 +250,7 @@ def _run_connect_handoff(
 
 def _discover_or_exit(agents_dir: Path, pool: AgentPool) -> list[AgentConfig]:
     try:
-        # This CLI only drives the livekit backend, so discover() returns
-        # AgentConfigs (never pipecat builder configs).
-        discovered = cast("list[AgentConfig]", pool.discover(agents_dir))
+        discovered = pool.discover(agents_dir)
     except FileNotFoundError:
         logger.error(
             "Agents directory does not exist: %s. Pass a valid --agents-dir path.",

@@ -23,9 +23,8 @@ wheels for CPython 3.10 in current releases). See the repository's
 
 ## Install
 
-The voice framework is an opt-in extra: `import openrtc` pulls neither livekit
-nor pipecat. The livekit backend is the default, so install `openrtc[livekit]`
-to run it (add `cli` for the CLI):
+livekit-agents is an opt-in extra: `import openrtc` does not pull it. Install
+`openrtc[livekit]` to run agents (add `cli` for the CLI):
 
 <Tabs>
   <Tab title="uv (recommended)">

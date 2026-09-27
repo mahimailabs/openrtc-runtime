@@ -146,8 +146,8 @@ def _build_session_info(
 ) -> SessionInfo:
     """Build a ``SessionInfo`` from the resolved agent and the session view.
 
-    ``view`` is the backend-neutral :class:`SessionView`, so any backend (livekit
-    via ``for_livekit``, pipecat via its own adapter) reaches this the same way.
+    ``view`` is the framework-neutral :class:`SessionView` (built with
+    ``for_livekit``).
     The view uses defensive attribute access, so a missing room name or job id can
     never turn a healthy session into a failed one, and it resolves the pre-connect
     room name/metadata (job room preferred over the rtc room, which is empty until

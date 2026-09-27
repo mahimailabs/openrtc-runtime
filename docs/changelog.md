@@ -18,6 +18,21 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Pipecat support removed: OpenRTC targets livekit-agents only (breaking)
+
+**Removed**
+
+- The pipecat backend: `AgentPool(backend="pipecat")`, the `openrtc[pipecat]` and
+  `openrtc[pipecat-serve]` extras, the `openrtc serve` command,
+  `openrtc.core.session_view.for_pipecat`, pipeline-builder discovery, and the
+  `examples/pipecat_agents` examples.
+
+**Migration**
+
+- `AgentPool(backend="pipecat")` now raises `ValueError` explaining the removal.
+  Pin an earlier openrtc release to keep using pipecat. livekit users are
+  unaffected: `backend="livekit"` remains the default and only backend.
+
 ### Coroutine mode stops accepting calls when its event loop saturates
 
 **Fixed**
