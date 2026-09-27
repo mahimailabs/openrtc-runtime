@@ -87,6 +87,10 @@ pool.run()
 
 `python main.py dev` and `python main.py start` then behave as they would for a livekit-agents worker.
 
+<Tip>
+Using a coding agent (Claude Code, Cursor, Codex)? `npx skills add mahimailabs/openrtc-runtime` installs two skills: `adopting-openrtc` moves a livekit-agents project onto OpenRTC, `operating-openrtc` runs and debugs it in production. For the docs themselves, point it at [`/llms-full.txt`](https://docs.openrtc.tech/llms-full.txt).
+</Tip>
+
 ## What it is not
 
 It is not a way to serve more calls from the same machine. Against livekit-agents 1.8.3 on the same two cores, OpenRTC's default mode used about 3x less memory per call and, on uvloop, about the same CPU. One worker is still one Python process, so CPU caps it at about one core. The [benchmark](/benchmark/) has the numbers, the method, and where the CPU goes. Run one worker per core, or use `isolation="process"` for CPU-bound agents.

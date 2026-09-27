@@ -65,6 +65,8 @@ openrtc top          # in a second terminal: every live call
 
 A room named `booking-call-1` now reaches `BookingAgent`. Edit the file during a call and the next turn runs your change. Prefer Python to a directory? `pool.add(...)` as above, then `python main.py dev`. [Full quick start](https://docs.openrtc.tech/).
 
+Using a coding agent (Claude Code, Cursor, Codex)? `npx skills add mahimailabs/openrtc-runtime` gives it two skills: moving a livekit-agents project onto OpenRTC, and running it in production.
+
 ## What you get, and where it stops
 
 | | What it does | Limits |
@@ -98,7 +100,7 @@ make ci          # ruff, format, mypy --strict, pytest with the 99% coverage gat
 
 **Where to start:** issues labelled [`good first issue`](https://github.com/mahimailabs/openrtc-runtime/labels/good%20first%20issue) are scoped, with the files to read and what done looks like. [`help wanted`](https://github.com/mahimailabs/openrtc-runtime/labels/help%20wanted) are bigger. Found a bug or have an idea? [Open an issue](https://github.com/mahimailabs/openrtc-runtime/issues/new/choose).
 
-**How we work:** read [CONTRIBUTING.md](CONTRIBUTING.md). Performance claims need a measurement. AI-assisted PRs are welcome: the repo ships a [`CLAUDE.md`](CLAUDE.md) and agent skills, and a PR is judged on the same `make ci` and review either way.
+**How we work:** read [CONTRIBUTING.md](CONTRIBUTING.md). Performance claims need a measurement. AI-assisted PRs are welcome: the repo ships a [`CLAUDE.md`](CLAUDE.md) and agent skills ([`skills/`](skills) for adopters), and a PR is judged on the same `make ci` and review either way.
 
 <a href="https://github.com/mahimailabs/openrtc-runtime/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=mahimailabs/openrtc-runtime&max=40&columns=10&anon=0" alt="Contributors" />

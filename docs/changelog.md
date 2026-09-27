@@ -7,6 +7,15 @@ description: Every change to OpenRTC, newest first, with migration notes. Releas
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Agent skills
+
+**Added**
+
+- `npx skills add mahimailabs/openrtc-runtime` installs two skills for coding
+  agents: `adopting-openrtc` (move a livekit-agents project onto OpenRTC) and
+  `operating-openrtc` (run and debug it in production). A test checks every
+  flag and keyword they name against the real CLI and `AgentPool`.
+
 ### `--port` on the worker commands
 
 **Added**
