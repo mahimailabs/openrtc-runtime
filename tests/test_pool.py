@@ -74,6 +74,55 @@ def test_memory_limit_rejects_negative() -> None:
         AgentPool(memory_limit_mb=-1)
 
 
+def test_port_defaults_to_livekit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No port and no OPENRTC_PORT keeps livekit's own default (8081 under start)."""
+    monkeypatch.delenv("OPENRTC_PORT", raising=False)
+    pool = AgentPool()
+
+    assert not isinstance(pool.server._port, int)  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("isolation", ["coroutine", "process"])
+def test_port_reaches_the_agent_server(
+    monkeypatch: pytest.MonkeyPatch, isolation: str
+) -> None:
+    """A set port reaches the AgentServer, so several workers can share a host."""
+    monkeypatch.delenv("OPENRTC_PORT", raising=False)
+    pool = AgentPool(isolation=isolation, port=8090)  # type: ignore[arg-type]
+
+    assert pool.server._port == 8090  # type: ignore[attr-defined]
+
+
+def test_port_reads_env_and_the_argument_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENRTC_PORT", " 8091 ")
+
+    assert AgentPool().server._port == 8091  # type: ignore[attr-defined]
+    assert AgentPool(port=8092).server._port == 8092  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    ("port", "error", "match"),
+    [
+        (70000, ValueError, r"port must be in 0\.\.65535"),
+        (-1, ValueError, r"port must be in 0\.\.65535"),
+        (True, TypeError, "port must be an int"),
+    ],
+)
+def test_port_rejects_invalid_values(
+    port: object, error: type[Exception], match: str
+) -> None:
+    with pytest.raises(error, match=match):
+        AgentPool(port=port)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("raw", ["abc", "70000"])
+def test_port_rejects_invalid_env(monkeypatch: pytest.MonkeyPatch, raw: str) -> None:
+    monkeypatch.setenv("OPENRTC_PORT", raw)
+
+    with pytest.raises(ValueError, match="OPENRTC_PORT must be a port number"):
+        AgentPool()
+
+
 def test_request_fnc_defaults_to_none() -> None:
     pool = AgentPool()
 

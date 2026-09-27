@@ -8,6 +8,7 @@ __all__ = [
     "DEFAULT_TENANT",
     "require_agent_name",
     "require_non_negative_number",
+    "require_port",
     "require_positive_int",
     "require_tenant_id",
     "validate_isolation",
@@ -53,6 +54,15 @@ def require_non_negative_number(name: str, value: object) -> float:
     if value < 0:
         raise ValueError(f"{name} must be >= 0, got {value}.")
     return float(value)
+
+
+def require_port(name: str, value: object) -> int:
+    """Return ``value`` if it is a non-bool int in 0..65535 (0: any free port), else raise."""
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int, got {type(value).__name__}.")
+    if not 0 <= value <= 65535:
+        raise ValueError(f"{name} must be in 0..65535, got {value}.")
+    return value
 
 
 def validate_isolation(value: str) -> str:

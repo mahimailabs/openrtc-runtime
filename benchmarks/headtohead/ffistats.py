@@ -9,11 +9,13 @@ N processes with one call each.
 import logging
 import threading
 import time
+from collections import Counter
 
 from livekit.rtc._ffi_client import FfiQueue
 
 log = logging.getLogger("bench.ffi")
 _n = {"events": 0, "offers": 0, "delivered": 0, "subs": 0}
+_by_type: Counter[str] = Counter()
 _orig_put = FfiQueue.put
 
 
@@ -22,7 +24,12 @@ def _put(self: FfiQueue, item: object) -> None:  # type: ignore[type-arg]
     _n["events"] += 1
     _n["offers"] += len(subs)
     _n["subs"] = max(_n["subs"], len(subs))
-    _n["delivered"] += sum(1 for _, _, f in subs if f is None or f(item))
+    got = sum(1 for _, _, f in subs if f is None or f(item))
+    _n["delivered"] += got
+    which = item.WhichOneof("message")
+    if which == "room_event":
+        which += "." + str(item.room_event.WhichOneof("message"))
+    _by_type[which] += got
     _orig_put(self, item)
 
 
@@ -33,12 +40,16 @@ def _report() -> None:
         for k in ("events", "offers", "delivered"):
             _n[k] = 0
         _n["subs"] = 0
+        top = ", ".join(f"{k}={v / 10:.0f}" for k, v in _by_type.most_common(6))
+        _by_type.clear()
         log.warning(
-            "ffi-stats events/s=%.0f offers/s=%.0f delivered/s=%.0f max_subscribers=%d",
+            "ffi-stats events/s=%.0f offers/s=%.0f delivered/s=%.0f max_subscribers=%d"
+            " delivered/s by type: %s",
             snap["events"] / 10,
             snap["offers"] / 10,
             snap["delivered"] / 10,
             snap["subs"],
+            top,
         )
 
 

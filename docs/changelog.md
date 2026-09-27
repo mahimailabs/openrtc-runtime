@@ -7,6 +7,20 @@ description: Every change to OpenRTC, newest first, with migration notes. Releas
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Several workers on one host
+
+**Added**
+
+- `AgentPool(port=...)`, or `OPENRTC_PORT`, sets the worker's HTTP port, so
+  several workers can run on one host; a second worker used to fail binding
+  livekit's default 8081. On two cores, two pinned workers used about a quarter
+  less CPU than one for the same 8 calls, at 1.1 GB more idle memory.
+
+**Documentation**
+
+- The Benchmark page measures one worker per core and livekit's FFI event
+  fan-out, which grows with the square of the calls in one process.
+
 ### Coroutine mode runs on uvloop
 
 **Changed**

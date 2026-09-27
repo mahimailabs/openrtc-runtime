@@ -200,4 +200,5 @@ def build_server(params: ServerParams) -> _CoroutineAgentServer:
         drain_timeout=params.drain_timeout,
         job_memory_warn_mb=params.memory_warn_mb,
         job_memory_limit_mb=params.memory_limit_mb,
+        **params.port_kwargs(),
     )

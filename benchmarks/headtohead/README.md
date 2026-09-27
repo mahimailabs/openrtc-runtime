@@ -40,6 +40,15 @@ python3 summarize.py
 One run on its own: `./run.sh <label> <calls> <hold seconds> <worker command...>` prints one JSON
 line. `N=16 ./sweep.sh` changes the call count.
 
+More knobs, for the page's "One worker per core" and FFI numbers:
+
+| Run | Command |
+| --- | --- |
+| two workers, one pinned to each core | `./run.sh w2pin 8 60 env K=2 ./multi.sh env BENCH_INTROSPECTION=0 python openrtc_agent.py` |
+| two workers, not pinned | same, with `PIN=0` next to `K=2` |
+| count FFI events and queue deliveries, every 10 s, into the worker log | `BENCH_FFI_STATS=1` on the worker |
+| route stream events to their own stream (prototype of an upstream fix) | `BENCH_FFI_ROUTE=1` on the worker |
+
 ## How each number is measured
 
 | Number | How |
@@ -55,6 +64,9 @@ line. `N=16 ./sweep.sh` changes the call count.
   container). Its uvloop runs installed uvloop through a wrapper before `AgentPool(enable_uvloop=...)`
   existed; the policy and the event loop are the same.
 - `thr-*.threads.json`: the per-thread runs quoted on the page.
+- `multi-worker.jsonl`: one worker against two, pinned and not, two runs each.
+- `ffi-fanout.txt`: FFI events and deliveries per second at 1, 2, 4 and 8 calls, and by event
+  type at 8. `ffi-route.jsonl`: the routing prototype against the same worker without it.
 
 A single run is noisy (the two uvloop runs spread 10 points), so compare pairs, and rerun on your
 own hardware before quoting a number.
