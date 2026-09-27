@@ -55,7 +55,7 @@ def test_clean_tree_has_no_violations(tmp_path: Path) -> None:
 
 
 def test_no_pages_is_flagged(tmp_path: Path) -> None:
-    assert check_docs(tmp_path, []) == ["site.ts: no pages found"]
+    assert check_docs(tmp_path, []) == ["meta.json: no pages found"]
 
 
 def test_rule1_listed_page_without_file_is_flagged(tmp_path: Path) -> None:
@@ -126,21 +126,41 @@ def test_rule6_custom_anchor_is_flagged(tmp_path: Path) -> None:
     assert any("custom anchor" in e for e in errors)
 
 
-def test_read_site_pages_parses_site_ts(tmp_path: Path) -> None:
-    site_ts = _write(
+def test_read_meta_pages_maps_slugs_to_files(tmp_path: Path) -> None:
+    _write(tmp_path, "cli.md", _GOOD_PAGE)
+    meta = _write(tmp_path, "meta.json", '{"pages": ["index", "cli", "benchmark"]}')
+    assert validator.read_meta_pages(meta) == [
+        ("/", "index.mdx"),
+        ("/cli/", "cli.md"),
+        ("/benchmark/", "benchmark.mdx"),
+    ]
+
+
+def test_read_source_files_parses_source_ts(tmp_path: Path) -> None:
+    source_ts = _write(
         tmp_path,
-        "site.ts",
-        "export const PAGES = [\n"
-        "  { href: '/', label: 'Why', file: 'index.mdx' },\n"
-        "  { href: '/cli/', label: 'CLI', file: 'cli.mdx' },\n"
-        "];\n",
+        "source.ts",
+        "defineDocs({\n  docs: {\n    files: ['index.mdx', 'cli.mdx'],\n  },\n"
+        "  meta: { files: ['meta.json'] },\n});\n",
     )
-    assert validator.read_site_pages(site_ts) == PAGES
+    assert validator.read_source_files(source_ts) == ["index.mdx", "cli.mdx"]
+    empty = _write(tmp_path, "empty.ts", "export {};\n")
+    assert validator.read_source_files(empty) == []
+
+
+def test_source_files_must_match_meta(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    assert check_docs(tmp_path, PAGES, ["cli.mdx", "index.mdx"]) == []
+    errors = check_docs(tmp_path, PAGES, ["index.mdx"])
+    assert any("does not match docs/meta.json" in e for e in errors)
 
 
 def test_main_reports_violations(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.setattr(validator, "DOCS_DIR", tmp_path)
-    monkeypatch.setattr(validator, "read_site_pages", lambda: PAGES)
+    monkeypatch.setattr(validator, "read_meta_pages", lambda: PAGES)
+    monkeypatch.setattr(
+        validator, "read_source_files", lambda: ["index.mdx", "cli.mdx"]
+    )
     _write(tmp_path, "index.mdx", _GOOD_PAGE)
     assert validator.main() == 1
     _write(tmp_path, "cli.mdx", _GOOD_PAGE)
@@ -148,5 +168,7 @@ def test_main_reports_violations(tmp_path: Path, monkeypatch: Any) -> None:
 
 
 def test_real_docs_pass_the_validator() -> None:
-    errors = check_docs(validator.DOCS_DIR, validator.read_site_pages())
+    errors = check_docs(
+        validator.DOCS_DIR, validator.read_meta_pages(), validator.read_source_files()
+    )
     assert errors == []

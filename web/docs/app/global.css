@@ -1,0 +1,98 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource-variable/jetbrains-mono';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/* The mahimai.ca palette from web/shared/theme.css, mapped onto Fumadocs' tokens: charcoal,
+   one lavender accent for links, actions and data. Dark is the default; light keeps the same
+   roles with the lavender deepened for contrast. */
+@theme {
+  --font-sans: 'Space Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --color-fd-background: #fcfcfc;
+  --color-fd-foreground: #0a0a0a;
+  --color-fd-muted: #f3f3f4;
+  --color-fd-muted-foreground: #55555c;
+  --color-fd-popover: #fcfcfc;
+  --color-fd-popover-foreground: #0a0a0a;
+  --color-fd-card: #f3f3f4;
+  --color-fd-card-foreground: #0a0a0a;
+  --color-fd-border: #e3e3e6;
+  --color-fd-primary: #6f3fb0;
+  --color-fd-primary-foreground: #fcfcfc;
+  --color-fd-secondary: #ebebed;
+  --color-fd-secondary-foreground: #0a0a0a;
+  --color-fd-accent: #ebebed;
+  --color-fd-accent-foreground: #0a0a0a;
+  --color-fd-ring: #6f3fb0;
+  --color-fd-info: #6f3fb0;
+  --color-fd-warning: #a16207;
+}
+
+.dark {
+  --color-fd-background: #0a0a0a;
+  --color-fd-foreground: #fafafa;
+  --color-fd-muted: #141414;
+  --color-fd-muted-foreground: #a3a3a3;
+  --color-fd-popover: #141414;
+  --color-fd-popover-foreground: #fafafa;
+  --color-fd-card: #141414;
+  --color-fd-card-foreground: #fafafa;
+  --color-fd-border: #262626;
+  --color-fd-primary: #cba6f7;
+  --color-fd-primary-foreground: #0a0a0a;
+  --color-fd-secondary: #1b1b1b;
+  --color-fd-secondary-foreground: #fafafa;
+  --color-fd-accent: #1b1b1b;
+  --color-fd-accent-foreground: #fafafa;
+  --color-fd-ring: #cba6f7;
+  --color-fd-info: #cba6f7;
+  --color-fd-warning: #fcd34d;
+}
+
+.dark #nd-sidebar {
+  --color-fd-muted: #141414;
+  --color-fd-secondary: #1b1b1b;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.03em;
+}
+
+/* The OpenRTC mark (see components/mark.tsx): the ring and quiet bars in muted, the arc and the
+   middle bar in the accent. */
+.mark {
+  flex: none;
+  width: 1.3rem;
+  height: 1.3rem;
+}
+.mark__ring {
+  fill: none;
+  stroke: var(--color-fd-muted-foreground);
+  stroke-width: 2.2;
+}
+.mark__arc {
+  fill: none;
+  stroke: var(--color-fd-primary);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+.mark__bar {
+  fill: var(--color-fd-muted-foreground);
+}
+.mark__bar--live {
+  fill: var(--color-fd-primary);
+}
