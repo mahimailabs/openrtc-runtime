@@ -1,7 +1,10 @@
 <div align="center">
 
 <a href="https://docs.openrtc.tech">
-  <img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/cover.png" alt="OpenRTC: the ops layer for self-hosted LiveKit agents. An openrtc top table lists live calls with their agent, tenant, CPU and memory." width="100%" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/cover-light.png" />
+    <img src="https://raw.githubusercontent.com/mahimailabs/openrtc-runtime/main/assets/cover-dark.png" alt="OpenRTC: the ops layer for self-hosted LiveKit agents. An openrtc top table lists live calls with their agent, tenant, CPU and memory." width="100%" />
+  </picture>
 </a>
 
 <p>
