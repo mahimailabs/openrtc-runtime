@@ -141,19 +141,20 @@ When making changes, please preserve the core product constraints:
 If your change affects public behavior, update the relevant docs:
 
 - `README.md` for user-facing usage changes
-- `docs/` (VitePress site: CLI, getting started, API, architecture)—keep these in
-  sync when you change the public CLI, install extras, or `AgentPool` / discovery
-  behavior
+- `docs/`: the five pages of docs.openrtc.tech (`index.mdx`, `how-it-works.mdx`,
+  `cli.mdx`, `benchmark.mdx`, `changelog.md`). Keep them in sync when you change
+  the public CLI, install extras, or `AgentPool` / discovery behavior. Preview
+  with `npm ci --prefix site && npm run dev --prefix site`; `python3 docs/_check_docs.py`
+  checks links and house style
 - docstrings in `src/openrtc/`
 - examples, when new behavior should be demonstrated
 
 ## Releasing
 
-The release flow is documented in `docs/release-v0.1.md` (a single-page
-operator checklist). For v0.1.0 specifically, the changelog migration
-block is staged in the `[Unreleased]` section of `docs/changelog.md` and
-the publish workflow auto-prepends a versioned section after the tag
-fires.
+Stage user-visible changes under `## [Unreleased]` in `docs/changelog.md`.
+Publishing a GitHub release tagged `v*` runs `.github/workflows/publish.yml`,
+which builds with `uv build`, publishes to PyPI, and prepends the release notes
+to `docs/changelog.md`.
 
 ## Pull requests
 

@@ -172,7 +172,7 @@ venv.bak/
 node_modules/
 
 # mkdocs documentation
-/site
+# (mkdocs /site removed: site/ is the docs site source)
 
 # mypy
 .mypy_cache/
@@ -236,3 +236,10 @@ docs/.vitepress/cache/
 # Throwaway uv venv used by the wheel-smoke-install CI step (build.yml).
 .smoke/
 .gstack/
+
+# docs site (site/)
+.astro/
+.wrangler/
+.impeccable/review/
+site/dist/
+!site/src/lib/

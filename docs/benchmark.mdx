@@ -1,0 +1,72 @@
+---
+title: "Benchmark"
+description: "OpenRTC against stock livekit-agents 1.8.3 on the same two cores: memory, CPU, and what happens under overload."
+---
+
+OpenRTC's default mode runs every call in one process. The obvious question is whether that lets one machine serve more calls than stock livekit-agents. On the hardware we measured, it does not. It does use about 3x less memory per call.
+
+## Head-to-head
+
+The same agent, run by stock livekit-agents 1.8.3 (a process per call) and by OpenRTC in coroutine mode, on the same machine.
+
+| Calls | Worker | Agent answered | Memory per call | CPU (of 200%) |
+| ---: | --- | ---: | ---: | ---: |
+| 8 | livekit-agents | 8/8 | ~63 MB | ~103% |
+| 8 | OpenRTC coroutine | 8/8 | ~22 MB | ~130% |
+| 16 | livekit-agents | 16/16 | ~56 MB | not recorded |
+| 16 | OpenRTC coroutine | 14/16 | ~18 MB | not recorded |
+
+Both workers idle at about 1.2 GB: the runtime, the models, and livekit's shared turn-detector process.
+
+- **Memory:** livekit-agents 1.8 forks each call from a preloaded process, so a call costs tens of MB, not the gigabytes older write-ups quote. OpenRTC's calls share one process and cost about a third of that.
+- **CPU:** one OpenRTC worker is one Python process, so it uses about one core, and it spent about 25% more CPU per call. At 16 calls on two cores it ran out first: two calls never got an answer.
+- **So:** coroutine mode helps when memory is what you pay for (small containers, memory-priced hosts). When CPU is the limit, which it usually is, run one worker per core or use `isolation="process"`.
+
+## Under overload
+
+Coroutine mode used to report load to LiveKit as `active / max_concurrent_sessions`, which ignores CPU. A saturated worker kept saying yes. It now also reports event-loop lag, with 60 ms counting as full load.
+
+24 calls arriving one every 3 s, two cores, OpenRTC coroutine mode. "VAD warnings" counts Silero's "VAD inference is slower than realtime" log line, a direct sign of a starved event loop. At 100 ms the load generator hung, so whether the agents spoke was not recorded.
+
+| Full load at | Accepted | Agent spoke | VAD warnings |
+| --- | ---: | ---: | ---: |
+| 100 ms lag | 16 of 24 | not measured | 980 |
+| 60 ms lag (shipped) | 12 of 24 | 12/12 | 85 |
+
+The worker now stops at the edge of what it can serve and leaves the remaining calls for other workers. Something has to provide those workers: an autoscaler, or more replicas than you think you need. LiveKit reads load every 2.5 s, so a burst faster than that lands before the signal can react.
+
+## Method
+
+| | |
+| --- | --- |
+| Machine | Linux cloud container. The worker pinned to 2 cores with `taskset`; the load generator on other cores. |
+| LiveKit | a local livekit-server 1.13, real rooms, WebRTC audio in both directions |
+| Pipeline | Silero VAD and the turn detector (real models); STT, LLM and TTS stand-ins with realistic latency, so no provider variance |
+| Memory | PSS, not RSS. Forked processes share memory pages, and RSS counts each shared page once per process. |
+| CPU | busy time of the two pinned cores, from `/proc/stat` |
+| Load threshold | livekit's production default, 0.7, for both. The stock worker's CPU load was measured on its own two cores, so the load generator could not skew it. |
+
+## What this does not cover
+
+- **Real providers.** STT, LLM and TTS were stand-ins. Real network calls are async and should not change the CPU picture much, but we have not measured them.
+- **More cores.** Two cores, one worker. We have not measured four coroutine workers against one stock worker on four cores.
+- **Long calls.** Each run lasted minutes. Memory growth over hours is unmeasured.
+- **Your agent.** A tool that does synchronous work (a blocking HTTP client, a large parse) costs every other call in a coroutine worker. `openrtc top` shows it as `slow`.
+
+Measure on your own hardware before you quote a calls-per-worker number.
+
+## Other benchmarks in the repository
+
+| Script | Measures | Status |
+| --- | --- | --- |
+| `tests/benchmarks/throughput.py` | event-loop p99 with N sessions running the real Silero VAD at 50 frames a second; network stubbed | report only. On Apple silicon (macOS arm64, Python 3.13), p99 stayed between 1 and 2 ms up to 100 sessions. |
+| `tests/benchmarks/density.py` | peak memory with N placeholder sessions | a CI gate. It compares OpenRTC with itself between commits, not with livekit-agents. |
+
+```bash
+uv run python tests/benchmarks/throughput.py --sessions 1,10,25,50,100
+make bench
+```
+
+<Note>
+The head-to-head and overload runs above used a harness (load generator, sampler, stand-in providers) that is not in the repository yet, and their raw results are not committed either. Until they are, those numbers cannot be reproduced from a checkout.
+</Note>

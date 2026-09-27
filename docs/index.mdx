@@ -1,77 +1,96 @@
 ---
-title: OpenRTC
-description: livekit-agents on steroids. Host all your agents in one worker, with hot reload, live introspection, per-tenant isolation, and zero-downtime deploys. Your Agent code does not change.
+title: "Why OpenRTC"
+description: "Run every LiveKit agent from one worker, and see what each call is doing. Your Agent code does not change."
 ---
 
-**OpenRTC is livekit-agents with the operational parts filled in.** Keep writing
-standard `livekit.agents.Agent` subclasses. Register them on one `AgentPool`
-instead of one worker per agent, and host them all in a single process: shared
-prewarm loads once, every call still gets its own `AgentSession`, and you never
-inherit an OpenRTC base class.
+## The problem
 
-The payoff is the stuff livekit-agents leaves to you: **one fleet for every agent,
-hot reload, live introspection, per-tenant isolation, and zero-downtime deploys.**
+A livekit-agents worker has one session entrypoint. The moment you have more than one agent (a booking agent, a support agent, a demo), you either write the dispatch yourself inside that entrypoint, or run a worker per agent. Either way, the parts you need to operate it are also yours to build:
 
-<CardGroup cols={2}>
-  <Card title="Coming from livekit-agents?" icon="arrow-right-arrow-left" href="/coming-from-livekit-agents">
-    See the before/after: what you delete, what you keep, and what you gain.
-    Start here if you already run livekit-agents.
-  </Card>
-  <Card title="Quickstart" icon="rocket" href="/getting-started">
-    Install OpenRTC and run two agents through one worker in a few minutes.
-  </Card>
-</CardGroup>
+- which agent should take this call,
+- changing an agent's code without restarting the calls on it,
+- seeing which call is slowing the worker down,
+- keeping one client from using up the worker another client shares,
+- shipping a new version without cutting anyone off.
 
-## What changes (and what doesn't)
+OpenRTC is those parts, packaged around the livekit-agents you already run.
 
-| | livekit-agents | OpenRTC |
-|---|---|---|
-| **Your `Agent` code** | standard subclasses | **unchanged** |
-| **Workers** | one process per agent | one worker hosts every agent |
-| **Prewarm** | reloads per process | loaded once, shared |
-| **Memory per call** | ~63 MB (process per job) | ~22 MB (coroutine mode, measured on livekit-agents 1.8) |
-| **Shipping a change** | restart, drop in-flight calls | hot reload, no dropped calls |
+## What you keep
 
-## What you get on top
+Your agents stay standard `livekit.agents.Agent` subclasses. OpenRTC has no base class and does not wrap `@function_tool`, `RunContext`, `on_enter`, `on_exit`, or the `*_node` hooks. Provider objects (`openai.STT(...)`) and provider strings (`"openai/gpt-4o-mini-transcribe"`) are passed to `AgentSession` unchanged.
 
-<CardGroup cols={2}>
-  <Card title="One worker, many agents" icon="layer-group" href="/coming-from-livekit-agents">
-    Register any number of standard `Agent` subclasses on one pool. No base class,
-    no rewrite: your tools and node hooks stay exactly as written.
-  </Card>
-  <Card title="Lean coroutine mode" icon="bolt" href="/benchmarks/density-v0.1">
-    Sessions run as `asyncio` tasks in one loop, sharing one Silero VAD and turn
-    detector, at about a third of the memory per call. Process isolation is one flag away.
-  </Card>
-  <Card title="Smart routing" icon="route" href="/concepts/routing">
-    Every call resolves to one agent by job metadata, room metadata, or room-name
-    prefix. Precedence is explicit and a typo never falls through silently.
-  </Card>
-  <Card title="Hot reload" icon="arrows-rotate" href="/concepts/hot-reload">
-    Edit an agent file and live calls swap to the new code on their next turn,
-    with zero dropped audio. A bad save rolls back on its own.
-  </Card>
-  <Card title="Live introspection" icon="gauge-high" href="/concepts/session-introspection">
-    `openrtc top` gives an htop-style view of per-session memory, CPU, and
-    event-loop blocks inside the shared worker.
-  </Card>
-  <Card title="Multi-tenancy" icon="building" href="/concepts/multi-tenancy">
-    Give every client its own provider keys, session caps, and blast-radius
-    circuit breaker, all in one pool. One noisy tenant never touches the others.
-  </Card>
-  <Card title="Zero-downtime deploys" icon="tower-broadcast" href="/operations/deployments">
-    Blue-green drain: the new version takes new calls while the old drains its
-    in-flight calls to hangup, then exits. No live call is ever dropped.
-  </Card>
-  <Card title="How it works" icon="sitemap" href="/concepts/architecture">
-    The universal entrypoint, coroutine density, and shared prewarm under the
-    hood, when you want the details.
-  </Card>
-</CardGroup>
+What you delete is the per-worker wiring: the `entrypoint`, the `AgentSession(...)` construction, and `cli.run_app`.
+
+## What you get
+
+| | What it does | Limits |
+| --- | --- | --- |
+| **One pool** | Register every agent class on one `AgentPool`. Each call is routed to one of them by job metadata, room metadata, or room-name prefix. | A metadata value naming an unknown agent raises. Routing never falls back silently. |
+| **Hot reload** | `openrtc dev` swaps live calls to your edited agent on their next turn, conversation intact. A bad save keeps the old code running. | Coroutine mode only. `openrtc start` never reloads. |
+| **`openrtc top`** | A live, htop-style table of every call in the worker: agent, tenant, memory share, CPU share, and whether it is blocking the others. | Same host, coroutine mode. Memory is an equal share of one process, not a per-call measurement. |
+| **Tenants** | Per-tenant providers and API keys, per-tenant and per-agent session caps, and a circuit breaker that confines a failing tenant. | Shared process, not a sandbox. Caps and the breaker need coroutine mode. |
+| **Deploys** | A `deployment_version` tag, `pool.begin_drain()`, and audit events around livekit's own drain. | No live call is moved. Calls finish on the old version. |
+
+[How it works](/how-it-works/) covers each of these in detail.
+
+## Quick start
+
+```bash
+pip install "openrtc[livekit,cli]"
+```
+
+Python 3.11 to 3.13. The `livekit` extra pulls `livekit-agents[openai,silero,turn-detector]>=1.5,<1.9`; `import openrtc` alone does not import livekit. Set `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` as for any LiveKit worker.
+
+Put one agent per file in a directory:
+
+```python
+# agents/restaurant.py
+from livekit.agents import Agent
+from openrtc import agent_config
+
+
+@agent_config(name="restaurant", greeting="Welcome to reservations.")
+class RestaurantAgent(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions="You help callers book a table.")
+```
+
+Then run the directory:
+
+```bash
+openrtc dev ./agents \
+  --default-stt openai/gpt-4o-mini-transcribe \
+  --default-llm openai/gpt-4.1-mini \
+  --default-tts openai/gpt-4o-mini-tts
+```
+
+A room named `restaurant-call-1` now reaches `RestaurantAgent`. Edit the file during a call and the next turn runs your change. In a second terminal, `openrtc top` shows the call.
+
+Prefer Python to a directory? Register the classes yourself:
+
+```python
+from livekit.plugins import openai
+from openrtc import AgentPool
+
+from agents.restaurant import RestaurantAgent
+from agents.support import SupportAgent
+
+pool = AgentPool(
+    default_stt=openai.STT(model="gpt-4o-mini-transcribe"),
+    default_llm=openai.responses.LLM(model="gpt-4.1-mini"),
+    default_tts=openai.TTS(model="gpt-4o-mini-tts"),
+)
+pool.add("restaurant", RestaurantAgent)
+pool.add("support", SupportAgent, greeting="Support here. What broke?")
+pool.run()
+```
+
+`python main.py dev` and `python main.py start` then behave as they would for a livekit-agents worker.
+
+## What it is not
+
+It is not a way to serve more calls from the same machine. Against livekit-agents 1.8.3 on the same two cores, OpenRTC's default mode used about 3x less memory per call, but CPU ran out first and it held fewer calls. The [benchmark](/benchmark/) has the numbers and the method. Run one worker per core, or use `isolation="process"` for CPU-bound agents.
 
 <Note>
-OpenRTC owns the **runtime** lane: density, routing, hot reload, introspection,
-per-tenant isolation, and deploys. For cost, pipeline latency, and quality
-metrics, it emits `agent_name` and `metadata["tenant"]` on every session for
-voicegateway to consume, and does not duplicate that lane.
+OpenRTC is early and has few users so far. The supported surface is `openrtc.__all__`, listed on [How it works](/how-it-works/#public-api). Everything else can change between releases. Bugs and questions go to [GitHub issues](https://github.com/mahimailabs/openrtc-runtime/issues).
 </Note>

@@ -1,0 +1,324 @@
+---
+import '../styles/global.css';
+import Mark from './Mark.astro';
+import { PAGES, PYPI, REPO } from '../lib/site';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Path of this page, for the canonical link and the current nav item. */
+  path: string;
+}
+const { title, description, path } = Astro.props;
+const canonical = new URL(path, Astro.site!).href;
+const themes = [
+  { value: 'light', label: 'Light theme' },
+  { value: 'dark', label: 'Dark theme' },
+  { value: 'auto', label: 'Match system theme' },
+];
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="OpenRTC" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <script is:inline>
+      // Theme before first paint: the stored choice, dark when nothing is stored.
+      (function () {
+        var root = document.documentElement;
+        function apply() {
+          var c = 'dark';
+          try {
+            c = localStorage.getItem('openrtc-theme') || 'dark';
+          } catch (e) {}
+          root.dataset.choice = c;
+          if (c === 'auto') c = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          root.dataset.theme = c === 'light' ? 'light' : 'dark';
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', root.dataset.theme === 'light' ? '#fcfcfc' : '#0a0a0a');
+        }
+        window.__applyTheme = apply;
+        apply();
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="top">
+      <div class="shell top__row">
+        <a class="brand" href="/">
+          <Mark />
+          <span>OpenRTC</span>
+        </a>
+        <nav class="top__nav" aria-label="Pages">
+          {
+            PAGES.map((p) => (
+              <a href={p.href} aria-current={path === p.href ? 'page' : undefined}>
+                {p.label}
+              </a>
+            ))
+          }
+        </nav>
+        <div class="top__tools">
+          <a class="gh" href={REPO} rel="noopener">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+              ></path>
+            </svg>
+            <span class="gh__label">GitHub</span>
+          </a>
+          <div class="seg" role="group" aria-label="Theme">
+            {
+              themes.map((t) => (
+                <button type="button" class="seg__item" data-theme-choice={t.value} aria-label={t.label} title={t.label} aria-pressed="false">
+                  {t.value === 'light' && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="4" />
+                      <path d="M12 2v2M12 20v2m-7.07-2.93 1.41-1.41m11.32-11.32 1.41-1.41M2 12h2m16 0h2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41" />
+                    </svg>
+                  )}
+                  {t.value === 'dark' && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                    </svg>
+                  )}
+                  {t.value === 'auto' && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect width="20" height="14" x="2" y="3" rx="2" />
+                      <path d="M8 21h8m-4-4v4" />
+                    </svg>
+                  )}
+                </button>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+      <nav class="shell top__pages" aria-label="Pages">
+        {
+          PAGES.map((p) => (
+            <a href={p.href} aria-current={path === p.href ? 'page' : undefined}>
+              {p.label}
+            </a>
+          ))
+        }
+      </nav>
+    </header>
+    <main id="main">
+      <slot />
+    </main>
+    <footer class="foot">
+      <div class="shell foot__row">
+        <p class="foot__brand"><Mark /> OpenRTC</p>
+        <ul class="foot__links">
+          <li><a href={REPO} rel="noopener">GitHub</a></li>
+          <li><a href={PYPI} rel="noopener">PyPI</a></li>
+          <li><a href="/changelog/">Changelog</a></li>
+          <li><a href={`${REPO}/blob/main/LICENSE`} rel="noopener">MIT</a></li>
+          <li>Made by <a href="https://mahimai.ca" rel="noopener">Mahimai</a></li>
+        </ul>
+      </div>
+    </footer>
+    <script is:inline>
+      // Theme toggle: store the choice, re-apply, and follow the system while on 'auto'.
+      (function () {
+        var buttons = document.querySelectorAll('[data-theme-choice]');
+        function sync() {
+          var c = document.documentElement.dataset.choice || 'dark';
+          buttons.forEach(function (b) {
+            b.setAttribute('aria-pressed', String(b.dataset.themeChoice === c));
+          });
+        }
+        buttons.forEach(function (b) {
+          b.addEventListener('click', function () {
+            try {
+              localStorage.setItem('openrtc-theme', b.dataset.themeChoice);
+            } catch (e) {}
+            window.__applyTheme();
+            sync();
+          });
+        });
+        matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () {
+          window.__applyTheme();
+        });
+        sync();
+      })();
+      // Small screens: keep the current page visible in the scrolling page row.
+      var here = document.querySelector('.top__pages [aria-current="page"]');
+      if (here) here.parentElement.scrollLeft = here.offsetLeft - 16;
+      // Copy buttons: <button class="copy" data-copy="text">.
+      document.querySelectorAll('[data-copy]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var label = b.querySelector('[data-copy-label]');
+          navigator.clipboard.writeText(b.dataset.copy).then(
+            function () {
+              b.dataset.state = 'done';
+              if (label) label.textContent = 'Copied';
+              setTimeout(function () {
+                delete b.dataset.state;
+                if (label) label.textContent = 'Copy';
+              }, 1600);
+            },
+            function () {
+              if (label) label.textContent = 'Select and copy';
+            }
+          );
+        });
+      });
+    </script>
+  </body>
+</html>
+
+<style>
+  .skip {
+    position: absolute;
+    left: 1rem;
+    top: -3rem;
+    z-index: 100;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .skip:focus {
+    top: 0.75rem;
+  }
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(12px);
+  }
+  .top__row {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    height: 3.75rem;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+  }
+  .top__nav {
+    display: none;
+    gap: 1.5rem;
+    font-size: 0.875rem;
+  }
+  .top__nav a,
+  .top__pages a {
+    color: var(--muted);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .top__nav a:hover,
+  .top__nav a[aria-current='page'],
+  .top__pages a:hover,
+  .top__pages a[aria-current='page'] {
+    color: var(--ink);
+  }
+  /* Small screens: the five pages scroll in a second row instead of hiding behind a menu. */
+  .top__pages {
+    display: flex;
+    gap: 1.25rem;
+    overflow-x: auto;
+    padding-bottom: 0.7rem;
+    font-size: 0.875rem;
+    scrollbar-width: none;
+    /* Fade the edge so the row reads as scrollable. */
+    mask-image: linear-gradient(to right, #000 85%, transparent);
+  }
+  .top__tools {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+  .gh {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    height: 2.1rem;
+    padding: 0 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    text-decoration: none;
+    color: var(--ink-soft);
+  }
+  .gh:hover {
+    border-color: var(--line-strong);
+    color: var(--ink);
+  }
+  .gh__label {
+    display: none;
+  }
+  @media (min-width: 52rem) {
+    .top__nav {
+      display: flex;
+    }
+    .top__pages {
+      display: none;
+    }
+    .gh__label {
+      display: inline;
+    }
+  }
+  .foot {
+    margin-top: 6rem;
+    border-top: 1px solid var(--line);
+    padding-block: 2rem 3rem;
+    font-size: 0.875rem;
+    color: var(--muted);
+  }
+  .foot__row {
+    display: grid;
+    gap: 1rem;
+  }
+  .foot__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .foot__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .foot__links a {
+    color: var(--ink-soft);
+    text-underline-offset: 0.2em;
+  }
+  @media (min-width: 48rem) {
+    .foot__row {
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 2rem;
+    }
+    .foot__links {
+      justify-content: flex-end;
+    }
+  }
+</style>

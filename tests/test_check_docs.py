@@ -1,18 +1,14 @@
 """Tests for the docs structure + house-style validator (docs/_check_docs.py).
 
-The validator is a standalone script (run as its own CI job, not under the
-openrtc coverage gate). It is written so ``check_docs(docs_dir)`` is importable
-and testable against crafted temp docs trees, one perturbation per rule.
+The validator is a standalone script (run as its own CI job). ``check_docs`` is
+importable and tested against crafted temp docs trees, one perturbation per rule.
 """
 
 from __future__ import annotations
 
 import importlib.util
-import json
 from pathlib import Path
 from typing import Any
-
-import pytest
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "docs" / "_check_docs.py"
 
@@ -29,16 +25,15 @@ def _load_validator() -> Any:
 validator = _load_validator()
 check_docs = validator.check_docs
 
+PAGES = [("/", "index.mdx"), ("/cli/", "cli.mdx")]
 
 _GOOD_PAGE = """\
 ---
-title: Index
-description: The landing page.
+title: "Index"
+description: "The landing page."
 ---
 
-# Index
-
-A clean page with no violations.
+A clean page. See the [CLI](/cli/) and [its flags](/cli#flags).
 """
 
 
@@ -49,156 +44,109 @@ def _write(tmp: Path, rel: str, content: str) -> Path:
     return path
 
 
-def _docs_json(tabs: list[dict[str, Any]]) -> dict[str, Any]:
-    return {"navigation": {"tabs": tabs}}
-
-
-def _one_tab(pages: list[str]) -> list[dict[str, Any]]:
-    return [{"tab": "T", "groups": [{"group": "G", "pages": pages}]}]
-
-
-def _clean_tree(tmp: Path, *, extra_pages: dict[str, str] | None = None) -> None:
-    """Write a minimal clean docs tree: docs.json + one page per nav entry."""
-    pages = ["index"]
-    extra = extra_pages or {}
-    pages.extend(extra)
-    _write(tmp, "docs.json", json.dumps(_docs_json(_one_tab(pages))))
-    _write(tmp, "index.md", _GOOD_PAGE)
-    for name, content in extra.items():
-        _write(tmp, f"{name}.md", content)
+def _clean_tree(tmp: Path, index: str = _GOOD_PAGE) -> None:
+    _write(tmp, "index.mdx", index)
+    _write(tmp, "cli.mdx", _GOOD_PAGE.replace("Index", "CLI"))
 
 
 def test_clean_tree_has_no_violations(tmp_path: Path) -> None:
     _clean_tree(tmp_path)
-    assert check_docs(tmp_path) == []
+    assert check_docs(tmp_path, PAGES) == []
 
 
-def test_rule1_empty_tabs_is_flagged(tmp_path: Path) -> None:
-    _write(tmp_path, "docs.json", json.dumps(_docs_json([])))
-    _write(tmp_path, "index.md", _GOOD_PAGE)
-    errors = check_docs(tmp_path)
-    assert any("tab" in e.lower() for e in errors)
+def test_no_pages_is_flagged(tmp_path: Path) -> None:
+    assert check_docs(tmp_path, []) == ["site.ts: no pages found"]
 
 
-def test_rule1_group_with_no_pages_is_flagged(tmp_path: Path) -> None:
-    tabs = [{"tab": "T", "groups": [{"group": "Empty", "pages": []}]}]
-    _write(tmp_path, "docs.json", json.dumps(_docs_json(tabs)))
-    errors = check_docs(tmp_path)
-    assert any("page" in e.lower() for e in errors)
+def test_rule1_listed_page_without_file_is_flagged(tmp_path: Path) -> None:
+    _write(tmp_path, "index.mdx", _GOOD_PAGE)
+    errors = check_docs(tmp_path, PAGES)
+    assert any("missing docs/cli.mdx" in e for e in errors)
 
 
-def test_rule2_nav_page_without_file_is_flagged(tmp_path: Path) -> None:
-    _write(tmp_path, "docs.json", json.dumps(_docs_json(_one_tab(["index", "ghost"]))))
-    _write(tmp_path, "index.md", _GOOD_PAGE)
-    errors = check_docs(tmp_path)
-    assert any("ghost" in e for e in errors)
-
-
-def test_rule3_orphan_file_is_flagged(tmp_path: Path) -> None:
+def test_rule2_orphan_file_is_flagged(tmp_path: Path) -> None:
     _clean_tree(tmp_path)
-    _write(tmp_path, "stray.md", _GOOD_PAGE)  # on disk, not in nav
-    errors = check_docs(tmp_path)
-    assert any("orphan" in e.lower() and "stray" in e for e in errors)
+    _write(tmp_path, "stray.md", _GOOD_PAGE)
+    errors = check_docs(tmp_path, PAGES)
+    assert any("orphan" in e and "stray" in e for e in errors)
 
 
-def test_rule3_excluded_dirs_are_not_orphans(tmp_path: Path) -> None:
+def test_rule2_internal_notes_are_not_orphans(tmp_path: Path) -> None:
     _clean_tree(tmp_path)
     _write(tmp_path, "design/notes.md", "raw design note with no frontmatter")
-    assert check_docs(tmp_path) == []
+    _write(tmp_path, "audit-2026-05-02.md", "archived audit")
+    assert check_docs(tmp_path, PAGES) == []
 
 
-def test_rule3_duplicate_nav_page_is_flagged(tmp_path: Path) -> None:
-    _write(tmp_path, "docs.json", json.dumps(_docs_json(_one_tab(["index", "index"]))))
-    _write(tmp_path, "index.md", _GOOD_PAGE)
-    errors = check_docs(tmp_path)
-    assert any("duplicate" in e.lower() for e in errors)
-
-
-def test_rule4_broken_internal_link_is_flagged(tmp_path: Path) -> None:
-    page = _GOOD_PAGE + "\nSee [routing](/concepts/routing) for more.\n"
-    _clean_tree(tmp_path, extra_pages={"index2": page})
-    # /concepts/routing is not a nav page -> broken internal link.
-    errors = check_docs(tmp_path)
+def test_rule3_broken_internal_link_is_flagged(tmp_path: Path) -> None:
+    _clean_tree(tmp_path, _GOOD_PAGE + "\nSee [routing](/concepts/routing).\n")
+    errors = check_docs(tmp_path, PAGES)
     assert any("/concepts/routing" in e for e in errors)
 
 
-def test_rule4_resolving_internal_link_is_ok(tmp_path: Path) -> None:
-    linker = _GOOD_PAGE + "\nSee [start](/getting-started).\n"
-    _clean_tree(tmp_path, extra_pages={"getting-started": _GOOD_PAGE, "linker": linker})
-    assert check_docs(tmp_path) == []
+def test_rule3_asset_link_is_ignored(tmp_path: Path) -> None:
+    _clean_tree(tmp_path, _GOOD_PAGE + "\n![top](/openrtc-top.svg)\n")
+    assert check_docs(tmp_path, PAGES) == []
 
 
-def test_rule5_em_dash_in_prose_is_flagged(tmp_path: Path) -> None:
-    page = "---\ntitle: T\ndescription: D\n---\n\nText with an em dash — here.\n"
-    _clean_tree(tmp_path, extra_pages={"emdash": page})
-    errors = check_docs(tmp_path)
-    assert any("em dash" in e.lower() and "emdash" in e for e in errors)
+def test_rule4_em_dash_in_prose_is_flagged(tmp_path: Path) -> None:
+    _clean_tree(tmp_path, _GOOD_PAGE + "\nOne pool — many agents.\n")
+    errors = check_docs(tmp_path, PAGES)
+    assert any("em dash" in e for e in errors)
 
 
-def test_rule5_em_dash_in_code_is_allowed(tmp_path: Path) -> None:
-    page = (
-        "---\ntitle: T\ndescription: D\n---\n\n"
-        "Inline `a — b` is fine.\n\n```\nblock — dash\n```\n"
+def test_rule4_em_dash_in_code_is_allowed(tmp_path: Path) -> None:
+    page = _GOOD_PAGE + "\nUse `a — b`.\n\n```text\nx — y\n```\n"
+    _clean_tree(tmp_path, page)
+    assert check_docs(tmp_path, PAGES) == []
+
+
+def test_rule5_missing_frontmatter_is_flagged(tmp_path: Path) -> None:
+    _clean_tree(tmp_path, "No frontmatter here.\n")
+    errors = check_docs(tmp_path, PAGES)
+    assert any("no frontmatter" in e for e in errors)
+
+
+def test_rule5_missing_description_is_flagged(tmp_path: Path) -> None:
+    _clean_tree(tmp_path, '---\ntitle: "Index"\n---\n\nBody.\n')
+    errors = check_docs(tmp_path, PAGES)
+    assert any("'description'" in e for e in errors)
+
+
+def test_rule5_unquoted_colon_value_is_flagged(tmp_path: Path) -> None:
+    page = '---\ntitle: "Index"\ndescription: Pool: one worker\n---\n\nBody.\n'
+    _clean_tree(tmp_path, page)
+    errors = check_docs(tmp_path, PAGES)
+    assert any("must be quoted" in e for e in errors)
+
+
+def test_rule6_custom_anchor_is_flagged(tmp_path: Path) -> None:
+    _clean_tree(tmp_path, _GOOD_PAGE + "\n## Routing {#routing}\n")
+    errors = check_docs(tmp_path, PAGES)
+    assert any("custom anchor" in e for e in errors)
+
+
+def test_read_site_pages_parses_site_ts(tmp_path: Path) -> None:
+    site_ts = _write(
+        tmp_path,
+        "site.ts",
+        "export const PAGES = [\n"
+        "  { href: '/', label: 'Why', file: 'index.mdx' },\n"
+        "  { href: '/cli/', label: 'CLI', file: 'cli.mdx' },\n"
+        "];\n",
     )
-    _clean_tree(tmp_path, extra_pages={"codeblock": page})
-    assert check_docs(tmp_path) == []
+    assert validator.read_site_pages(site_ts) == PAGES
 
 
-def test_rule6_vitepress_key_is_flagged(tmp_path: Path) -> None:
-    page = "---\ntitle: T\ndescription: D\nlayout: home\n---\n\n# T\n"
-    _clean_tree(tmp_path, extra_pages={"vp": page})
-    errors = check_docs(tmp_path)
-    assert any("layout" in e for e in errors)
-
-
-def test_rule7_missing_description_is_flagged(tmp_path: Path) -> None:
-    page = "---\ntitle: Only Title\n---\n\n# T\n"
-    _clean_tree(tmp_path, extra_pages={"nodesc": page})
-    errors = check_docs(tmp_path)
-    assert any("description" in e.lower() and "nodesc" in e for e in errors)
-
-
-def test_rule7_empty_title_is_flagged(tmp_path: Path) -> None:
-    page = "---\ntitle: ''\ndescription: D\n---\n\n# T\n"
-    _clean_tree(tmp_path, extra_pages={"emptytitle": page})
-    errors = check_docs(tmp_path)
-    assert any("title" in e.lower() and "emptytitle" in e for e in errors)
-
-
-def test_rule8_custom_anchor_is_flagged(tmp_path: Path) -> None:
-    page = "---\ntitle: T\ndescription: D\n---\n\n## Section {#custom-id}\n"
-    _clean_tree(tmp_path, extra_pages={"anchor": page})
-    errors = check_docs(tmp_path)
-    assert any("anchor" in e.lower() and "anchor" in e for e in errors)
-
-
-def test_rule9_unquoted_colon_value_is_flagged(tmp_path: Path) -> None:
-    # An unquoted description containing ": " breaks YAML parsing downstream.
-    page = "---\ntitle: T\ndescription: Do this: then that\n---\n\n# T\n"
-    _clean_tree(tmp_path, extra_pages={"colon": page})
-    errors = check_docs(tmp_path)
-    assert any("quote" in e.lower() and "colon" in e for e in errors)
-
-
-def test_missing_docs_json_is_flagged(tmp_path: Path) -> None:
-    errors = check_docs(tmp_path)
-    assert any("docs.json" in e for e in errors)
-
-
-def test_main_returns_zero_on_clean_tree(tmp_path: Path) -> None:
-    _clean_tree(tmp_path)
-    assert validator.main(tmp_path) == 0
-
-
-def test_main_returns_one_on_dirty_tree(tmp_path: Path) -> None:
-    _clean_tree(tmp_path)
-    _write(tmp_path, "stray.md", _GOOD_PAGE)
-    assert validator.main(tmp_path) == 1
+def test_main_reports_violations(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setattr(validator, "DOCS_DIR", tmp_path)
+    monkeypatch.setattr(validator, "read_site_pages", lambda: PAGES)
+    _write(tmp_path, "index.mdx", _GOOD_PAGE)
+    assert validator.main() == 1
+    _write(tmp_path, "cli.mdx", _GOOD_PAGE)
+    assert validator.main() == 0
 
 
 def test_real_docs_pass_the_validator() -> None:
-    # The shipped docs/ tree must validate clean (this is the CI gate in miniature).
-    real_docs = Path(__file__).resolve().parents[1] / "docs"
-    if not (real_docs / "docs.json").exists():  # pragma: no cover
-        pytest.skip("docs.json not present")
-    assert check_docs(real_docs) == []
+    errors = check_docs(validator.DOCS_DIR, validator.read_site_pages())
+    assert errors == []

@@ -24,10 +24,10 @@ dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/mahimailabs/openrtc-runtime"
-Documentation = "https://openrtc.mintlify.app"
+Documentation = "https://docs.openrtc.tech"
 Issues = "https://github.com/mahimailabs/openrtc-runtime/issues"
 Repository = "https://github.com/mahimailabs/openrtc-runtime"
-Changelog = "https://openrtc.mintlify.app/changelog"
+Changelog = "https://docs.openrtc.tech/changelog/"
 
 [project.scripts]
 openrtc = "openrtc.cli:main"

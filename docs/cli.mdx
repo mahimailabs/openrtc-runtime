@@ -1,0 +1,115 @@
+---
+title: "CLI"
+description: "Every openrtc command and flag. The worker commands match the livekit-agents CLI; list, top and logs are OpenRTC's own."
+---
+
+```bash
+pip install "openrtc[livekit,cli]"     # add the top extra for host vitals in openrtc top
+```
+
+| Command | What it does |
+| --- | --- |
+| [`openrtc dev ./agents`](#worker-commands) | development worker, with hot reload |
+| [`openrtc start ./agents`](#worker-commands) | production worker |
+| [`openrtc console ./agents`](#worker-commands) | talk to an agent from your terminal, no room needed |
+| [`openrtc connect ./agents --room NAME`](#worker-commands) | join an existing room |
+| [`openrtc download-files ./agents`](#worker-commands) | fetch plugin model files ahead of time, for container builds |
+| [`openrtc list ./agents`](#openrtc-list) | load the directory and print what would be registered |
+| [`openrtc top`](#openrtc-top) | live table of the calls in a running worker |
+| [`openrtc logs FILE`](#openrtc-logs) | filter a JSON log file to one call |
+
+Every command that loads agents takes the directory as its first argument (or `--agents-dir`). Credentials come from `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET`, or `--url`, `--api-key` and `--api-secret`.
+
+## Worker commands
+
+`start`, `dev` and `console` take an optional second path for the metrics stream:
+
+```bash
+openrtc dev ./agents ./openrtc-metrics.jsonl
+```
+
+| Flag | Default | Notes |
+| --- | --- | --- |
+| `--default-stt`, `--default-llm`, `--default-tts` | none | provider string for agents that do not set their own |
+| `--default-greeting` | none | greeting for agents that do not set their own |
+| `--isolation` | `coroutine` | `coroutine` or `process`. Env: `OPENRTC_ISOLATION` |
+| `--max-concurrent-sessions` | `50` | coroutine mode only. Env: `OPENRTC_MAX_CONCURRENT_SESSIONS` |
+| `--no-watch` | off | `dev` only: turn hot reload off |
+| `--watch-path PATH` | your agent modules | `dev` only, repeatable: more paths to watch |
+| `--metrics-jsonl PATH` | off | JSON Lines of snapshots and session events, truncated at start |
+| `--metrics-jsonl-interval` | `--dashboard-refresh` | seconds between snapshot lines |
+| `--metrics-json-file PATH` | off | one JSON file, overwritten with the latest snapshot |
+| `--dashboard` | off | a live Rich dashboard in the terminal |
+| `--dashboard-refresh` | `1.0` | seconds, at least 0.25 |
+| `--log-level` | livekit's | Env: `LIVEKIT_LOG_LEVEL` |
+
+A flag beats its environment variable, which beats the library default. `connect` takes `--room` (required) and `--participant-identity`, but not the isolation or hot reload flags.
+
+Each `--metrics-jsonl` line is an envelope:
+
+```json
+{"schema_version": 2, "kind": "event", "seq": 42, "wall_time_unix": 1790000000.1, "payload": {"event": "session_started", "agent": "restaurant", "tenant": "default"}}
+```
+
+`kind` is `snapshot` (the pool's counters) or `event` (`session_started`, `session_finished`, `session_failed`).
+
+## openrtc list
+
+Loads the directory the way a worker would, then prints each agent's name, class and providers. Nothing connects to LiveKit, so it is a cheap check in CI.
+
+```bash
+openrtc list ./agents --default-llm openai/gpt-4.1-mini --plain
+```
+
+| Flag | Output |
+| --- | --- |
+| none | a table |
+| `--plain` | one line per agent, no colour |
+| `--json` | JSON with `schema_version: 2` |
+| `--resources` | adds this process's memory. On Linux the current resident memory; on macOS the peak |
+
+## openrtc top
+
+Connects to a running coroutine-mode worker on the same host. [How it works](/how-it-works/#openrtc-top) explains the columns.
+
+```bash
+openrtc top                      # live, 1 Hz
+openrtc top --once               # one snapshot, then exit
+openrtc top --status slow        # only calls blocking the loop
+openrtc top --tenant acme        # one tenant
+```
+
+| Flag | Default | Notes |
+| --- | --- | --- |
+| `--once` | off | print one snapshot and exit |
+| `--refresh-rate` | `1.0` | Hz, 0.5 to 10 |
+| `--sort` | `mem_mb` | also `cpu_pct`, `duration_s`, `agent`, `session` |
+| `--status` | `all` | also `active`, `slow`, `draining`, `errored` |
+| `--agent`, `--tenant` | all | show one agent or tenant |
+| `--socket PATH` | per-user default | the worker's introspection socket |
+
+Keys while live: `q` quit, `r` refresh, `s` next sort column, `f` next status filter. With no worker on the socket, it says so instead of failing. A worker in `process` isolation, or built with `enable_introspection=False`, serves no socket.
+
+## openrtc logs
+
+Prints the records of one call from a JSON log file:
+
+```bash
+openrtc logs worker.jsonl --session AJ_x8Ks2
+```
+
+The file has to be written by OpenRTC's formatter, which tags every record with the call's `session_id`, agent and tenant. Nothing turns it on for you yet: attach it to your log handler.
+
+```python
+import logging
+from openrtc.observability.log_scoping import JsonLogFormatter, SessionIdFilter
+
+handler = logging.FileHandler("worker.jsonl")
+handler.setFormatter(JsonLogFormatter())
+handler.addFilter(SessionIdFilter())
+logging.getLogger().addHandler(handler)
+```
+
+<Note>
+`openrtc.observability.log_scoping` is not in `openrtc.__all__`, so this import can change between releases.
+</Note>
