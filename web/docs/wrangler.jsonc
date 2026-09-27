@@ -1,6 +1,6 @@
 // docs.openrtc.tech: a static site served from Workers static assets. Nothing runs server-side.
 {
-  "name": "openrtc-docs",
+  "name": "openrtc-runtime-docs",
   "compatibility_date": "2026-09-26",
   "assets": {
     "directory": "./dist",
