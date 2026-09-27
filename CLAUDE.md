@@ -100,6 +100,7 @@ The full coding-style guide lives in `AGENTS.md` (typing rules, async patterns, 
 ## Working conventions (AI-assisted development)
 
 - **Branches:** `feat/<topic>` or `fix/<topic>`. Never a `claude/` prefix.
+- **No AI attribution:** no `Co-Authored-By` for an AI, no session link and no "Generated with" footer in commits, PR descriptions or comments. Commits are authored by the maintainer; when squash-merging, write the commit message so no trailers are carried over.
 - **Before every push:** `make ci` (ruff check, ruff format --check, mypy --strict, pytest with the 99% coverage gate) must pass locally.
 - **LiveKit facts come from the docs, not memory.** The project ships the LiveKit Docs MCP server (`.mcp.json`) and LiveKit's agent skills (`.claude/skills/`, start with `reading-livekit-docs`). Check the changelog before touching code that hooks livekit-agents internals.
 - **Docs and UI:** use the `impeccable` skill for any docs-site or frontend work. The house style is the sibling projects: mahimai.ca (`PRODUCT.md`/`DESIGN.md`: charcoal, one lavender accent, Space Grotesk + JetBrains Mono, no em dashes) and voice-prices' docs (lead with the problem, measured numbers, tables over prose, say what is not covered and why, generated sections fenced by markers).
