@@ -2,6 +2,7 @@
 import { Code } from 'astro:components';
 import InstallCommand from '../../../shared/InstallCommand.astro';
 import Layout from '../components/Layout.astro';
+import RouteDiagram from '../components/RouteDiagram.astro';
 import TopConsole from '../components/TopConsole.astro';
 import { DOCS, REPO, fetchStars } from '../lib/links';
 
@@ -34,31 +35,11 @@ pool.add("support", SupportAgent)
 pool.run()`;
 
 const features = [
-  {
-    name: 'Routing',
-    does: 'Each call goes to one registered agent by job metadata, room metadata, or room-name prefix.',
-    limit: 'An unknown agent name raises. It never falls back silently.',
-  },
-  {
-    name: 'Hot reload',
-    does: 'Save an agent file and live calls move to the new code on their next turn, conversation intact.',
-    limit: 'A bad save keeps the old code running. Coroutine mode only.',
-  },
-  {
-    name: 'openrtc top',
-    does: 'Every call in the worker, live: agent, tenant, CPU share, and which call is blocking the others.',
-    limit: 'Same host. Memory is a share of one process, not a per-call measure.',
-  },
-  {
-    name: 'Tenants',
-    does: 'Per-tenant providers and keys, per-tenant session caps, and a breaker that confines a failing tenant.',
-    limit: 'One process: it confines load and failures, not memory access.',
-  },
-  {
-    name: 'Deploys',
-    does: 'A version tag, programmatic drain and audit events on top of livekit’s own drain.',
-    limit: 'No live call is moved. Calls finish on the old version.',
-  },
+  { name: 'Routing', does: 'Metadata or room name picks the agent.', limit: 'An unknown name raises, never falls back.' },
+  { name: 'Hot reload', does: 'Save, and live calls run the new code next turn.', limit: 'A bad save keeps the old code.' },
+  { name: 'openrtc top', does: 'Every call live, and which one is blocking.', limit: 'Same host; memory is a shared figure.' },
+  { name: 'Tenants', does: 'Per-tenant keys, caps and a circuit breaker.', limit: 'One process, not a sandbox.' },
+  { name: 'Deploys', does: 'Version tags, drain and audit events.', limit: 'Calls finish on the old version.' },
 ];
 
 const bench = [
@@ -80,26 +61,35 @@ const bench = [
   stars={stars}
 >
   <section class="hero shell">
-    <div class="hero__copy">
-      <h1>Every LiveKit agent, one worker you can see into.</h1>
-      <p class="hero__lede">
-        OpenRTC runs your livekit-agents classes from one pool and routes each call to the right one. Then it shows you
-        what every call is doing, and reloads your code without dropping the conversation.
-      </p>
-      <div class="hero__ctas">
-        <a class="btn btn--primary" href={REPO} rel="noopener">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
-          </svg>
-          Star on GitHub
-          {stars !== null && <span class="btn__count mono">{stars.toLocaleString('en-US')}</span>}
-        </a>
-        <a class="btn" href={`${DOCS}/`}>Read the docs</a>
+    <div class="hero__head">
+      <h1>Run every LiveKit agent. See every call.</h1>
+      <div class="hero__side">
+        <p class="hero__lede">
+          One pool for your livekit-agents classes, a live view of every call, and hot reload that keeps the
+          conversation.
+        </p>
+        <div class="hero__ctas">
+          <a class="btn btn--primary" href={REPO} rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
+            </svg>
+            Star on GitHub
+            {stars !== null && <span class="btn__count mono">{stars.toLocaleString('en-US')}</span>}
+          </a>
+          <a class="btn" href={`${DOCS}/`}>Read the docs</a>
+        </div>
+        <InstallCommand />
       </div>
-      <InstallCommand />
-      <p class="hero__meta">Python 3.11 to 3.13 · livekit-agents 1.5 to 1.8 · MIT</p>
     </div>
     <TopConsole />
+  </section>
+
+  <section class="chapter shell">
+    <div class="head">
+      <h2>One worker, every agent.</h2>
+      <p>Each call is routed to one of your agents: by dispatch metadata, room metadata, or the room's name.</p>
+    </div>
+    <RouteDiagram />
   </section>
 
   <section class="chapter shell">
@@ -125,8 +115,7 @@ const bench = [
 
   <section class="chapter shell">
     <div class="head">
-      <h2>What one pool gives you.</h2>
-      <p>Each feature with the limit that comes with it, because you will hit the limit in production.</p>
+      <h2>What you get, and its limit.</h2>
     </div>
     <dl class="features">
       {

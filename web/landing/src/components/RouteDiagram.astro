@@ -1,0 +1,168 @@
+---
+// Calls in, one worker, agents out. Each call carries the signal that routes it, in the order the
+// routing chain checks them. The connectors are SVG; a dot rides each route once in a while. With
+// reduced motion the dots are hidden and the diagram is complete without them.
+const calls = [
+  { label: 'job metadata', value: '{"agent": "support"}', to: 1 },
+  { label: 'room metadata', value: '{"agent": "sales"}', to: 2 },
+  { label: 'room name', value: 'booking-call-7', to: 0 },
+];
+const agents = ['BookingAgent', 'SupportAgent', 'SalesAgent'];
+// Row centres in a 0..100 box: three rows at 1/6, 3/6, 5/6.
+const y = (i: number) => (100 / 6) * (2 * i + 1);
+---
+
+<figure class="route" aria-label="Three calls enter one OpenRTC worker. Job metadata routes one to SupportAgent, room metadata one to SalesAgent, and the room name booking-call-7 one to BookingAgent.">
+  <ol class="route__col route__calls" aria-hidden="true">
+    {
+      calls.map((c) => (
+        <li class="route__chip">
+          <span class="route__label">{c.label}</span>
+          <code>{c.value}</code>
+        </li>
+      ))
+    }
+  </ol>
+
+  <svg class="route__wire" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    {calls.map((_, i) => <path id={`in-${i}`} d={`M0 ${y(i)} C 55 ${y(i)}, 45 50, 100 50`} />)}
+    {
+      calls.map((_, i) => (
+        <circle class="route__dot" r="1.6">
+          <animateMotion dur="1.4s" begin={`${i * 1.8}s;in${i}.end+4s`} id={`in${i}`} fill="freeze" rotate="auto">
+            <mpath href={`#in-${i}`} />
+          </animateMotion>
+        </circle>
+      ))
+    }
+  </svg>
+
+  <div class="route__worker" aria-hidden="true">
+    <p class="route__title">one OpenRTC worker</p>
+    <ol class="route__chain mono">
+      <li>1 job metadata</li>
+      <li>2 room metadata</li>
+      <li>3 room name prefix</li>
+      <li>4 first agent</li>
+    </ol>
+    <p class="route__prewarm">VAD and turn detector loaded once</p>
+  </div>
+
+  <svg class="route__wire" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    {agents.map((_, i) => <path id={`out-${i}`} d={`M0 50 C 55 50, 45 ${y(i)}, 100 ${y(i)}`} />)}
+    {
+      calls.map((c, i) => (
+        <circle class="route__dot" r="1.6">
+          <animateMotion dur="1.4s" begin={`in${i}.end`} fill="freeze">
+            <mpath href={`#out-${c.to}`} />
+          </animateMotion>
+        </circle>
+      ))
+    }
+  </svg>
+
+  <ol class="route__col route__agents" aria-hidden="true">
+    {agents.map((a) => <li class="route__chip route__agent"><code>{a}</code></li>)}
+  </ol>
+</figure>
+
+<style>
+  .route {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(2.5rem, 0.45fr) minmax(0, 1fr) minmax(2.5rem, 0.45fr) minmax(0, 0.9fr);
+    align-items: stretch;
+    margin: 0;
+  }
+  .route__col {
+    display: grid;
+    grid-template-rows: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .route__chip {
+    display: grid;
+    align-content: center;
+    gap: 0.3rem;
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    background: var(--surface);
+  }
+  .route__chip code {
+    padding: 0;
+    background: none;
+    color: var(--ink);
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+  }
+  .route__label {
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+  .route__agent code {
+    color: var(--accent);
+  }
+  .route__wire {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .route__wire path {
+    fill: none;
+    stroke: var(--line-strong);
+    stroke-width: 1.2;
+    vector-effect: non-scaling-stroke;
+  }
+  .route__dot {
+    fill: var(--accent);
+  }
+  .route__worker {
+    display: grid;
+    align-content: center;
+    gap: 0.9rem;
+    padding: 1.25rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 0.875rem;
+  }
+  .route__title {
+    font-weight: 500;
+  }
+  .route__chain {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--ink-soft);
+    font-size: 0.8125rem;
+  }
+  .route__prewarm {
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.8125rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .route__dot {
+      display: none;
+    }
+  }
+  /* Phones: calls, worker and agents stack; the connectors drop out. */
+  @media (max-width: 48rem) {
+    .route {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.75rem;
+    }
+    .route__wire {
+      display: none;
+    }
+    .route__col {
+      grid-template-rows: none;
+    }
+    .route__worker {
+      margin-block: 0.5rem;
+    }
+  }
+</style>

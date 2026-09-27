@@ -11,9 +11,17 @@ const rows = [
   { id: 'AJ_7d0e', agent: 'booking', tenant: 'initech', dur: 41, cpu: 11, status: 'active' },
 ];
 const WORKER_MB = 1240;
+// What the loop shows, in order. The rail beside the console lights the current beat.
+const beats = [
+  { title: 'A call blocks the loop', body: 'openrtc top flags it slow, so you know which call to look at.' },
+  { title: 'You save the fix', body: 'Hot reload swaps the live booking calls. The conversation carries over.' },
+  { title: 'A new call arrives', body: 'It is routed to its agent in the same worker.' },
+  { title: 'A call ends', body: 'Its session leaves the table; nothing else restarts.' },
+];
 ---
 
-<figure class="console" data-console>
+<div class="story" data-console>
+<figure class="console">
   <div class="console__screen" role="img" aria-label="openrtc top, simulated: live calls in one worker, one call turns slow, a hot reload swaps the booking agent and the call recovers.">
     <div class="console__head" aria-hidden="true">
       <span class="console__title">openrtc top</span>
@@ -57,6 +65,20 @@ const WORKER_MB = 1240;
   </div>
   <figcaption>Simulated <code>openrtc top</code>: the session table, then the worker's log. Sessions and numbers are illustrative.</figcaption>
 </figure>
+<ol class="beats" aria-label="What the console shows">
+  {
+    beats.map((b, i) => (
+      <li data-beat={i} aria-current={i === 0 ? 'step' : undefined}>
+        <span class="beats__n mono">{i + 1}</span>
+        <div>
+          <p class="beats__title">{b.title}</p>
+          <p class="beats__body">{b.body}</p>
+        </div>
+      </li>
+    ))
+  }
+</ol>
+</div>
 
 <script is:inline>
   (function () {
@@ -85,6 +107,13 @@ const WORKER_MB = 1240;
       log.appendChild(li);
       while (log.children.length > 3) log.removeChild(log.firstChild);
     }
+    var beats = root.querySelectorAll('[data-beat]');
+    function beat(n) {
+      beats.forEach(function (li) {
+        if (Number(li.dataset.beat) === n) li.setAttribute('aria-current', 'step');
+        else li.removeAttribute('aria-current');
+      });
+    }
     function row(id) {
       return body.querySelector('[data-id="' + id + '"]');
     }
@@ -105,6 +134,7 @@ const WORKER_MB = 1240;
         body.innerHTML = initial;
         log.innerHTML = initialLog;
         renumber();
+        beat(0);
       }
       body.querySelectorAll('tr').forEach(function (tr) {
         var dur = tr.querySelector('[data-dur]');
@@ -115,10 +145,12 @@ const WORKER_MB = 1240;
         cpu.textContent = base + Math.round(Math.random() * 4);
       });
       if (t === 3) {
+        beat(1);
         setStatus(row('AJ_2c91'), 'active');
         say('<span class="accent">[reload]</span> booking.py changed -&gt; swapped 2 sessions in 11ms');
       }
       if (t === 6) {
+        beat(2);
         var tr = document.createElement('tr');
         tr.dataset.id = 'AJ_c45b';
         tr.className = 'is-new';
@@ -131,6 +163,7 @@ const WORKER_MB = 1240;
         say('session_started support globex');
       }
       if (t === 10) {
+        beat(3);
         var done = row('AJ_8f3a');
         if (done) done.remove();
         renumber();
@@ -154,9 +187,76 @@ const WORKER_MB = 1240;
 <style is:global>
   /* A terminal: dark in both themes, like the capture on the docs. Global (every selector is under
      .console) because the script adds rows Astro's scoped styles would not reach. */
+  .story {
+    display: grid;
+    gap: 1.5rem;
+  }
+  @media (min-width: 64rem) {
+    .story {
+      grid-template-columns: minmax(0, 1fr) 17rem;
+      gap: 2.5rem;
+      align-items: start;
+    }
+  }
   .console {
     margin: 0;
     min-width: 0;
+  }
+  .beats {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .beats li {
+    display: grid;
+    grid-template-columns: 1.9rem minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0.85rem 0.9rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    color: var(--muted);
+    transition:
+      border-color 0.3s var(--ease),
+      background-color 0.3s var(--ease),
+      color 0.3s var(--ease);
+  }
+  .beats li[aria-current='step'] {
+    border-color: var(--line);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .beats__n {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: 0.8125rem;
+  }
+  .beats li[aria-current='step'] .beats__n {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .beats__title {
+    font-weight: 500;
+    line-height: 1.35;
+  }
+  .beats__body {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .beats li:not([aria-current='step']) .beats__body {
+    color: var(--muted);
+  }
+  /* Phones: the rail becomes a compact list under the console. */
+  @media (max-width: 40rem) {
+    .beats li {
+      padding: 0.6rem 0.7rem;
+    }
   }
   .console__screen {
     overflow: hidden;
