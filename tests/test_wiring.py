@@ -134,6 +134,8 @@ async def test_run_session_defers_end_for_held_open_session(monkeypatch) -> None
         llm="l",
         tts="t",
         session_kwargs={},
+        start_options={},
+        on_session_ready=None,
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )
@@ -213,6 +215,8 @@ async def test_run_session_connects_before_starting(monkeypatch) -> None:
         llm="l",
         tts="t",
         session_kwargs={},
+        start_options={},
+        on_session_ready=None,
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )
@@ -297,6 +301,8 @@ async def test_run_session_records_its_pid_for_process_mode_top(
         llm="l",
         tts="t",
         session_kwargs={},
+        start_options={},
+        on_session_ready=None,
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )
@@ -327,3 +333,59 @@ async def test_run_session_records_its_pid_for_process_mode_top(
     await wiring.run_session(state, ctx)
 
     assert (tmp_path / "jobs" / "AJ_1").read_text() == str(os.getpid())
+
+
+@pytest.mark.asyncio
+async def test_run_session_passes_start_options_and_awaits_ready_hook(
+    monkeypatch,
+) -> None:
+    """The ready hook sees the built agent before start; start gets the options."""
+    from openrtc.core import wiring
+
+    calls: list[tuple[str, object]] = []
+    agent = SimpleNamespace()
+
+    async def _ready(session: object, built: object, ctx: object) -> None:
+        calls.append(("ready", built))
+
+    config = SimpleNamespace(
+        name="a",
+        stt="s",
+        llm="l",
+        tts="t",
+        session_kwargs={},
+        start_options={"record": False},
+        on_session_ready=_ready,
+        greeting=None,
+        agent_cls=lambda: agent,
+    )
+    monkeypatch.setattr(
+        wiring, "_resolve_agent_config", lambda agents, ctx, *, router=None: config
+    )
+    monkeypatch.setattr(wiring, "_build_session_kwargs", lambda kw, proc, ie=None: {})
+
+    class _FakeSession:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        async def start(self, **kwargs: object) -> None:
+            calls.append(("start", kwargs))
+
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
+
+    async def _connect() -> None:
+        return None
+
+    ctx = SimpleNamespace(
+        proc=SimpleNamespace(userdata={"vad": "VAD"}),
+        room=SimpleNamespace(name="a-1", metadata=None),
+        job=SimpleNamespace(id="j", metadata=None),
+        connect=_connect,
+    )
+
+    await wiring.run_session(_PoolRuntimeState(agents={"a": config}), ctx)
+
+    assert calls == [
+        ("ready", agent),
+        ("start", {"agent": agent, "room": ctx.room, "record": False}),
+    ]

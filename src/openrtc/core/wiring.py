@@ -185,10 +185,10 @@ async def run_session(
         # participant before connecting". connect() is idempotent, so start()'s
         # own internal connect is a no-op.
         await ctx.connect()
-        await session.start(
-            agent=config.agent_cls(),  # type: ignore[call-arg]
-            room=ctx.room,
-        )
+        agent = config.agent_cls()  # type: ignore[call-arg]
+        if config.on_session_ready is not None:
+            await config.on_session_ready(session, agent, ctx)
+        await session.start(agent=agent, room=ctx.room, **config.start_options)
         await _notify_session_start(
             runtime_state.observers,
             info,

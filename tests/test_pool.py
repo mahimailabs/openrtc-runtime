@@ -522,6 +522,40 @@ def test_agent_config_is_pickleable_with_openai_provider_objects(
     assert restored.tts.__class__.__module__ == "livekit.plugins.openai.tts"
 
 
+async def _ready_hook(session: object, agent: object, ctx: object) -> None:
+    return None
+
+
+def test_add_keeps_start_options_and_ready_hook_across_pickle() -> None:
+    pool = AgentPool()
+
+    config = pool.add(
+        "test",
+        DemoAgent,
+        start_options={"record": False},
+        on_session_ready=_ready_hook,
+        max_tool_steps=3,
+    )
+
+    restored = pickle.loads(pickle.dumps(config))
+
+    assert restored.start_options == {"record": False}
+    assert restored.on_session_ready is _ready_hook
+    assert restored.session_kwargs == {"max_tool_steps": 3}
+
+
+def test_agent_config_restores_state_pickled_before_start_options() -> None:
+    config = AgentPool().add("test", DemoAgent)
+    state = config.__getstate__()
+    del state["start_options"], state["on_session_ready"]
+
+    restored = object.__new__(type(config))
+    restored.__setstate__(state)
+
+    assert restored.start_options == {}
+    assert restored.on_session_ready is None
+
+
 def test_generic_livekit_plugin_with_opts_is_accepted() -> None:
     """Non-OpenAI livekit plugins with ``_opts`` should serialize via the generic path."""
 

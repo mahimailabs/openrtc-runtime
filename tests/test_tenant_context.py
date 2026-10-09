@@ -113,6 +113,8 @@ async def test_run_session_binds_tenant_and_sets_session_attr(
         llm="l",
         tts="t",
         session_kwargs={},
+        start_options={},
+        on_session_ready=None,
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )
