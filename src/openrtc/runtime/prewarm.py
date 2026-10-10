@@ -30,7 +30,12 @@ def _prewarm_worker(
     """Load shared runtime assets into ``proc.userdata`` once per worker."""
     if not runtime_state.agents:
         raise RuntimeError("Register at least one agent before calling run().")
-    silero_module, turn_detector_model = _load_shared_runtime_dependencies()
+    if runtime_state.turn_detector:
+        silero_module, turn_detector_model = _load_shared_runtime_dependencies()
+    else:
+        from livekit.plugins import silero as silero_module
+
+        turn_detector_model = None
     PrewarmResources(
         vad=silero_module.VAD.load(),
         turn_detection_factory=turn_detector_model,

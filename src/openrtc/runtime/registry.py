@@ -35,6 +35,9 @@ class ServerParams:
     # The worker's HTTP (health) port. None keeps livekit's default: 8081 under
     # ``start``, a free port under ``dev``.
     port: int | None = None
+    # Load LiveKit's multilingual turn detector (its inference process costs
+    # roughly 250 MB). False keeps VAD turn detection and starts no process.
+    turn_detector: bool = True
 
     def port_kwargs(self) -> PortKwargs:
         """``{"port": port}`` when one is set, else nothing (livekit's default)."""

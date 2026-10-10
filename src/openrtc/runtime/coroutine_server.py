@@ -35,6 +35,8 @@ logger = logging.getLogger("openrtc.runtime.coroutine_server")
 class _CoroutineAgentServer(AgentServer):
     """``AgentServer`` that constructs a ``CoroutinePool`` instead of ``ProcPool``."""
 
+    turn_detector: bool = True
+
     def __init__(
         self,
         *args: Any,
@@ -178,10 +180,11 @@ class _CoroutineAgentServer(AgentServer):
         # (prewarm), so the lazy import inside _prewarm_worker is too late.
         # Importing MultilingualModel here registers the runner as a side effect,
         # mirroring how standard livekit-agents users import at the top level.
-        with contextlib.suppress(Exception):
-            from livekit.plugins.turn_detector.multilingual import (  # noqa: F401
-                MultilingualModel as _M,
-            )
+        if self.turn_detector:
+            with contextlib.suppress(Exception):
+                from livekit.plugins.turn_detector.multilingual import (  # noqa: F401
+                    MultilingualModel as _M,
+                )
         async with self._reload_watching(), self._patched_proc_pool_async():
             await super().run(devmode=devmode, unregistered=unregistered)
 
@@ -194,7 +197,7 @@ class _CoroutineAgentServer(AgentServer):
 
 def build_server(params: ServerParams) -> _CoroutineAgentServer:
     """Build the coroutine-mode server from shared worker params."""
-    return _CoroutineAgentServer(
+    server = _CoroutineAgentServer(
         max_concurrent_sessions=params.max_concurrent_sessions,
         consecutive_failure_limit=params.consecutive_failure_limit,
         drain_timeout=params.drain_timeout,
@@ -202,3 +205,5 @@ def build_server(params: ServerParams) -> _CoroutineAgentServer:
         job_memory_limit_mb=params.memory_limit_mb,
         **params.port_kwargs(),
     )
+    server.turn_detector = params.turn_detector
+    return server

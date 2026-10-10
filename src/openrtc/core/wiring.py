@@ -77,6 +77,8 @@ class _PoolRuntimeState:
     # Process-mode ``openrtc top`` (None when off): each job process writes its
     # pid here, under its job id, so the worker can read its memory and CPU.
     job_pid_dir: str | None = None
+    # False skips the multilingual turn detector in prewarm (VAD turns only).
+    turn_detector: bool = True
 
 
 def build_session(

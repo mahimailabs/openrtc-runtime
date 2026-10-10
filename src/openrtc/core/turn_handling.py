@@ -79,7 +79,10 @@ def _default_turn_handling(
 
 def _default_turn_detection(proc: JobProcess, inference_executor: Any = None) -> Any:
     if _supports_multilingual_turn_detection(inference_executor):
-        return PrewarmResources.turn_detection_factory_from(proc)()
+        # None when the pool was built with turn_detector=False.
+        factory = PrewarmResources.turn_detection_factory_from(proc)
+        if factory is not None:
+            return factory()
 
     logger.info(
         "Falling back to VAD turn detection because no usable inference executor "

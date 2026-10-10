@@ -25,7 +25,7 @@ pool.discover(Path("./agents"))   # one module per agent, optional @agent_config
 
 Without `@agent_config`, a discovered agent's name is its file name. Provider slots take a plugin object or a provider string and pass it to `AgentSession` as is. `agents={"name": Class}` and the one-agent shorthand `agent=Class` register at construction.
 
-Silero VAD and the turn detector load once when the worker starts, not once per call. Define agent classes and `on_session_ready` hooks at module scope: in `process` isolation the registration is pickled into each job process.
+Silero VAD and the turn detector load once when the worker starts, not once per call. `AgentPool(turn_detector=False)` skips the turn detector and its inference process (about 250 MB) on memory-tight hosts; sessions then detect turns with VAD unless their `turn_handling` says otherwise. Define agent classes and `on_session_ready` hooks at module scope: in `process` isolation the registration is pickled into each job process.
 
 ## Routing
 
