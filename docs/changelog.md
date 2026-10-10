@@ -7,6 +7,10 @@ description: Every change to OpenRTC, newest first, with migration notes. Releas
 
 Changes that have landed on `main` but have not yet been tagged for release.
 
+### Added
+
+- **Start options and a pre-start hook per agent.** `pool.add(..., start_options={...})` forwards keyword arguments to `AgentSession.start` (for example `record=False` or `room_options=RoomOptions(text_input=False)`). `pool.add(..., on_session_ready=hook)` awaits `hook(session, agent, ctx)` after the room connects and before the session starts, for setup such as starting an avatar. Both default to the previous behavior.
+
 ---
 
 <!-- releases -->

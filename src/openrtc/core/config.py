@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -17,7 +17,12 @@ from openrtc.core.serialization import (
 from openrtc.utils.types import ProviderValue
 
 if TYPE_CHECKING:
-    from livekit.agents import Agent
+    from livekit.agents import Agent, AgentSession, JobContext
+
+SessionReadyHook = Callable[
+    ["AgentSession[Any]", "Agent", "JobContext"], Awaitable[None]
+]
+"""Awaited after the agent is built and the room is connected, before ``session.start``."""
 
 # The decorated livekit ``Agent`` class is returned unchanged (a bare ``setattr``).
 _AgentType = TypeVar("_AgentType")
@@ -50,6 +55,12 @@ class AgentConfig:
         tts: Text-to-speech provider string or provider instance.
         greeting: Optional initial greeting played after the session connects.
         session_kwargs: Additional keyword arguments forwarded to ``AgentSession``.
+        start_options: Additional keyword arguments forwarded to ``AgentSession.start``
+            (for example ``record=False`` or ``room_options=RoomOptions(...)``).
+        on_session_ready: Optional coroutine function awaited with
+            ``(session, agent, ctx)`` after the agent is built and the room is
+            connected, before ``session.start``. Under process isolation it must be
+            picklable (a module-level function).
         source_path: When known (e.g. after discovery), filesystem path to the agent
             module ``.py`` file; ``None`` when unknown (e.g. programmatic ``add()`` without path).
     """
@@ -62,6 +73,8 @@ class AgentConfig:
     greeting: str | None = None
     session_kwargs: dict[str, Any] = field(default_factory=dict)
     source_path: Path | None = None
+    start_options: dict[str, Any] = field(default_factory=dict)
+    on_session_ready: SessionReadyHook | None = None
     _agent_ref: _AgentClassRef = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -78,6 +91,8 @@ class AgentConfig:
             "tts": _serialize_provider_value(self.tts),
             "greeting": self.greeting,
             "session_kwargs": dict(self.session_kwargs),
+            "start_options": dict(self.start_options),
+            "on_session_ready": self.on_session_ready,
             "agent_ref": self._agent_ref,
             "source_path": (
                 None if self.source_path is None else str(self.source_path.resolve())
@@ -91,6 +106,8 @@ class AgentConfig:
         self.tts = _deserialize_provider_value(state["tts"])
         self.greeting = state["greeting"]
         self.session_kwargs = dict(state["session_kwargs"])
+        self.start_options = dict(state.get("start_options", {}))
+        self.on_session_ready = state.get("on_session_ready")
         self._agent_ref = state["agent_ref"]
         raw_source = state.get("source_path")
         self.source_path = None if raw_source is None else Path(str(raw_source))

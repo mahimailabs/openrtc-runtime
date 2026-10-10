@@ -12,6 +12,7 @@ from openrtc.core.circuit_breaker import TenantCircuitBreaker
 from openrtc.core.config import (
     AgentConfig,
     AgentDiscoveryConfig,
+    SessionReadyHook,
     _resolve_discovery_metadata,
     agent_config,
 )
@@ -616,6 +617,8 @@ class AgentPool:
         greeting: str | None = None,
         session_kwargs: Mapping[str, Any] | None = None,
         source_path: Path | str | None = None,
+        start_options: Mapping[str, Any] | None = None,
+        on_session_ready: SessionReadyHook | None = None,
         **session_options: Any,
     ) -> AgentConfig:
         """Register a ``livekit.agents.Agent`` subclass and return its configuration."""
@@ -645,6 +648,8 @@ class AgentPool:
                 direct_session_kwargs=session_options,
             ),
             source_path=resolved_source,
+            start_options=dict(start_options or {}),
+            on_session_ready=on_session_ready,
         )
         self._agents[normalized_name] = config
         logger.debug("Registered agent '%s'.", normalized_name)
