@@ -18,6 +18,7 @@ class _ProcessAgentServer(AgentServer):
     """livekit's stock server, plus the ``openrtc top`` socket around ``run()``."""
 
     _openrtc_top: ProcessIntrospectionRuntime | None = None
+    turn_detector: bool = True
 
     def attach_introspection(self, runtime: ProcessIntrospectionRuntime) -> None:
         """Serve ``openrtc top`` while the worker runs."""
@@ -28,10 +29,11 @@ class _ProcessAgentServer(AgentServer):
         # whether to start its inference process: livekit checks the registered
         # runners before prewarm runs, so without this import every turn fails
         # with "no inference executor" (same fix as the coroutine server).
-        with contextlib.suppress(Exception):
-            from livekit.plugins.turn_detector.multilingual import (  # noqa: F401
-                MultilingualModel as _M,
-            )
+        if self.turn_detector:
+            with contextlib.suppress(Exception):
+                from livekit.plugins.turn_detector.multilingual import (  # noqa: F401
+                    MultilingualModel as _M,
+                )
         top = self._openrtc_top
         if top is None:
             await super().run(devmode=devmode, unregistered=unregistered)
@@ -48,9 +50,11 @@ def build_server(params: ServerParams) -> AgentServer:
 
     livekit enforces ``job_memory_*_mb`` per subprocess natively in this mode.
     """
-    return _ProcessAgentServer(
+    server = _ProcessAgentServer(
         drain_timeout=params.drain_timeout,
         job_memory_warn_mb=params.memory_warn_mb,
         job_memory_limit_mb=params.memory_limit_mb,
         **params.port_kwargs(),
     )
+    server.turn_detector = params.turn_detector
+    return server

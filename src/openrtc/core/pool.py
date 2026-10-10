@@ -110,6 +110,7 @@ class AgentPool:
         introspection_socket_path: Path | None = None,
         deployment_version: str | None = None,
         audit_sink: AuditSink | None = None,
+        turn_detector: bool = True,
     ) -> None:
         """Create a pool with shared provider defaults, prewarm, and a universal entrypoint.
 
@@ -198,6 +199,11 @@ class AgentPool:
         are the deployment platform's job (a rolling update / LiveKit worker
         rotation). See the deployment guide.
 
+        ``turn_detector=False`` skips the multilingual turn detector: the worker
+        neither imports it nor starts livekit's inference process for it (roughly
+        250 MB), and sessions without their own ``turn_handling`` fall back to VAD
+        turn detection. Use it on memory-tight hosts.
+
         ``memory_warn_mb`` / ``memory_limit_mb`` set worker memory watermarks in
         MB (``0`` disables a band; defaults mirror livekit: warn 1000, limit 0).
         In ``process`` isolation livekit enforces them per subprocess natively.
@@ -240,6 +246,7 @@ class AgentPool:
         self._backend_name = backend
         self._isolation: IsolationMode = isolation
         self._enable_uvloop = enable_uvloop
+        self._turn_detector = turn_detector
         self._port = _resolve_port(port)
         self._max_concurrent_sessions = require_positive_int(
             "max_concurrent_sessions", max_concurrent_sessions
@@ -291,6 +298,7 @@ class AgentPool:
         self._agents: dict[str, AgentConfig] = {}
         self._runtime_state = _PoolRuntimeState(
             agents=self._agents,
+            turn_detector=turn_detector,
             observer_timeout=float(self._drain_timeout),
             router=router,
             tenant_resolver=(
@@ -408,6 +416,7 @@ class AgentPool:
             memory_warn_mb=self._memory_warn_mb,
             memory_limit_mb=self._memory_limit_mb,
             port=self._port,
+            turn_detector=self._turn_detector,
         )
 
     def _setup_introspection(
