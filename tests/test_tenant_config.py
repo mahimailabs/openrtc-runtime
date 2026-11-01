@@ -91,6 +91,7 @@ def _build_env(monkeypatch: pytest.MonkeyPatch, resolver: TenantConfigResolver) 
         session_kwargs={},
         start_options={},
         on_session_ready=None,
+        agent_factory=None,
     )
     monkeypatch.setattr(
         wiring, "_resolve_agent_config", lambda agents, ctx, *, router=None: config

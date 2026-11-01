@@ -136,6 +136,7 @@ async def test_run_session_defers_end_for_held_open_session(monkeypatch) -> None
         session_kwargs={},
         start_options={},
         on_session_ready=None,
+        agent_factory=None,
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )
@@ -217,6 +218,7 @@ async def test_run_session_connects_before_starting(monkeypatch) -> None:
         session_kwargs={},
         start_options={},
         on_session_ready=None,
+        agent_factory=None,
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )
@@ -303,6 +305,7 @@ async def test_run_session_records_its_pid_for_process_mode_top(
         session_kwargs={},
         start_options={},
         on_session_ready=None,
+        agent_factory=None,
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )
@@ -356,6 +359,7 @@ async def test_run_session_passes_start_options_and_awaits_ready_hook(
         session_kwargs={},
         start_options={"record": False},
         on_session_ready=_ready,
+        agent_factory=None,
         greeting=None,
         agent_cls=lambda: agent,
     )
@@ -389,3 +393,100 @@ async def test_run_session_passes_start_options_and_awaits_ready_hook(
         ("ready", agent),
         ("start", {"agent": agent, "room": ctx.room, "record": False}),
     ]
+
+
+def _factory_ctx(metadata: str | None) -> SimpleNamespace:
+    async def _connect() -> None:
+        return None
+
+    return SimpleNamespace(
+        proc=SimpleNamespace(userdata={"vad": "VAD"}),
+        room=SimpleNamespace(name="a-1", metadata=None),
+        job=SimpleNamespace(id="j", metadata=metadata),
+        connect=_connect,
+    )
+
+
+def _factory_config(factory: object) -> SimpleNamespace:
+    def _never() -> None:
+        raise AssertionError("agent_cls must not be called when a factory is set")
+
+    return SimpleNamespace(
+        name="a",
+        stt="s",
+        llm="l",
+        tts="t",
+        session_kwargs={},
+        start_options={},
+        on_session_ready=None,
+        agent_factory=factory,
+        greeting=None,
+        agent_cls=_never,
+    )
+
+
+def _patch_session(monkeypatch, started: list[object]) -> None:
+    from openrtc.core import wiring
+
+    monkeypatch.setattr(wiring, "_build_session_kwargs", lambda kw, proc, ie=None: {})
+
+    class _FakeSession:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        async def start(self, **kwargs: object) -> None:
+            started.append(kwargs["agent"])
+
+    monkeypatch.setattr("livekit.agents.AgentSession", _FakeSession)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_async", [False, True])
+async def test_run_session_builds_agent_from_factory(monkeypatch, is_async) -> None:
+    """agent_factory(ctx) builds the call's agent, sync or async, from job metadata."""
+    from livekit.agents import Agent
+
+    from openrtc.core import wiring
+
+    seen: list[object] = []
+
+    def _build(ctx: object) -> Agent:
+        seen.append(ctx)
+        return Agent(instructions=ctx.job.metadata)  # type: ignore[attr-defined]
+
+    async def _build_async(ctx: object) -> Agent:
+        return _build(ctx)
+
+    config = _factory_config(_build_async if is_async else _build)
+    monkeypatch.setattr(
+        wiring, "_resolve_agent_config", lambda agents, ctx, *, router=None: config
+    )
+    started: list[object] = []
+    _patch_session(monkeypatch, started)
+    ctx = _factory_ctx("be brief")
+
+    await wiring.run_session(_PoolRuntimeState(agents={"a": config}), ctx)
+
+    assert seen == [ctx]
+    assert len(started) == 1
+    assert isinstance(started[0], Agent)
+    assert started[0].instructions == "be brief"
+
+
+@pytest.mark.asyncio
+async def test_run_session_rejects_factory_returning_non_agent(monkeypatch) -> None:
+    """A factory that returns something other than an Agent fails the session."""
+    from openrtc.core import wiring
+
+    config = _factory_config(lambda ctx: "not an agent")
+    monkeypatch.setattr(
+        wiring, "_resolve_agent_config", lambda agents, ctx, *, router=None: config
+    )
+    started: list[object] = []
+    _patch_session(monkeypatch, started)
+    state = _PoolRuntimeState(agents={"a": config})
+
+    with pytest.raises(TypeError, match="must return a livekit.agents.Agent"):
+        await wiring.run_session(state, _factory_ctx(None))
+
+    assert started == []

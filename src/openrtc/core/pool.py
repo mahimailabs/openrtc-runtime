@@ -12,6 +12,7 @@ from openrtc.core.circuit_breaker import TenantCircuitBreaker
 from openrtc.core.config import (
     AgentConfig,
     AgentDiscoveryConfig,
+    AgentFactory,
     SessionReadyHook,
     _resolve_discovery_metadata,
     agent_config,
@@ -628,6 +629,7 @@ class AgentPool:
         source_path: Path | str | None = None,
         start_options: Mapping[str, Any] | None = None,
         on_session_ready: SessionReadyHook | None = None,
+        agent_factory: AgentFactory | None = None,
         **session_options: Any,
     ) -> AgentConfig:
         """Register a ``livekit.agents.Agent`` subclass and return its configuration."""
@@ -638,6 +640,8 @@ class AgentPool:
             raise ValueError(f"Agent '{normalized_name}' is already registered.")
         if not isinstance(agent_cls, type) or not issubclass(agent_cls, Agent):
             raise TypeError("agent_cls must be a subclass of livekit.agents.Agent.")
+        if agent_factory is not None and not callable(agent_factory):
+            raise TypeError("agent_factory must be callable.")
 
         resolved_source: Path | None
         if source_path is None:
@@ -659,6 +663,7 @@ class AgentPool:
             source_path=resolved_source,
             start_options=dict(start_options or {}),
             on_session_ready=on_session_ready,
+            agent_factory=agent_factory,
         )
         self._agents[normalized_name] = config
         logger.debug("Registered agent '%s'.", normalized_name)

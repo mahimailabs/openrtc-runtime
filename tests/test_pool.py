@@ -544,16 +544,34 @@ def test_add_keeps_start_options_and_ready_hook_across_pickle() -> None:
     assert restored.session_kwargs == {"max_tool_steps": 3}
 
 
+def _agent_factory(ctx: object) -> object:
+    return DemoAgent()
+
+
+def test_add_keeps_agent_factory_across_pickle() -> None:
+    config = AgentPool().add("test", DemoAgent, agent_factory=_agent_factory)
+
+    restored = pickle.loads(pickle.dumps(config))
+
+    assert restored.agent_factory is _agent_factory
+
+
+def test_add_rejects_non_callable_agent_factory() -> None:
+    with pytest.raises(TypeError, match="agent_factory must be callable"):
+        AgentPool().add("test", DemoAgent, agent_factory="nope")  # type: ignore[arg-type]
+
+
 def test_agent_config_restores_state_pickled_before_start_options() -> None:
     config = AgentPool().add("test", DemoAgent)
     state = config.__getstate__()
-    del state["start_options"], state["on_session_ready"]
+    del state["start_options"], state["on_session_ready"], state["agent_factory"]
 
     restored = object.__new__(type(config))
     restored.__setstate__(state)
 
     assert restored.start_options == {}
     assert restored.on_session_ready is None
+    assert restored.agent_factory is None
 
 
 def test_generic_livekit_plugin_with_opts_is_accepted() -> None:
