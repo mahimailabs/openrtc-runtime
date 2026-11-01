@@ -17,6 +17,22 @@ Changes that have landed on `main` but have not yet been tagged for release.
 
 <!-- releases -->
 
+## [0.21.0] - 2026-11-01
+
+A minor release: one registration can now build a different agent per call, a pool can skip the multilingual turn detector, and each agent takes start options and a pre-start hook. All additive, no migration needed: `pip install -U "openrtc[livekit,cli]"`.
+
+### Added
+
+- **Per-call agents.** `pool.add(..., agent_factory=build)` calls `build(ctx)` for each call (sync or async) and starts the `Agent` it returns, instead of `agent_cls()`. One registration can serve many variants whose instructions, tools and greeting come from dispatch metadata or a config store. Defaults to `None`, the previous behavior, and survives process-mode pickling.
+- **`AgentPool(turn_detector=False)`.** Skips the multilingual turn detector: the worker no longer imports it or starts livekit's inference process for it (about 250 MB), and sessions fall back to VAD turn detection. Defaults to `True`, the previous behavior.
+- **Start options and a pre-start hook per agent.** `pool.add(..., start_options={...})` forwards keyword arguments to `AgentSession.start` (for example `record=False` or `room_options=RoomOptions(text_input=False)`). `pool.add(..., on_session_ready=hook)` awaits `hook(session, agent, ctx)` after the room connects and before the session starts, for setup such as starting an avatar. Both default to the previous behavior.
+
+### Documentation
+
+- The README badges and cover share one palette, with a light variant.
+
+---
+
 ## [0.20.1] - 2026-09-27
 
 A patch release: the runtime flags on `openrtc start`, `dev` and `console` work again, the worker commands take `--port`, and coding agents can install OpenRTC skills. No migration needed: `pip install -U "openrtc[livekit,cli]"`.
