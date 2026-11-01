@@ -24,6 +24,9 @@ SessionReadyHook = Callable[
 ]
 """Awaited after the agent is built and the room is connected, before ``session.start``."""
 
+AgentFactory = Callable[["JobContext"], "Agent | Awaitable[Agent]"]
+"""Builds the call's ``Agent`` from its ``JobContext`` (sync or async)."""
+
 # The decorated livekit ``Agent`` class is returned unchanged (a bare ``setattr``).
 _AgentType = TypeVar("_AgentType")
 _AGENT_METADATA_ATTR = "__openrtc_agent_config__"
@@ -61,6 +64,11 @@ class AgentConfig:
             ``(session, agent, ctx)`` after the agent is built and the room is
             connected, before ``session.start``. Under process isolation it must be
             picklable (a module-level function).
+        agent_factory: Optional callable that builds the call's agent from its
+            ``JobContext`` (it may be a coroutine function) instead of calling
+            ``agent_cls()``. Use it to read per-call instructions, tools or a
+            greeting from dispatch metadata. Under process isolation it must be
+            picklable (a module-level function).
         source_path: When known (e.g. after discovery), filesystem path to the agent
             module ``.py`` file; ``None`` when unknown (e.g. programmatic ``add()`` without path).
     """
@@ -75,6 +83,7 @@ class AgentConfig:
     source_path: Path | None = None
     start_options: dict[str, Any] = field(default_factory=dict)
     on_session_ready: SessionReadyHook | None = None
+    agent_factory: AgentFactory | None = None
     _agent_ref: _AgentClassRef = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -93,6 +102,7 @@ class AgentConfig:
             "session_kwargs": dict(self.session_kwargs),
             "start_options": dict(self.start_options),
             "on_session_ready": self.on_session_ready,
+            "agent_factory": self.agent_factory,
             "agent_ref": self._agent_ref,
             "source_path": (
                 None if self.source_path is None else str(self.source_path.resolve())
@@ -108,6 +118,7 @@ class AgentConfig:
         self.session_kwargs = dict(state["session_kwargs"])
         self.start_options = dict(state.get("start_options", {}))
         self.on_session_ready = state.get("on_session_ready")
+        self.agent_factory = state.get("agent_factory")
         self._agent_ref = state["agent_ref"]
         raw_source = state.get("source_path")
         self.source_path = None if raw_source is None else Path(str(raw_source))

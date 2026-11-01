@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import inspect
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -35,7 +36,7 @@ from openrtc.runtime.prewarm import _prewarm_worker
 from openrtc.runtime.resources import PrewarmResources
 
 if TYPE_CHECKING:
-    from livekit.agents import AgentSession, JobContext
+    from livekit.agents import Agent, AgentSession, JobContext
 
     from openrtc.core.circuit_breaker import TenantCircuitBreaker
     from openrtc.core.tenant_config import TenantConfigResolver
@@ -123,6 +124,23 @@ def build_session(
     return session, config, info
 
 
+async def _build_agent(config: AgentConfig, ctx: JobContext) -> Agent:
+    """Build the call's agent: ``agent_factory(ctx)`` when set, else ``agent_cls()``."""
+    if config.agent_factory is None:
+        return config.agent_cls()  # type: ignore[call-arg]
+    from livekit.agents import Agent
+
+    built = config.agent_factory(ctx)
+    if inspect.isawaitable(built):
+        built = await built
+    if not isinstance(built, Agent):
+        raise TypeError(
+            f"agent_factory for '{config.name}' must return a livekit.agents.Agent, "
+            f"got {type(built).__name__}."
+        )
+    return built
+
+
 async def _finish_session(
     runtime_state: _PoolRuntimeState,
     info: SessionInfo,
@@ -187,7 +205,7 @@ async def run_session(
         # participant before connecting". connect() is idempotent, so start()'s
         # own internal connect is a no-op.
         await ctx.connect()
-        agent = config.agent_cls()  # type: ignore[call-arg]
+        agent = await _build_agent(config, ctx)
         if config.on_session_ready is not None:
             await config.on_session_ready(session, agent, ctx)
         await session.start(agent=agent, room=ctx.room, **config.start_options)

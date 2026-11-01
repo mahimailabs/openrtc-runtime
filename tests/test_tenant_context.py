@@ -115,6 +115,7 @@ async def test_run_session_binds_tenant_and_sets_session_attr(
         session_kwargs={},
         start_options={},
         on_session_ready=None,
+        agent_factory=None,
         greeting=None,
         agent_cls=lambda: SimpleNamespace(),
     )

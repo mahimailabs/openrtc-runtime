@@ -22,10 +22,31 @@ pool.discover(Path("./agents"))   # one module per agent, optional @agent_config
 | turn handling | `session_kwargs` | OpenRTC's default: the multilingual turn detector with VAD interruption |
 | `AgentSession.start` options (`record`, `room_options`) | `add(..., start_options=)` | livekit's default |
 | setup before the call starts | `add(..., on_session_ready=)`: awaited with `(session, agent, ctx)` once the room is connected | nothing |
+| the agent itself, per call | `add(..., agent_factory=)`: called with `ctx` (sync or async), returns the `Agent` for this call | `agent_cls()` |
 
 Without `@agent_config`, a discovered agent's name is its file name. Provider slots take a plugin object or a provider string and pass it to `AgentSession` as is. `agents={"name": Class}` and the one-agent shorthand `agent=Class` register at construction.
 
-Silero VAD and the turn detector load once when the worker starts, not once per call. `AgentPool(turn_detector=False)` skips the turn detector and its inference process (about 250 MB) on memory-tight hosts; sessions then detect turns with VAD unless their `turn_handling` says otherwise. Define agent classes and `on_session_ready` hooks at module scope: in `process` isolation the registration is pickled into each job process.
+Silero VAD and the turn detector load once when the worker starts, not once per call. `AgentPool(turn_detector=False)` skips the turn detector and its inference process (about 250 MB) on memory-tight hosts; sessions then detect turns with VAD unless their `turn_handling` says otherwise. `agent_factory` builds the agent from the call, for one config-driven agent that takes its instructions, tools and greeting from dispatch metadata instead of one class per variant:
+
+```python
+class ConfiguredAgent(Agent):
+    def __init__(self, cfg: dict) -> None:
+        super().__init__(instructions=cfg["prompt"], tools=build_tools(cfg["tools"]))
+        self._greeting = cfg.get("greeting")
+
+    async def on_enter(self) -> None:
+        if self._greeting:
+            self.session.generate_reply(instructions=self._greeting)
+
+async def build_agent(ctx: JobContext) -> Agent:
+    return ConfiguredAgent(await load_config(json.loads(ctx.job.metadata)["config_id"]))
+
+pool.add("demo", ConfiguredAgent, agent_factory=build_agent)
+```
+
+`agent_cls` still names the class for `openrtc list` and hot reload; the factory must return a `livekit.agents.Agent`. Per-call providers stay with `tenant_config`.
+
+Define agent classes, `on_session_ready` hooks and agent factories at module scope: in `process` isolation the registration is pickled into each job process.
 
 ## Routing
 
